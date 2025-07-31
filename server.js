@@ -19,7 +19,7 @@ app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
 });
 
-// Report view route
+// Analysis view route
 app.get('/reports/:reportId', (req, res) => {
   res.sendFile(__dirname + '/public/report.html');
 });
@@ -275,7 +275,7 @@ app.post('/api/reports/create', async (req, res) => {
     
     res.status(201).json({
       success: true,
-      message: 'Report created successfully',
+      message: 'Area analysis created successfully',
       reportId: result.reportId,
       reportUrl: result.reportUrl,
       createdAt: result.createdAt
