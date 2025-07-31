@@ -4,355 +4,90 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Area Analysis Generator</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #1e3a8a 0%, #374151 50%, #6b7280 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            overflow-x: hidden;
-        }
-
-        /* Animated background elements */
-        body::before {
-            content: '';
-            position: fixed;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle at 20% 50%, rgba(30, 58, 138, 0.3) 0%, transparent 50%),
-                        radial-gradient(circle at 80% 20%, rgba(55, 65, 81, 0.3) 0%, transparent 50%),
-                        radial-gradient(circle at 40% 80%, rgba(107, 114, 128, 0.3) 0%, transparent 50%);
-            animation: float 20s ease-in-out infinite;
-            z-index: -1;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translate(0px, 0px) rotate(0deg); }
-            33% { transform: translate(30px, -30px) rotate(120deg); }
-            66% { transform: translate(-20px, 20px) rotate(240deg); }
-        }
-
-        .container {
-            /* Glassmorphism effect */
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 24px;
-            box-shadow: 
-                0 8px 32px rgba(0, 0, 0, 0.1),
-                inset 0 1px 0 rgba(255, 255, 255, 0.4);
-            padding: 50px;
-            max-width: 520px;
-            width: 100%;
-            position: relative;
-            overflow: hidden;
-        }
-
-        /* Subtle inner glow */
-        .container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
-        .header h1 {
-            color: rgba(255, 255, 255, 0.95);
-            font-size: 2.8em;
-            font-weight: 700;
-            margin-bottom: 12px;
-            text-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
-            letter-spacing: -0.02em;
-        }
-
-        .header p {
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 1.2em;
-            font-weight: 400;
-        }
-
-        .form-group {
-            margin-bottom: 24px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 10px;
-            color: rgba(255, 255, 255, 0.9);
-            font-weight: 500;
-            font-size: 0.95em;
-            letter-spacing: 0.01em;
-        }
-
-        input[type="text"] {
-            width: 100%;
-            padding: 16px 20px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 16px;
-            font-size: 1em;
-            font-weight: 400;
-            color: rgba(255, 255, 255, 0.95);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            font-family: inherit;
-        }
-
-        input[type="text"]::placeholder {
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        input[type="text"]:focus {
-            outline: none;
-            background: rgba(255, 255, 255, 0.15);
-            border-color: rgba(255, 255, 255, 0.4);
-            box-shadow: 
-                0 0 0 1px rgba(255, 255, 255, 0.1),
-                0 8px 25px rgba(0, 0, 0, 0.1);
-            transform: translateY(-1px);
-        }
-
-        .submit-btn {
-            width: 100%;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            color: rgba(255, 255, 255, 0.95);
-            padding: 18px 24px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 16px;
-            font-size: 1.1em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-            margin-top: 12px;
-        }
-
-        .submit-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.5s;
-        }
-
-        .submit-btn:hover::before {
-            left: 100%;
-        }
-
-        .submit-btn:hover {
-            transform: translateY(-2px);
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.15) 100%);
-            border-color: rgba(255, 255, 255, 0.4);
-            box-shadow: 
-                0 8px 25px rgba(0, 0, 0, 0.15),
-                inset 0 1px 0 rgba(255, 255, 255, 0.4);
-        }
-
-        .submit-btn:active {
-            transform: translateY(0);
-        }
-
-        .submit-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .message {
-            margin-top: 24px;
-            padding: 16px 20px;
-            border-radius: 16px;
-            text-align: center;
-            font-weight: 500;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-        }
-
-        .message.success {
-            background: rgba(34, 197, 94, 0.15);
-            color: rgba(255, 255, 255, 0.95);
-            border: 1px solid rgba(34, 197, 94, 0.3);
-        }
-
-        .message.error {
-            background: rgba(239, 68, 68, 0.15);
-            color: rgba(255, 255, 255, 0.95);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-        }
-
-        .loading {
-            display: none;
-            text-align: center;
-            margin-top: 24px;
-        }
-
-        .loading p {
-            color: rgba(255, 255, 255, 0.8);
-            margin-top: 16px;
-            font-weight: 500;
-        }
-
-        .spinner {
-            border: 3px solid rgba(255, 255, 255, 0.2);
-            border-top: 3px solid rgba(255, 255, 255, 0.8);
-            border-radius: 50%;
-            width: 36px;
-            height: 36px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Responsive design */
-        @media (max-width: 600px) {
-            .container {
-                padding: 30px 25px;
-                margin: 10px;
-            }
-            
-            .header h1 {
-                font-size: 2.2em;
-            }
-            
-            input[type="text"] {
-                padding: 14px 16px;
-            }
-        }
-
-        /* Smooth scrolling for form */
-        .container {
-            animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* Form field animations */
-        .form-group {
-            animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .form-group:nth-child(1) { animation-delay: 0.1s; }
-        .form-group:nth-child(2) { animation-delay: 0.15s; }
-        .form-group:nth-child(3) { animation-delay: 0.2s; }
-        .form-group:nth-child(4) { animation-delay: 0.25s; }
-        .form-group:nth-child(5) { animation-delay: 0.3s; }
-        .form-group:nth-child(6) { animation-delay: 0.35s; }
-        .form-group:nth-child(7) { animation-delay: 0.4s; }
-        .form-group:nth-child(8) { animation-delay: 0.45s; }
-        .form-group:nth-child(9) { animation-delay: 0.5s; }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>Area Analysis</h1>
+        <div class="letterhead">
+            <div class="report-title">Area Analysis Generator</div>
         </div>
 
-        <form id="reportForm">
-            <div class="form-group">
-                <label for="agentName">Agent Name *</label>
-                <input type="text" id="agentName" name="agentName" required>
+        <div class="form-container">
+            <div class="form-header">
+                <h1>Create New Analysis</h1>
+                <p>Enter client information to generate a comprehensive area analysis report.</p>
             </div>
 
-            <div class="form-group">
-                <label for="firstName">First Name *</label>
-                <input type="text" id="firstName" name="firstName" required>
+            <form id="reportForm">
+                <div class="form-group">
+                    <label for="agentName">Agent Name *</label>
+                    <input type="text" id="agentName" name="agentName" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="firstName">First Name *</label>
+                    <input type="text" id="firstName" name="firstName" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="lastName">Last Name *</label>
+                    <input type="text" id="lastName" name="lastName" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="addressLine1">Address Line 1 *</label>
+                    <input type="text" id="addressLine1" name="addressLine1" placeholder="Street address" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="addressLine2">Address Line 2</label>
+                    <input type="text" id="addressLine2" name="addressLine2" placeholder="Apartment, suite, etc. (optional)">
+                </div>
+
+                <div class="form-group">
+                    <label for="city">City *</label>
+                    <input type="text" id="city" name="city" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="state">State *</label>
+                    <input type="text" id="state" name="state" placeholder="e.g., CA" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="zipCode">ZIP Code *</label>
+                    <input type="text" id="zipCode" name="zipCode" placeholder="12345 or 12345-6789" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="development">Development</label>
+                    <input type="text" id="development" name="development" placeholder="Development name (optional)">
+                </div>
+
+                <div class="form-group">
+                    <label for="subdivision">Subdivision</label>
+                    <input type="text" id="subdivision" name="subdivision" placeholder="Subdivision name (optional)">
+                </div>
+
+                <button type="submit" class="form-submit" id="submitBtn">
+                    Create Area Analysis
+                </button>
+            </form>
+
+            <div class="form-loading" id="loading">
+                <div class="spinner"></div>
+                <p>Creating your area analysis...</p>
             </div>
 
-            <div class="form-group">
-                <label for="lastName">Last Name *</label>
-                <input type="text" id="lastName" name="lastName" required>
-            </div>
-
-            <div class="form-group">
-                <label for="addressLine1">Address Line 1 *</label>
-                <input type="text" id="addressLine1" name="addressLine1" placeholder="Street address" required>
-            </div>
-
-            <div class="form-group">
-                <label for="addressLine2">Address Line 2</label>
-                <input type="text" id="addressLine2" name="addressLine2" placeholder="Apartment, suite, etc. (optional)">
-            </div>
-
-            <div class="form-group">
-                <label for="city">City *</label>
-                <input type="text" id="city" name="city" required>
-            </div>
-
-            <div class="form-group">
-                <label for="state">State *</label>
-                <input type="text" id="state" name="state" placeholder="e.g., CA" required>
-            </div>
-
-            <div class="form-group">
-                <label for="zipCode">ZIP Code *</label>
-                <input type="text" id="zipCode" name="zipCode" placeholder="12345 or 12345-6789" required>
-            </div>
-
-            <div class="form-group">
-                <label for="development">Development</label>
-                <input type="text" id="development" name="development" placeholder="Development name (optional)">
-            </div>
-
-            <div class="form-group">
-                <label for="subdivision">Subdivision</label>
-                <input type="text" id="subdivision" name="subdivision" placeholder="Subdivision name (optional)">
-            </div>
-
-            <button type="submit" class="submit-btn" id="submitBtn">
-                Create Area Analysis
-            </button>
-        </form>
-
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Creating your area analysis...</p>
+            <div id="message"></div>
         </div>
 
-        <div id="message"></div>
-    </div>
+        <div class="footer">
+            <div class="footer-content">
+                <p>© 2025 Professional Area Analysis Services. All rights reserved.</p>
+            </div>
+        </div>
+    </div></body>
 
     <script>
         const form = document.getElementById('reportForm');
@@ -396,7 +131,7 @@
 
                 if (response.ok && result.success) {
                     messageDiv.innerHTML = `
-                        <div class="message success">
+                        <div class="form-message success">
                             Area analysis created successfully!<br>
                             <strong>Report ID:</strong> ${result.reportId}<br>
                             <a href="/reports/${result.reportId}" target="_blank">View Analysis</a>
@@ -409,7 +144,7 @@
             } catch (error) {
                 console.error('Error:', error);
                 messageDiv.innerHTML = `
-                    <div class="message error">
+                    <div class="form-message error">
                         Error: ${error.message}
                     </div>
                 `;

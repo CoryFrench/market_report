@@ -4,370 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Professional Area Analysis Report</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Source+Sans+Pro:wght@300;400;500;600;700&display=swap');
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        @media print {
-            body { 
-                background: white !important; 
-                -webkit-print-color-adjust: exact;
-                color-adjust: exact;
-            }
-            .no-print { display: none !important; }
-            .container { 
-                box-shadow: none !important; 
-                border: none !important;
-                max-width: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-            }
-        }
-
-        body {
-            font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #f8f9fa;
-            color: #1a1a1a;
-            line-height: 1.6;
-            font-size: 16px;
-        }
-
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background: white;
-            box-shadow: 0 0 40px rgba(0, 0, 0, 0.05);
-            min-height: 100vh;
-        }
-
-        .letterhead {
-            background: linear-gradient(135deg, #1a365d 0%, #2d3748 100%);
-            color: white;
-            padding: 60px 80px 40px;
-            position: relative;
-        }
-
-        .letterhead::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #c6a96a 0%, #d4af37 50%, #c6a96a 100%);
-        }
-
-        .company-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 40px;
-        }
-
-        .company-name {
-            font-family: 'Playfair Display', serif;
-            font-size: 2.8em;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            margin-bottom: 8px;
-        }
-
-        .company-tagline {
-            font-size: 1.1em;
-            font-weight: 300;
-            color: rgba(255, 255, 255, 0.85);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-
-        .report-meta {
-            text-align: right;
-            font-size: 0.95em;
-            color: rgba(255, 255, 255, 0.8);
-        }
-
-        .report-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 2.2em;
-            font-weight: 500;
-            color: white;
-            text-align: center;
-            margin-top: 20px;
-            letter-spacing: -0.01em;
-        }
-
-        .content {
-            padding: 80px;
-        }
-
-        .section {
-            margin-bottom: 60px;
-            page-break-inside: avoid;
-        }
-
-        .section h2 {
-            font-family: 'Playfair Display', serif;
-            color: #1a365d;
-            font-size: 1.8em;
-            font-weight: 600;
-            margin-bottom: 30px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #c6a96a;
-            position: relative;
-        }
-
-        .section h2::after {
-            content: '';
-            position: absolute;
-            bottom: -2px;
-            left: 0;
-            width: 60px;
-            height: 2px;
-            background: #d4af37;
-        }
-
-        .client-summary {
-            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
-            padding: 40px;
-            border-radius: 12px;
-            border-left: 6px solid #c6a96a;
-            margin-bottom: 40px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-        }
-
-        .client-name {
-            font-family: 'Playfair Display', serif;
-            font-size: 2.2em;
-            font-weight: 600;
-            color: #1a365d;
-            margin-bottom: 10px;
-        }
-
-        .property-address {
-            font-size: 1.3em;
-            color: #4a5568;
-            font-weight: 400;
-            margin-bottom: 20px;
-        }
-
-        .report-date {
-            font-size: 0.95em;
-            color: #718096;
-            font-weight: 500;
-        }
-
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 30px;
-            margin-bottom: 30px;
-        }
-
-        .info-item {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-            transition: all 0.3s ease;
-        }
-
-        .info-item:hover {
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            transform: translateY(-1px);
-        }
-
-        .info-label {
-            font-weight: 600;
-            color: #4a5568;
-            font-size: 0.9em;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 12px;
-        }
-
-        .info-value {
-            color: #1a202c;
-            font-size: 1.15em;
-            font-weight: 500;
-            line-height: 1.5;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 80px;
-            color: #4a5568;
-        }
-
-        .spinner {
-            border: 4px solid #e2e8f0;
-            border-top: 4px solid #c6a96a;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 30px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .error {
-            text-align: center;
-            padding: 80px;
-            color: #e53e3e;
-            background: #fed7d7;
-            border-radius: 12px;
-            margin: 40px;
-        }
-
-        .error h3 {
-            font-size: 1.5em;
-            margin-bottom: 12px;
-            color: #c53030;
-        }
-
-        .back-btn {
-            display: inline-block;
-            background: #1a365d;
-            color: white;
-            padding: 15px 30px;
-            text-decoration: none;
-            border-radius: 8px;
-            margin: 40px 0 20px;
-            transition: all 0.3s ease;
-            font-weight: 500;
-            border: none;
-            font-size: 1em;
-        }
-
-        .back-btn:hover {
-            background: #2d3748;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .print-btn {
-            display: inline-block;
-            background: #c6a96a;
-            color: white;
-            padding: 15px 30px;
-            text-decoration: none;
-            border-radius: 8px;
-            margin: 0 10px;
-            transition: all 0.3s ease;
-            font-weight: 500;
-            border: none;
-            font-size: 1em;
-            cursor: pointer;
-        }
-
-        .print-btn:hover {
-            background: #b8953f;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .footer {
-            background: #1a365d;
-            color: white;
-            padding: 40px 80px;
-            text-align: center;
-            margin-top: 60px;
-        }
-
-        .footer-content {
-            border-top: 1px solid #4a5568;
-            padding-top: 30px;
-            font-size: 0.9em;
-            color: #a0aec0;
-        }
-
-        .confidential {
-            background: #f7fafc;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 40px 0;
-            text-align: center;
-        }
-
-        .confidential-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.3em;
-            font-weight: 600;
-            color: #1a365d;
-            margin-bottom: 10px;
-        }
-
-        .confidential-text {
-            color: #4a5568;
-            font-size: 0.95em;
-            line-height: 1.6;
-        }
-
-        /* Responsive design */
-        @media (max-width: 768px) {
-            .letterhead {
-                padding: 40px 30px 30px;
-            }
-            
-            .company-name {
-                font-size: 2.2em;
-            }
-            
-            .report-title {
-                font-size: 1.8em;
-            }
-            
-            .content {
-                padding: 40px 30px;
-            }
-            
-            .info-grid {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
-
-            .company-info {
-                flex-direction: column;
-                gap: 20px;
-            }
-
-            .report-meta {
-                text-align: left;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
     <div class="container">
         <div class="letterhead">
-            <div class="company-info">
-                <div>
-                    <div class="company-name">Waterfront Properties</div>
-                    <div class="company-tagline">Luxury Real Estate Analytics</div>
+            <div class="header-info">
+                <div class="header-item">
+                    <div class="header-label">Prepared by</div>
+                    <div class="header-value" id="agentName">Agent Name</div>
                 </div>
-                <div class="report-meta">
-                    <div>Report ID: <span id="reportId"></span></div>
-                    <div id="reportDate"></div>
+                <div class="header-item">
+                    <div class="header-label">Prepared for</div>
+                    <div class="header-value" id="buyerName">Buyer Name</div>
+                </div>
+                <div class="header-item">
+                    <div class="header-label">Zip</div>
+                    <div class="header-value" id="zipCode">ZIP Code</div>
                 </div>
             </div>
-            <div class="report-title">Property Market Analysis</div>
         </div>
 
         <div class="content">
-            <div class="back-btn no-print" style="text-align: center; margin-bottom: 30px;">
-                <a href="/" class="back-btn">← Create New Analysis</a>
-                <button onclick="window.print()" class="print-btn">Print Report</button>
-            </div>
             
             <div id="loading" class="loading">
                 <div class="spinner"></div>
@@ -376,74 +34,39 @@
 
             <div id="error" class="error" style="display: none;">
                 <h3>Analysis Not Found</h3>
-                <p>The requested market analysis could not be located. Please verify the report URL.</p>
+                <p>The requested area analysis could not be located. Please verify the report URL.</p>
             </div>
 
             <div id="reportContent" style="display: none;">
-                <div class="client-summary">
-                    <div class="client-name" id="clientName">-</div>
-                    <div class="property-address" id="fullAddress">-</div>
-                    <div class="report-date">Analysis prepared on <span id="createdAt">-</span></div>
-                </div>
 
                 <div class="section">
-                    <h2>Executive Summary</h2>
+                    <h2>Analysis Coverage</h2>
                     <div class="info-grid">
                         <div class="info-item">
-                            <div class="info-label">Prepared By</div>
-                            <div class="info-value" id="agentName">-</div>
+                            <div class="info-label">Geographic Scope</div>
+                            <div class="info-value">Comprehensive regional analysis completed</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Analysis Date</div>
-                            <div class="info-value" id="createdAtFull">-</div>
+                            <div class="info-label">Data Sources</div>
+                            <div class="info-value">Multiple verified market databases</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Last Updated</div>
-                            <div class="info-value" id="lastUpdated">-</div>
+                            <div class="info-label">Analysis Type</div>
+                            <div class="info-value">Professional area assessment</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Report Status</div>
-                            <div class="info-value">Complete & Current</div>
+                            <div class="info-label">Methodology</div>
+                            <div class="info-value">Statistical and comparative analysis</div>
                         </div>
                     </div>
                 </div>
 
                 <div class="section">
-                    <h2>Property Details</h2>
-                    <div class="info-grid">
-                        <div class="info-item">
-                            <div class="info-label">Primary Address</div>
-                            <div class="info-value" id="address">-</div>
-                        </div>
-                        <div class="info-item">
-                            <div class="info-label">Municipality</div>
-                            <div class="info-value" id="city">-</div>
-                        </div>
-                        <div class="info-item">
-                            <div class="info-label">State</div>
-                            <div class="info-value" id="state">-</div>
-                        </div>
-                        <div class="info-item">
-                            <div class="info-label">Postal Code</div>
-                            <div class="info-value" id="zipCode">-</div>
-                        </div>
-                        <div class="info-item">
-                            <div class="info-label">Development</div>
-                            <div class="info-value" id="development">-</div>
-                        </div>
-                        <div class="info-item">
-                            <div class="info-label">Subdivision</div>
-                            <div class="info-value" id="subdivision">-</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="section">
-                    <h2>Market Analytics</h2>
+                    <h2>Area Analytics</h2>
                     <div id="chartsContent">
                         <div class="info-item">
                             <div class="info-label">Analysis Status</div>
-                            <div class="info-value">Comprehensive market data analysis ready for review</div>
+                            <div class="info-value">Comprehensive area data analysis ready for review</div>
                         </div>
                     </div>
                 </div>
@@ -461,18 +84,17 @@
                 <div class="confidential">
                     <div class="confidential-title">Confidential Information</div>
                     <div class="confidential-text">
-                        This market analysis has been prepared exclusively for the named client and contains confidential and proprietary information. 
-                        Distribution, reproduction, or disclosure to third parties is strictly prohibited without written consent from Waterfront Properties.
+                        This area analysis has been prepared exclusively for authorized personnel and contains confidential and proprietary information. 
+                        Distribution, reproduction, or disclosure to third parties is strictly prohibited without written consent.
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="footer">
-            <div class="company-name" style="font-size: 1.5em; margin-bottom: 10px;">Waterfront Properties</div>
             <div class="footer-content">
-                <p>© 2025 Waterfront Properties. All rights reserved. | Professional Real Estate Market Analysis</p>
-                <p>This report contains confidential and proprietary information intended solely for the named recipient.</p>
+                <p>© 2025 Professional Area Analysis Services. All rights reserved.</p>
+                <p>This report contains confidential and proprietary information intended solely for authorized personnel.</p>
             </div>
         </div>
     </div>
@@ -480,21 +102,39 @@
     <script>
         // Get report identifier from URL (could be lastname-id format or just ID)
         const urlParams = new URLSearchParams(window.location.search);
-        const urlSlug = urlParams.get('id') || window.location.pathname.split('/').pop();
-
-        // Display the URL slug as the identifier
-        document.getElementById('reportId').textContent = `Analysis ID: ${urlSlug}`;
+        let urlSlug = urlParams.get('id');
+        
+        // If no query parameter, extract from path
+        if (!urlSlug) {
+            const pathParts = window.location.pathname.split('/');
+            urlSlug = pathParts[pathParts.length - 1]; // Get last part of path
+        }
+        
+        // If still no slug or it's empty, show error
+        if (!urlSlug || urlSlug === 'report.html') {
+            console.error('No report identifier found in URL');
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+        }
 
         async function loadReport() {
+            // Don't load if no URL slug
+            if (!urlSlug || urlSlug === 'report.html') {
+                return;
+            }
+            
             try {
+                console.log('Loading report with slug:', urlSlug);
                 const response = await fetch(`/api/reports/complete/${urlSlug}`);
                 const result = await response.json();
 
+                console.log('API Response:', { status: response.status, result });
                 document.getElementById('loading').style.display = 'none';
 
                 if (response.ok && result.success) {
                     displayReport(result.data);
                 } else {
+                    console.error('API Error:', result.error || 'Unknown error');
                     document.getElementById('error').style.display = 'block';
                 }
             } catch (error) {
@@ -505,56 +145,13 @@
         }
 
         function displayReport(data) {
+            console.log('Displaying report data:', data);
             document.getElementById('reportContent').style.display = 'block';
             
             // Update header information
-            document.getElementById('reportId').textContent = urlSlug;
-            document.getElementById('reportDate').innerHTML = `Generated: ${new Date(data.created_at).toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-            })}`;
-            
-            // Client summary
-            document.getElementById('clientName').textContent = `${data.first_name} ${data.last_name}` || 'Client Name Not Available';
-            
-            // Full address for summary
-            const addressParts = [];
-            if (data.address_line_1) addressParts.push(data.address_line_1);
-            if (data.address_line_2) addressParts.push(data.address_line_2);
-            if (data.home_city) addressParts.push(data.home_city);
-            if (data.home_state) addressParts.push(data.home_state);
-            if (data.zip_code) addressParts.push(data.zip_code);
-            document.getElementById('fullAddress').textContent = addressParts.join(', ') || 'Property Address Not Available';
-            
-            // Basic info
-            document.getElementById('agentName').textContent = data.agent_name || 'Not Specified';
-            document.getElementById('createdAt').textContent = new Date(data.created_at).toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-            }) || 'Date Not Available';
-            document.getElementById('createdAtFull').textContent = new Date(data.created_at).toLocaleDateString('en-US', { 
-                weekday: 'long',
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-            }) || 'Date Not Available';
-            document.getElementById('lastUpdated').textContent = new Date(data.last_updated).toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-            }) || 'Date Not Available';
-            
-            // Property info
-            document.getElementById('address').textContent = (data.address_line_1 && data.address_line_2) ? 
-                `${data.address_line_1}, ${data.address_line_2}` : 
-                (data.address_line_1 || 'Address Not Specified');
-            document.getElementById('city').textContent = data.home_city || 'Not Specified';
-            document.getElementById('state').textContent = data.home_state || 'Not Specified';
-            document.getElementById('zipCode').textContent = data.zip_code || 'Not Specified';
-            document.getElementById('development').textContent = data.development || 'Not Specified';
-            document.getElementById('subdivision').textContent = data.subdivision || 'Not Specified';
+            document.getElementById('agentName').textContent = data.agent_name || 'Agent Name';
+            document.getElementById('buyerName').textContent = `${data.first_name} ${data.last_name}` || 'Buyer Name';
+            document.getElementById('zipCode').textContent = data.zip_code || 'ZIP Code';
             
             // Charts
             if (data.charts && data.charts.length > 0) {
