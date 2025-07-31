@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+const { testConnection, dbQueries } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,12 +29,225 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API routes placeholder
-app.get('/api/reports', (req, res) => {
-  res.json({
-    message: 'Market reports endpoint',
-    reports: []
-  });
+// API routes for database operations
+
+// Get all basic reports
+app.get('/api/reports/basic', async (req, res) => {
+  try {
+    const result = await dbQueries.getReportBasic();
+    
+    res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching basic reports:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch basic reports',
+      message: error.message
+    });
+  }
+});
+
+// Get specific basic report
+app.get('/api/reports/basic/:reportId', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const result = await dbQueries.getReportBasic(reportId);
+    
+    res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching basic report:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch basic report',
+      message: error.message
+    });
+  }
+});
+
+// Get all report charts
+app.get('/api/reports/charts', async (req, res) => {
+  try {
+    const result = await dbQueries.getReportCharts();
+    
+    res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching report charts:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch report charts',
+      message: error.message
+    });
+  }
+});
+
+// Get specific report charts
+app.get('/api/reports/charts/:reportId', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const result = await dbQueries.getReportCharts(reportId);
+    
+    res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching report charts:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch report charts',
+      message: error.message
+    });
+  }
+});
+
+// Get all report home info
+app.get('/api/reports/home-info', async (req, res) => {
+  try {
+    const result = await dbQueries.getReportHomeInfo();
+    
+    res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching home info:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch home info',
+      message: error.message
+    });
+  }
+});
+
+// Get specific report home info
+app.get('/api/reports/home-info/:reportId', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const result = await dbQueries.getReportHomeInfo(reportId);
+    
+    res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching home info:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch home info',
+      message: error.message
+    });
+  }
+});
+
+// Get all report interest areas
+app.get('/api/reports/interest-areas', async (req, res) => {
+  try {
+    const result = await dbQueries.getReportInterestArea();
+    
+    res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching interest areas:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch interest areas',
+      message: error.message
+    });
+  }
+});
+
+// Get specific report interest areas
+app.get('/api/reports/interest-areas/:reportId', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const result = await dbQueries.getReportInterestArea(reportId);
+    
+    res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching interest areas:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch interest areas',
+      message: error.message
+    });
+  }
+});
+
+// Get complete report with all related data
+app.get('/api/reports/complete/:reportId', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    
+    if (!reportId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Report ID is required'
+      });
+    }
+    
+    const result = await dbQueries.getCompleteReport(reportId);
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Report not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching complete report:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch complete report',
+      message: error.message
+    });
+  }
+});
+
+// Legacy endpoint - redirect to basic reports
+app.get('/api/reports', async (req, res) => {
+  try {
+    const result = await dbQueries.getReportBasic();
+    res.json({
+      success: true,
+      message: 'Market reports endpoint',
+      count: result.rowCount,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching reports:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch reports',
+      message: error.message
+    });
+  }
 });
 
 // Error handling middleware
@@ -53,9 +267,25 @@ app.use('*', (req, res) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server with database connection test
+app.listen(PORT, async () => {
   console.log(`🚀 Market Report Server running on port ${PORT}`);
   console.log(`📊 API available at http://localhost:${PORT}`);
   console.log(`💚 Health check at http://localhost:${PORT}/health`);
+  
+  // Test database connection on startup
+  console.log('\n🔍 Testing database connection...');
+  await testConnection();
+  
+  console.log('\n📋 Available API endpoints:');
+  console.log(`   GET /api/reports - All basic reports`);
+  console.log(`   GET /api/reports/basic - All basic report data`);
+  console.log(`   GET /api/reports/basic/:reportId - Specific basic report data`);
+  console.log(`   GET /api/reports/charts - All chart data`);
+  console.log(`   GET /api/reports/charts/:reportId - Specific chart data`);
+  console.log(`   GET /api/reports/home-info - All home info data`);
+  console.log(`   GET /api/reports/home-info/:reportId - Specific home info data`);
+  console.log(`   GET /api/reports/interest-areas - All interest area data`);
+  console.log(`   GET /api/reports/interest-areas/:reportId - Specific interest area data`);
+  console.log(`   GET /api/reports/complete/:reportId - Complete report with all data`);
 });
