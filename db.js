@@ -148,6 +148,20 @@ const dbQueries = {
     return await query(queryText, [reportId]);
   },
 
+  // Get report by lastname-id URL format (e.g., "smith-1234")
+  getReportByUrl: async (urlSlug) => {
+    // Extract report_id from the lastname-id format
+    const parts = urlSlug.split('-');
+    const reportId = parts[parts.length - 1]; // Last part should be the ID
+    
+    // Validate that the last part is actually a number
+    if (!/^\d+$/.test(reportId)) {
+      throw new Error('Invalid URL format');
+    }
+    
+    return await dbQueries.getCompleteReport(reportId);
+  },
+
   // Create new report with basic info and home info
   createReport: async (reportData) => {
     const client = await pool.connect();
@@ -189,8 +203,13 @@ const dbQueries = {
         reportData.subdivision
       ]);
       
-      // Update report_basic with report_url
-      const reportUrl = `/reports/${reportId}`;
+      // Create lastname-id URL format
+      const cleanLastName = reportData.lastName.toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')  // Replace non-alphanumeric with hyphens
+        .replace(/-+/g, '-')         // Replace multiple hyphens with single
+        .replace(/^-|-$/g, '');      // Remove leading/trailing hyphens
+      
+      const reportUrl = `/reports/${cleanLastName}-${reportId}`;
       await client.query(
         'UPDATE customer.report_basic SET report_url = $1 WHERE report_id = $2',
         [reportUrl, reportId]

@@ -19,8 +19,8 @@ app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
 });
 
-// Analysis view route
-app.get('/reports/:reportId', (req, res) => {
+// Analysis view route - handles both old format (numbers) and new format (lastname-id)
+app.get('/reports/:urlSlug', (req, res) => {
   res.sendFile(__dirname + '/public/report.html');
 });
 
@@ -199,19 +199,28 @@ app.get('/api/reports/interest-areas/:reportId', async (req, res) => {
   }
 });
 
-// Get complete report with all related data
-app.get('/api/reports/complete/:reportId', async (req, res) => {
+// Get complete report with all related data - handles both old (ID) and new (lastname-id) formats
+app.get('/api/reports/complete/:urlSlug', async (req, res) => {
   try {
-    const { reportId } = req.params;
+    const { urlSlug } = req.params;
     
-    if (!reportId) {
+    if (!urlSlug) {
       return res.status(400).json({
         success: false,
-        error: 'Report ID is required'
+        error: 'Report identifier is required'
       });
     }
     
-    const result = await dbQueries.getCompleteReport(reportId);
+    let result;
+    
+    // Check if it's a pure number (old format) or lastname-id format
+    if (/^\d+$/.test(urlSlug)) {
+      // Old format: pure number
+      result = await dbQueries.getCompleteReport(urlSlug);
+    } else {
+      // New format: lastname-id
+      result = await dbQueries.getReportByUrl(urlSlug);
+    }
     
     if (result.rowCount === 0) {
       return res.status(404).json({
