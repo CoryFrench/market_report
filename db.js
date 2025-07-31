@@ -146,6 +146,70 @@ const dbQueries = {
     `;
     
     return await query(queryText, [reportId]);
+  },
+
+  // Create new report with basic info and home info
+  createReport: async (reportData) => {
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      // Insert into report_basic and get the generated report_id
+      const basicInsertQuery = `
+        INSERT INTO customer.report_basic (agent_name, first_name, last_name, created_at, last_updated)
+        VALUES ($1, $2, $3, NOW(), NOW())
+        RETURNING report_id, created_at
+      `;
+      
+      const basicResult = await client.query(basicInsertQuery, [
+        reportData.agentName,
+        reportData.firstName,
+        reportData.lastName
+      ]);
+      
+      const reportId = basicResult.rows[0].report_id;
+      const createdAt = basicResult.rows[0].created_at;
+      
+      // Insert into report_home_info using the generated report_id
+      const homeInfoInsertQuery = `
+        INSERT INTO customer.report_home_info (
+          report_id, address_line_1, address_line_2, city, state, zip_code, development, subdivision
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `;
+      
+      await client.query(homeInfoInsertQuery, [
+        reportId,
+        reportData.addressLine1,
+        reportData.addressLine2,
+        reportData.city,
+        reportData.state,
+        reportData.zipCode,
+        reportData.development,
+        reportData.subdivision
+      ]);
+      
+      // Update report_basic with report_url
+      const reportUrl = `/reports/${reportId}`;
+      await client.query(
+        'UPDATE customer.report_basic SET report_url = $1 WHERE report_id = $2',
+        [reportUrl, reportId]
+      );
+      
+      await client.query('COMMIT');
+      
+      return {
+        reportId,
+        reportUrl,
+        createdAt
+      };
+      
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 };
 

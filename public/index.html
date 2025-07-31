@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Report Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 1em;
+        }
+
+        input[type="text"], input[type="email"], textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="text"]:focus, input[type="email"]:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .submit-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .message {
+            margin-top: 20px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏘️ Market Report</h1>
+            <p>Generate a new market report</p>
+        </div>
+
+        <form id="reportForm">
+            <div class="form-group">
+                <label for="agentName">Agent Name *</label>
+                <input type="text" id="agentName" name="agentName" required>
+            </div>
+
+            <div class="form-group">
+                <label for="firstName">First Name *</label>
+                <input type="text" id="firstName" name="firstName" required>
+            </div>
+
+            <div class="form-group">
+                <label for="lastName">Last Name *</label>
+                <input type="text" id="lastName" name="lastName" required>
+            </div>
+
+            <div class="form-group">
+                <label for="addressLine1">Address Line 1 *</label>
+                <input type="text" id="addressLine1" name="addressLine1" placeholder="Street address" required>
+            </div>
+
+            <div class="form-group">
+                <label for="addressLine2">Address Line 2</label>
+                <input type="text" id="addressLine2" name="addressLine2" placeholder="Apartment, suite, etc. (optional)">
+            </div>
+
+            <div class="form-group">
+                <label for="city">City *</label>
+                <input type="text" id="city" name="city" required>
+            </div>
+
+            <div class="form-group">
+                <label for="state">State *</label>
+                <input type="text" id="state" name="state" placeholder="e.g., CA" required>
+            </div>
+
+            <div class="form-group">
+                <label for="zipCode">ZIP Code *</label>
+                <input type="text" id="zipCode" name="zipCode" placeholder="12345 or 12345-6789" required>
+            </div>
+
+            <div class="form-group">
+                <label for="development">Development</label>
+                <input type="text" id="development" name="development" placeholder="Development name (optional)">
+            </div>
+
+            <div class="form-group">
+                <label for="subdivision">Subdivision</label>
+                <input type="text" id="subdivision" name="subdivision" placeholder="Subdivision name (optional)">
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+                Create Market Report
+            </button>
+        </form>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Creating your market report...</p>
+        </div>
+
+        <div id="message"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('reportForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const messageDiv = document.getElementById('message');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Show loading state
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            messageDiv.innerHTML = '';
+
+            // Get form data
+            const formData = new FormData(form);
+            const data = {
+                agentName: formData.get('agentName').trim(),
+                firstName: formData.get('firstName').trim(),
+                lastName: formData.get('lastName').trim(),
+                addressLine1: formData.get('addressLine1').trim(),
+                addressLine2: formData.get('addressLine2') ? formData.get('addressLine2').trim() : null,
+                city: formData.get('city').trim(),
+                state: formData.get('state').trim(),
+                zipCode: formData.get('zipCode').trim(),
+                development: formData.get('development') ? formData.get('development').trim() : null,
+                subdivision: formData.get('subdivision') ? formData.get('subdivision').trim() : null
+            };
+
+            try {
+                const response = await fetch('/api/reports/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    messageDiv.innerHTML = `
+                        <div class="message success">
+                            ✅ Market report created successfully!<br>
+                            <strong>Report ID:</strong> ${result.reportId}<br>
+                            <a href="/reports/${result.reportId}" target="_blank">View Report</a>
+                        </div>
+                    `;
+                    form.reset();
+                } else {
+                    throw new Error(result.error || 'Failed to create report');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                messageDiv.innerHTML = `
+                    <div class="message error">
+                        ❌ Error: ${error.message}
+                    </div>
+                `;
+            } finally {
+                // Hide loading state
+                submitBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+
+        // Add some basic validation styling
+        const inputs = document.querySelectorAll('input, textarea');
+        inputs.forEach(input => {
+            input.addEventListener('invalid', (e) => {
+                e.target.style.borderColor = '#dc3545';
+            });
+            
+            input.addEventListener('input', (e) => {
+                if (e.target.checkValidity()) {
+                    e.target.style.borderColor = '#e1e5e9';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -11,13 +11,17 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Basic route
+// Serve static files from public directory
+app.use(express.static('public'));
+
+// Basic route - serve the landing page
 app.get('/', (req, res) => {
-  res.json({
-    message: 'Welcome to Market Report API',
-    version: '1.0.0',
-    status: 'running'
-  });
+  res.sendFile(__dirname + '/public/index.html');
+});
+
+// Report view route
+app.get('/reports/:reportId', (req, res) => {
+  res.sendFile(__dirname + '/public/report.html');
 });
 
 // Health check endpoint
@@ -230,6 +234,63 @@ app.get('/api/reports/complete/:reportId', async (req, res) => {
   }
 });
 
+// Create new report
+app.post('/api/reports/create', async (req, res) => {
+  try {
+    const { 
+      agentName, 
+      firstName, 
+      lastName, 
+      addressLine1, 
+      addressLine2, 
+      city, 
+      state, 
+      zipCode, 
+      development, 
+      subdivision 
+    } = req.body;
+    
+    // Validate required fields
+    if (!agentName || !firstName || !lastName || !addressLine1 || !city || !state || !zipCode) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields',
+        required: ['agentName', 'firstName', 'lastName', 'addressLine1', 'city', 'state', 'zipCode']
+      });
+    }
+    
+    // Create the report
+    const result = await dbQueries.createReport({
+      agentName: agentName.trim(),
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      addressLine1: addressLine1.trim(),
+      addressLine2: addressLine2 ? addressLine2.trim() : null,
+      city: city.trim(),
+      state: state.trim(),
+      zipCode: zipCode.trim(),
+      development: development ? development.trim() : null,
+      subdivision: subdivision ? subdivision.trim() : null
+    });
+    
+    res.status(201).json({
+      success: true,
+      message: 'Report created successfully',
+      reportId: result.reportId,
+      reportUrl: result.reportUrl,
+      createdAt: result.createdAt
+    });
+    
+  } catch (error) {
+    console.error('Error creating report:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create report',
+      message: error.message
+    });
+  }
+});
+
 // Legacy endpoint - redirect to basic reports
 app.get('/api/reports', async (req, res) => {
   try {
@@ -277,7 +338,12 @@ app.listen(PORT, async () => {
   console.log('\n🔍 Testing database connection...');
   await testConnection();
   
+  console.log('\n🌐 Web Interface:');
+  console.log(`   Landing Page: http://localhost:${PORT}/`);
+  console.log(`   Report View: http://localhost:${PORT}/reports/:reportId`);
+  
   console.log('\n📋 Available API endpoints:');
+  console.log(`   POST /api/reports/create - Create new report`);
   console.log(`   GET /api/reports - All basic reports`);
   console.log(`   GET /api/reports/basic - All basic report data`);
   console.log(`   GET /api/reports/basic/:reportId - Specific basic report data`);
