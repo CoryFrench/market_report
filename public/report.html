@@ -125,22 +125,53 @@
                 <div class="section">
                     <h2>Home Stats</h2>
                     <div class="section-content">
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <div class="info-label">Property Value</div>
-                                <div class="info-value">Estimated market value and comparable sales data</div>
+                        <div id="homeStatsContent" style="display: flex; gap: 40px; min-height: 200px;">
+                            <!-- Left Side - Property Information -->
+                            <div style="flex: 1; padding: 25px; background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); border-radius: 12px; border: 1px solid #e9ecef; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                                <div style="margin-bottom: 20px;">
+                                    <h3 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 18px; font-weight: 600; letter-spacing: 0.5px;">Property Details</h3>
+                                    <div>
+                                        <div id="propertyAddress" style="color: #34495e; font-size: 16px; font-weight: 500; margin-bottom: 8px; line-height: 1.4;">
+                                            Loading address...
+                                        </div>
+                                        <div id="propertyDevelopment" style="color: #7f8c8d; font-size: 14px; margin-bottom: 6px;">
+                                            Development information
+                                        </div>
+                                        <div id="propertySubdivision" style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">
+                                            Subdivision details
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Action Icons -->
+                                <div style="display: flex; gap: 15px; padding-top: 15px; border-top: 1px solid #e9ecef;">
+                                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                            <circle cx="12" cy="10" r="3"></circle>
+                                        </svg>
+                                        <span style="color: #3498db; font-size: 13px; font-weight: 500;">Map</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                                        </svg>
+                                        <span style="color: #27ae60; font-size: 13px; font-weight: 500;">Chart</span>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="info-item">
-                                <div class="info-label">Property Details</div>
-                                <div class="info-value">Square footage, bedrooms, bathrooms, and lot size</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Market Trends</div>
-                                <div class="info-value">Local market appreciation and sales velocity</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Neighborhood Stats</div>
-                                <div class="info-value">Area demographics and community information</div>
+                            
+                            <!-- Right Side - Stats -->
+                            <div style="flex: 1; padding: 25px; background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); border-radius: 12px; border: 1px solid #e9ecef; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                                <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 150px;">
+                                    <div style="text-align: center;">
+                                        <h3 style="margin: 0; color: #2c3e50; font-size: 24px; font-weight: 300; letter-spacing: 2px; text-transform: uppercase;">Stats</h3>
+                                        <div style="width: 60px; height: 2px; background: linear-gradient(90deg, #3498db, #27ae60); margin: 15px auto;"></div>
+                                        <p style="margin: 10px 0 0 0; color: #7f8c8d; font-size: 14px; font-style: italic;">Market analytics coming soon</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -264,8 +295,34 @@
                 document.getElementById('interestAreasContent').innerHTML = `<div class="info-grid">${areasHtml}</div>`;
             }
             
+            // Home Stats - Display property information
+            displayHomeStats(data);
+            
             // FRED Charts - Load the charts after displaying the report
             loadFredCharts(data.report_id);
+        }
+        
+        function displayHomeStats(data) {
+            // Format address
+            let addressParts = [];
+            if (data.address_line_1) addressParts.push(data.address_line_1);
+            if (data.address_line_2) addressParts.push(data.address_line_2);
+            if (data.home_city) addressParts.push(data.home_city);
+            if (data.home_state) addressParts.push(data.home_state);
+            if (data.zip_code) addressParts.push(data.zip_code);
+            
+            const fullAddress = addressParts.join(', ') || 'Address information not available';
+            
+            // Update property details
+            document.getElementById('propertyAddress').textContent = fullAddress;
+            
+            // Development information
+            const development = data.development || 'Development information not specified';
+            document.getElementById('propertyDevelopment').innerHTML = `<strong>Development:</strong> ${development}`;
+            
+            // Subdivision information  
+            const subdivision = data.subdivision || 'Subdivision information not specified';
+            document.getElementById('propertySubdivision').innerHTML = `<strong>Subdivision:</strong> ${subdivision}`;
         }
 
         // FRED series configuration
