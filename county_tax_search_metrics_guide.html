@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>County Tax Search Metrics - Developer Implementation Guide</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 5px;
+            margin-top: 30px;
+        }
+        h3 {
+            color: #2980b9;
+            margin-top: 25px;
+        }
+        pre {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            overflow-x: auto;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        code {
+            background-color: #f1f2f6;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .file-path {
+            background-color: #e8f5e8;
+            padding: 5px 10px;
+            border-left: 4px solid #27ae60;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .key-point {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .process-flow {
+            background-color: #e3f2fd;
+            border: 1px solid #90caf9;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        ol li {
+            margin-bottom: 10px;
+        }
+        ul li {
+            margin-bottom: 5px;
+        }
+        .metric-formula {
+            background-color: #f0f8ff;
+            border-left: 4px solid #4a90e2;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>County Tax Search Metrics - Developer Implementation Guide</h1>
+    
+    <div class="process-flow">
+        <h3>Process Overview</h3>
+        <p>The county tax search metrics are calculated through a multi-step process:</p>
+        <ol>
+            <li><strong>Client-Side Search Initiation</strong> - User submits search form</li>
+            <li><strong>Server-Side Database Query</strong> - Fetch property data with county-specific logic</li>
+            <li><strong>MLS Data Enhancement</strong> - For Palm Beach County, merge with MLS data</li>
+            <li><strong>Full Dataset Retrieval</strong> - Client fetches complete dataset for accurate statistics</li>
+            <li><strong>Client-Side Metrics Calculation</strong> - Calculate all metrics from full dataset</li>
+            <li><strong>DOM Rendering</strong> - Display metrics in the UI</li>
+        </ol>
+    </div>
+
+    <h2>1. Client-Side Search Initiation</h2>
+    
+    <div class="file-path">File: public/scripts/countyTaxSearch.js</div>
+    
+    <p>The process begins when the user submits the search form. The <code>handleSearch</code> function collects all form data and initiates the search.</p>
+    
+    <pre><code>/**
+ * Handle the search form submission
+ * @param {Event} event - The form submit event
+ */
+function handleSearch(event) {
+    event.preventDefault();
+    
+    // Get selected state and county
+    const state = stateSelect.value;
+    const county = countySelect.value;
+    
+    if (!state || !county) {
+        alert('Please select both state and county');
+        return;
+    }
+    
+    // Show loading spinner
+    loadingSpinner.style.display = 'flex';
+    
+    // Collect form data from main search form
+    const formData = new FormData(searchForm);
+    
+    // Always start a new search from page 1
+    currentSearchParams = {
+        state,
+        county,
+        page: 1, // Explicitly set page to 1 for new searches
+        limit: resultsPerPage
+    };
+    
+    // Reset currentPaginationPage for new searches
+    currentPaginationPage = 1;
+    
+    // Convert FormData to an object - add from main search form
+    for (const [key, value] of formData.entries()) {
+        if (value) { // Only add non-empty values
+            currentSearchParams[key] = value;
+        }
+    }
+    
+    // Also collect data from advanced search form fields if advanced search is visible
+    if (advancedSearch && advancedSearch.style.display !== 'none') {
+        // Get all input, select, and checkbox elements from advanced search
+        const advancedInputs = advancedSearch.querySelectorAll('input, select');
+        advancedInputs.forEach(input => {
+            // For checkboxes, use checked property
+            if (input.type === 'checkbox') {
+                if (input.checked) {
+                    currentSearchParams[input.name] = true;
+                }
+            } 
+            // For other inputs, use value property if not empty
+            else if (input.value) {
+                currentSearchParams[input.name] = input.value;
+            }
+        });
+    }
+    
+    console.log('Search parameters being applied:', JSON.stringify(currentSearchParams, null, 2));
+    
+    // Execute search
+    executeSearch(currentSearchParams);
+}</code></pre>
+
+    <h2>2. Client-Side Data Fetching with Full Dataset Retrieval</h2>
+    
+    <div class="key-point">
+        <strong>Critical Implementation Detail:</strong> The client makes TWO API calls - first for paginated results, then for the complete dataset needed for accurate statistics calculation.
+    </div>
+    
+    <pre><code>/**
+ * Execute the search with the given parameters
+ * @param {Object} params - The search parameters
+ */
+async function executeSearch(params) {
+    try {
+        // Show overlay spinner
+        showOverlaySpinner();
+        
+        // Show toast notification
+        const toast = showToast('Searching properties... Please wait', 0); // 0 means don't auto-hide
+        
+        // Hide any existing results
+        if (resultsCount) {
+            resultsCount.style.display = 'none';
+        }
+        
+        if (resultsTableBody) {
+            resultsTableBody.innerHTML = '';
+        }
+        
+        // Hide action buttons initially
+        if (showOnMapButton) {
+            showOnMapButton.style.display = 'none';
+        }
+        if (exportButton) {
+            exportButton.style.display = 'none';
+        }
+        
+        // Debug log to check the API endpoint and parameters
+        console.log('Search API URL:', '/api/search');
+        console.log('Search Parameters:', JSON.stringify(params));
+        
+        // Call the search API
+        const response = await fetch('/api/search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(params),
+            credentials: 'include' // Include cookies for authentication
+        });
+        
+        // Debug log for response status
+        console.log('Search API Response Status:', response.status);
+        
+        // Handle authentication issues
+        if (response.status === 401 || response.status === 302) {
+            throw new Error('Authentication required. Please login to continue.');
+        }
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // Check if response is HTML instead of JSON (which likely means redirect to login)
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('text/html')) {
+            throw new Error('Session expired. Please refresh the page and login again.');
+        }
+        
+        const data = await response.json();
+        
+        // Debug log for response data
+        console.log('Search API Response Data Sample:', 
+            data ? {
+                total: data.total,
+                page: data.page,
+                limit: data.limit,
+                resultCount: data.results ? data.results.length : 0,
+                firstResult: data.results && data.results.length > 0 ? 
+                    Object.keys(data.results[0]).slice(0, 5).reduce((obj, key) => {
+                        obj[key] = data.results[0][key];
+                        return obj;
+                    }, {}) : null
+            } : 'No data'
+        );
+        
+        // Store the results
+        allSearchResults = data.results || [];
+        searchResults = data.results || [];
+        totalResults = data.total || 0;
+        
+        // Fetch ALL results if only a page was returned - no arbitrary limit
+        if (data.results && data.results.length < totalResults) {
+            try {
+                // Update toast message
+                toastElement.textContent = `Fetching full dataset for statistics (${totalResults} records)...`;
+                
+                // Make sure overlay spinner is still visible
+                showOverlaySpinner();
+                
+                console.log(`Fetching full dataset for statistics (${totalResults} records)...`);
+                // Create a new parameter object with larger limit
+                const fullDataParams = { ...params, limit: totalResults, page: 1 };
+                
+                const fullResponse = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(fullDataParams),
+                    credentials: 'include'
+                });
+                
+                if (fullResponse.ok) {
+                    const fullData = await fullResponse.json();
+                    if (fullData.results) {
+                        console.log(`Successfully fetched ${fullData.results.length} records for statistics`);
+                        // Store full dataset for statistics but keep pagination for display
+                        allSearchResults = fullData.results;
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not fetch full dataset for statistics:', error);
+                // Continue with partial data if full fetch fails
+            }
+        }
+        
+        // Show the results count
+        countNumber.textContent = totalResults;
+        resultsCount.style.display = 'block';
+        
+        // Display search results - now using allSearchResults for statistics
+        displaySearchResults(searchResults, allSearchResults);
+        
+        // Create pagination controls
+        createPaginationControls(totalResults, params.page, params.limit);
+        
+        // Show action buttons if there are results
+        if (totalResults > 0) {
+            if (showOnMapButton) {
+                showOnMapButton.style.display = 'inline-block';
+            }
+            if (exportButton) {
+                exportButton.style.display = 'inline-block';
+            }
+        }
+        
+        // Show save search button if there are results and the button exists
+        if (saveSearchButton) {
+            saveSearchButton.style.display = totalResults > 0 ? 'inline-block' : 'none';
+        }
+        
+        // Hide overlay spinner
+        hideOverlaySpinner();
+        
+        // Update toast with results
+        toastElement.textContent = `Found ${totalResults} matching properties`;
+        // Hide toast after 3 seconds
+        if (toastElement.timeoutId) {
+            clearTimeout(toastElement.timeoutId);
+        }
+        toastElement.timeoutId = setTimeout(() => {
+            toastElement.style.display = 'none';
+        }, 3000);
+        
+    } catch (error) {
+        console.error('Error during search:', error);
+        
+        // Hide overlay spinner and show error
+        hideOverlaySpinner();
+        
+        // Update toast with error
+        if (!toastElement) {
+            toastElement = createToast();
+        }
+        
+        toastElement.textContent = `Error: ${error.message}`;
+        toastElement.style.backgroundColor = '#d9534f'; // Red background for errors
+        toastElement.style.display = 'block';
+        
+        // Hide toast after 5 seconds
+        if (toastElement.timeoutId) {
+            clearTimeout(toastElement.timeoutId);
+        }
+        toastElement.timeoutId = setTimeout(() => {
+            toastElement.style.display = 'none';
+            // Reset to default style after hiding
+            toastElement.style.backgroundColor = '#333';
+        }, 5000);
+        
+        // Create a user-friendly error message
+        let errorMessage = error.message;
+        if (error.message.includes('Authentication required') || 
+            error.message.includes('Session expired')) {
+            errorMessage = `${error.message} <br><a href="/" class="error-link">Go to login page</a>`;
+        }
+        
+        if (resultsTableBody) {
+            resultsTableBody.innerHTML = `
+                <div class="error-message">
+                    Error during search: ${errorMessage}
+                    <br>Please try again later.
+                </div>
+            `;
+        }
+        
+        // Hide action buttons and save search button in case of error
+        if (showOnMapButton) {
+            showOnMapButton.style.display = 'none';
+        }
+        if (exportButton) {
+            exportButton.style.display = 'none';
+        }
+        if (saveSearchButton) {
+            saveSearchButton.style.display = 'none';
+        }
+    }
+}</code></pre>
+
+    <h2>3. Server-Side Database Query and MLS Enhancement</h2>
+    
+    <div class="file-path">File: routes/countyTaxSearch.js</div>
+    
+    <p>The server-side route handles the database queries and, for Palm Beach County, enhances the data with MLS information.</p>
+    
+    <pre><code>/**
+ * Main search endpoint for the county tax search feature.
+ * Handles search requests, applies filters, and returns paginated results.
+ */
+router.post('/search', checkAuth, async (req, res) => {
+    try {
+        const { state, county, page = 1, limit = 10, ...filters } = req.body;
+        
+        // Validate required parameters
+        if (!state || !county) {
+            return res.status(400).json({ error: 'State and county are required' });
+        }
+        
+        // Ensure limit doesn't exceed user's max_search_results setting
+        const maxResults = req.session.user.max_search_results || 100;
+        const effectiveLimit = Math.min(parseInt(limit), maxResults);
+        
+        console.log(`Search request: county=${county}, page=${page}, limit=${effectiveLimit} (max: ${maxResults})`);
+        
+        // Debug log all filters to see what's being passed to the query builder
+        console.log('Search filters received:', JSON.stringify(filters, null, 2));
+        
+        // Calculate offset for pagination
+        const offset = (parseInt(page) - 1) * effectiveLimit;
+        
+        // Get county-specific query builder
+        const queryBuilder = getQueryBuilder(county);
+        
+        if (!queryBuilder) {
+            return res.status(400).json({ error: `Unsupported county: ${county}` });
+        }
+
+        // Build main queries for paginated results
+        const { query, params, countQuery, countParams } = await queryBuilder.buildSearchQuery(filters, effectiveLimit, offset);
+        
+        // Build additional query for all matching IDs
+        const { query: allIdsQuery, params: allIdsParams } = await queryBuilder.buildAllIdsQuery ? 
+            await queryBuilder.buildAllIdsQuery(filters) : 
+            { query: 'SELECT NULL as id WHERE 1=0', params: {} };
+        
+        try {
+            // Execute all three queries in parallel - use the appropriate params array for each query
+            const [results, countResult, allIdsResult] = await Promise.all([
+                executeQuery(query, params),
+                executeQuery(countQuery, countParams || params), // Use countParams if available, fall back to params for backward compatibility
+                executeQuery(allIdsQuery, allIdsParams)
+            ]);
+
+            // For Palm Beach County, fetch additional MLS data if we have results
+            let propertyData = results.rows || [];
+            
+            if (county === 'palm_beach' && propertyData.length > 0) {
+                try {
+                    // Extract property IDs for MLS data lookup
+                    const propertyIds = propertyData.map(item => item.property_control_number || item.parcel_id);
+                    
+                    if (propertyIds.length > 0) {
+                        // Build query for MLS data similar to PAPASearch.js
+                        const mlsStatusQuery = `
+                            WITH OrderedResults AS (
+                                SELECT 
+                                    "parcel_id", 
+                                    "listing_date", 
+                                    "status_change_date",
+                                    "listing_id",
+                                    "internal_listing_id",
+                                    "status",
+                                    "wf_development" as "development_name",
+                                    "sold_date",
+                                    "sold_price",
+                                    "sold_price_sqft",
+                                    "best_waterfrontage",
+                                    ROW_NUMBER() OVER (
+                                        PARTITION BY "parcel_id"
+                                        ORDER BY 
+                                            CASE 
+                                                WHEN "status_change_date" <> '' THEN TO_TIMESTAMP("status_change_date", 'YYYY-MM-DD')::timestamp 
+                                                ELSE TO_TIMESTAMP("listing_date", 'YYYY-MM-DD')::timestamp 
+                                            END DESC
+                                    ) AS RowNum
+                                FROM mls.vw_beaches_residential_developments
+                                WHERE "parcel_id" IN (${propertyIds.map(id => `'${id}'`).join(', ')})
+                            )
+                            SELECT 
+                                "parcel_id", 
+                                "listing_date", 
+                                "status_change_date", 
+                                "listing_id",
+                                "internal_listing_id",
+                                "status",
+                                "development_name",
+                                "sold_date",
+                                "sold_price",
+                                "sold_price_sqft",
+                                "best_waterfrontage"
+                            FROM OrderedResults
+                            WHERE RowNum = 1;
+                        `;
+                        
+                        // Execute the MLS query
+                        const mlsResult = await executeQuery(mlsStatusQuery);
+                        
+                        // Calculate 12 months ago for categorizing sales
+                        const twelveMonthsAgo = new Date();
+                        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+                        
+                        // Process MLS results to categorize closed sales
+                        const processedMlsResults = mlsResult.rows.map(listing => {
+                            if (listing.status === 'Closed') {
+                                const soldDate = new Date(listing.sold_date);
+                                if (soldDate < twelveMonthsAgo) {
+                                    return {
+                                        ...listing,
+                                        display_status: 'Closed (Older)',
+                                        status: 'Closed'
+                                    };
+                                } else {
+                                    return {
+                                        ...listing,
+                                        display_status: 'Closed (< 12 Mos.)',
+                                        status: 'Closed'
+                                    };
+                                }
+                            }
+                            return {
+                                ...listing,
+                                display_status: listing.status
+                            };
+                        });
+                        
+                        // Merge MLS data with tax data
+                        propertyData = propertyData.map(item => {
+                            // Find matching MLS record for this property
+                            const mlsMatch = processedMlsResults.find(mls => 
+                                mls.parcel_id === (item.property_control_number || item.parcel_id)
+                            );
+                            
+                            // Merge the data, prioritizing MLS values where appropriate
+                            return {
+                                ...item,
+                                // These fields will be added only if mlsMatch exists
+                                ...(mlsMatch && {
+                                    development_name: mlsMatch.development_name || item.development_name,
+                                    listing_id: mlsMatch.listing_id,
+                                    internal_listing_id: mlsMatch.internal_listing_id,
+                                    mls_status: mlsMatch.status,
+                                    display_status: mlsMatch.display_status,
+                                    sold_date: mlsMatch.sold_date,
+                                    sold_price: mlsMatch.sold_price,
+                                    sold_price_sqft: mlsMatch.sold_price_sqft,
+                                    best_waterfrontage: mlsMatch.best_waterfrontage
+                                })
+                            };
+                        });
+                        
+                        console.log(`Enhanced ${propertyData.length} Palm Beach properties with MLS data.`);
+                    }
+                } catch (mlsError) {
+                    console.error('Error fetching MLS data for Palm Beach properties:', mlsError);
+                    // Don't fail the request if MLS data fetch fails, continue with tax data only
+                }
+            }
+
+            res.json({
+                results: propertyData,
+                page: parseInt(page),
+                limit: effectiveLimit,
+                total: parseInt(countResult.rows?.[0]?.count || 0),
+                allIds: allIdsResult.rows?.map(row => ({ id: row.id })) || [] // Extract just the id from each row
+            });
+        } catch (dbError) {
+            console.error('Database query error:', dbError);
+            console.log('Search Query:', query);
+            console.log('Count Query:', countQuery);
+            console.log('Search Parameters:', params);
+            console.log('Count Parameters:', countParams || params);
+            throw new Error(`Database query failed: ${dbError.message}`);
+        }
+    } catch (error) {
+        console.error('Property search error:', error);
+        res.status(500).json({ error: error.message || 'Error executing property search' });
+    }
+});</code></pre>
+
+    <h2>4. Client-Side Metrics Calculation and Display</h2>
+    
+    <p>All metrics are calculated on the client-side using the full dataset. This ensures accuracy regardless of pagination.</p>
+    
+    <h3>Median Calculation Helper Function</h3>
+    <pre><code>/**
+ * Calculate the median value from an array of numbers
+ * @param {Array} values - Array of numeric values
+ * @returns {string|number} - The median value or 'N/A' if no values
+ */
+function calculateMedian(values) {
+    if (values.length === 0) return 'N/A';
+    
+    // Sort values numerically
+    const sorted = [...values].sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    
+    if (sorted.length % 2 === 0) {
+        // Average of the two middle numbers
+        return ((sorted[middle - 1] + sorted[middle]) / 2).toLocaleString('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            maximumFractionDigits: 0
+        });
+    } else {
+        // Middle number
+        return sorted[middle].toLocaleString('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            maximumFractionDigits: 0
+        });
+    }
+}</code></pre>
+
+    <h3>Main Metrics Calculation Function</h3>
+    <pre><code>/**
+ * Display search results and calculate metrics
+ * @param {Array} results - The search results to display
+ * @param {Array} allResults - The full dataset for calculating statistics
+ */
+function displaySearchResults(results, allResults = results, preserveStatusFilter = false) {
+    // Process MLS display statuses exactly like in PAPA search
+    // Calculate the 12-month cutoff for categorizing closed listings
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+    
+    // Process all results to ensure display_status is set correctly
+    // Use the provided results for statistics if we're filtering
+    const datasetForStats = allResults;
+    
+    const processedResults = datasetForStats.map(item => {
+        // If the item already has a display_status, use it
+        if (item.display_status) {
+            return item;
+        }
+        
+        // Otherwise, compute display_status based on status and sold_date
+        if (item.status === 'Closed' && item.sold_date) {
+            const soldDate = new Date(item.sold_date);
+            if (!isNaN(soldDate.getTime())) {
+                if (soldDate >= twelveMonthsAgo) {
+                    return { ...item, display_status: 'Closed (< 12 Mos.)' };
+                } else {
+                    return { ...item, display_status: 'Closed (Older)' };
+                }
+            }
+        }
+        
+        // Default case - use status as display_status
+        return { ...item, display_status: item.status || 'Unknown' };
+    });
+    
+    // Calculate statistics based on the processed dataset
+    // Calculate status counts using display_status instead of status
+    const statusCounts = processedResults.reduce((acc, item) => {
+        const status = item.display_status || 'Unknown';
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+    }, {});
+    
+    // Get unique statuses from display_status field - exclude "Unknown"
+    const uniqueStatuses = Object.keys(statusCounts)
+        .filter(status => status !== 'Unknown')
+        .sort();
+    
+    // Calculate the number of active properties - only truly active listings
+    const activeStatusTypes = ['Active', 'Coming Soon'];
+    const activeCount = activeStatusTypes.reduce((total, status) => {
+        return total + (statusCounts[status] || 0);
+    }, 0);
+    
+    // Calculate the percentage of active properties
+    const activePercentage = processedResults.length > 0 ? ((activeCount / processedResults.length) * 100).toFixed(2) : '0.00';
+    
+    // Calculate months of inventory
+    const activeListings = statusCounts['Active'] || 0;
+    
+    // 12-month calculation
+    const recentClosedListings12Mo = statusCounts['Closed (< 12 Mos.)'] || 0;
+    let monthsOfInventory12 = 'N/A';
+    
+    if (recentClosedListings12Mo > 0) {
+        // Calculate average monthly closed listings (over the last 12 months)
+        const avgMonthlyClosed = recentClosedListings12Mo / 12;
+        
+        // Calculate months of inventory
+        if (avgMonthlyClosed > 0) {
+            monthsOfInventory12 = (activeListings / avgMonthlyClosed).toFixed(1);
+        }
+    }
+    
+    // 3-month calculation - Find listings closed in the past 3 months
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    
+    // Count closed listings in the past 3 months
+    const recentClosedListings3Mo = processedResults.filter(property => {
+        if ((property.status === 'Closed' || property.display_status?.includes('Closed')) && property.sold_date) {
+            try {
+                const soldDate = new Date(property.sold_date);
+                return !isNaN(soldDate.getTime()) && soldDate >= threeMonthsAgo;
+            } catch (e) {
+                return false;
+            }
+        }
+        return false;
+    }).length;
+    
+    // Add to status counts for display in statistics section
+    statusCounts['Closed (< 3 Mos.)'] = recentClosedListings3Mo;
+    
+    // Calculate 3-month inventory
+    let monthsOfInventory3 = 'N/A';
+    if (recentClosedListings3Mo > 0) {
+        const avgMonthlyClosed = recentClosedListings3Mo / 3;
+        if (avgMonthlyClosed > 0) {
+            monthsOfInventory3 = (activeListings / avgMonthlyClosed).toFixed(1);
+        }
+    }
+    
+    // Calculate median sale prices by year
+    const salesByYear = {
+        2023: [],
+        2024: [],
+        2025: []
+    };
+    
+    // Get current date for year-to-date filtering
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth(); // 0-based (0 = January)
+    const currentDay = currentDate.getDate();
+    
+    // Collect sales data by year for closed properties from the FULL dataset
+    processedResults.forEach(property => {
+        // Only use Closed properties with valid data (both status types)
+        if ((property.status === 'Closed' || property.display_status?.includes('Closed')) && property.sold_price && property.sold_date) {
+            let soldDate = null;
+            try {
+                soldDate = new Date(property.sold_date);
+                if (isNaN(soldDate.getTime())) {
+                    soldDate = null;
+                }
+            } catch (e) {
+                console.warn('Date parsing error:', e);
+            }
+            
+            // If we have valid date and price
+            if (soldDate) {
+                const soldYear = soldDate.getFullYear();
+                const soldPrice = parseFloat(property.sold_price);
+                
+                if (!isNaN(soldPrice) && [2023, 2024, 2025].includes(soldYear)) {
+                    salesByYear[soldYear].push({
+                        price: soldPrice,
+                        date: soldDate
+                    });
+                }
+            }
+        }
+    });
+    
+    // Filter sales to only include those from Jan 1 to current date for each year
+    const filteredSalesByYear = {
+        2023: salesByYear[2023].filter(sale => {
+            const saleMonth = sale.date.getMonth();
+            const saleDay = sale.date.getDate();
+            return (saleMonth < currentMonth) || (saleMonth === currentMonth && saleDay <= currentDay);
+        }),
+        2024: salesByYear[2024].filter(sale => {
+            const saleMonth = sale.date.getMonth();
+            const saleDay = sale.date.getDate();
+            return (saleMonth < currentMonth) || (saleMonth === currentMonth && saleDay <= currentDay);
+        }),
+        2025: salesByYear[2025].filter(sale => {
+            const saleMonth = sale.date.getMonth();
+            const saleDay = sale.date.getDate();
+            return (saleMonth < currentMonth) || (saleMonth === currentMonth && saleDay <= currentDay);
+        })
+    };
+    
+    // Extract just the price values for median calculation
+    const filteredPricesByYear = {
+        2023: filteredSalesByYear[2023].map(sale => sale.price),
+        2024: filteredSalesByYear[2024].map(sale => sale.price),
+        2025: filteredSalesByYear[2025].map(sale => sale.price)
+    };
+    
+    // Calculate median prices for each year - both full year and YTD
+    const ytdMedianPrices = {
+        2023: calculateMedian(filteredPricesByYear[2023]),
+        2024: calculateMedian(filteredPricesByYear[2024]),
+        2025: calculateMedian(filteredPricesByYear[2025])
+    };
+    
+    // Create the statistics section - Similar to PAPA implementation
+    const statsContainer = document.createElement('div');
+    statsContainer.className = 'metrics-container';
+    
+    // Only show statistics for Palm Beach County
+    const currentCounty = countySelect.value;
+    const showStatistics = currentCounty === 'palm_beach';
+    
+    // Set display style based on county
+    statsContainer.style.display = showStatistics ? 'flex' : 'none';
+    
+    // Create left column for standard metrics
+    const leftColumn = document.createElement('div');
+    leftColumn.className = 'metrics-column';
+    
+    // Add Tax count
+    const taxCount = document.createElement('div');
+    taxCount.className = 'metric-item';
+    taxCount.innerHTML = `<strong>Tax:</strong> <span class="value">${displayTotalResults}</span>`;
+    leftColumn.appendChild(taxCount);
+    
+    // Define display order for statuses
+    const statusDisplayOrder = [
+        'Active',
+        'Active Under Contract',
+        'Closed (< 12 Mos.)',
+        'Closed (< 3 Mos.)',
+        'Closed (Older)',
+        'Pending'
+    ];
+    
+    // Track which statuses have been displayed
+    const displayedStatuses = new Set();
+    
+    // Add status counts in the defined order
+    statusDisplayOrder.forEach(status => {
+        if (uniqueStatuses.includes(status) || (status === 'Closed (< 3 Mos.)' && statusCounts['Closed (< 3 Mos.)'])) {
+            const statusItem = document.createElement('div');
+            statusItem.className = 'metric-item';
+            const statusCount = statusCounts[status] || 0;
+            statusItem.innerHTML = `<strong>${status}:</strong> <span class="value">${statusCount}</span>`;
+            leftColumn.appendChild(statusItem);
+            displayedStatuses.add(status);
+        }
+    });
+    
+    // Add any remaining statuses not in the predefined order
+    uniqueStatuses.forEach(status => {
+        if (!displayedStatuses.has(status)) {
+            const statusItem = document.createElement('div');
+            statusItem.className = 'metric-item';
+            const statusCount = statusCounts[status] || 0;
+            statusItem.innerHTML = `<strong>${status}:</strong> <span class="value">${statusCount}</span>`;
+            leftColumn.appendChild(statusItem);
+            displayedStatuses.add(status);
+        }
+    });
+    
+    // Add Active % to the left column (position matches PAPA)
+    const activePercentItem = document.createElement('div');
+    activePercentItem.className = 'metric-item';
+    activePercentItem.innerHTML = `<strong>Active %:</strong> <span class="value">${activePercentage}%</span>`;
+    leftColumn.appendChild(activePercentItem);
+    
+    // Create right column for new metrics
+    const rightColumn = document.createElement('div');
+    rightColumn.className = 'metrics-column';
+    
+    // Add Median Sale Prices
+    const medianPriceTitle = document.createElement('div');
+    medianPriceTitle.className = 'metric-item';
+    medianPriceTitle.innerHTML = `<strong>MLS Median Sale Price (YTD):</strong>`;
+    rightColumn.appendChild(medianPriceTitle);
+    
+    // Format the current date for display
+    const dateFormatOptions = { month: 'short', day: 'numeric' };
+    const formattedCurrentDate = currentDate.toLocaleDateString('en-US', dateFormatOptions);
+    
+    // Add year median prices - using year-to-date filtered data
+    Object.keys(ytdMedianPrices).forEach(year => {
+        const medianItem = document.createElement('div');
+        medianItem.className = 'metric-item indent';
+        medianItem.innerHTML = `<strong>${year}:</strong> <span class="value" title="Based on ${filteredSalesByYear[year].length} closed sales from Jan 1 to ${formattedCurrentDate}">${ytdMedianPrices[year]} (${filteredSalesByYear[year].length})</span>`;
+        rightColumn.appendChild(medianItem);
+    });
+    
+    // Add Months of Inventory to the right column (position matches PAPA)
+    const inventoryItem = document.createElement('div');
+    inventoryItem.className = 'metric-item';
+    inventoryItem.innerHTML = `
+        <strong>Months of Inventory (12mo):</strong> <span class="value">${monthsOfInventory12}</span><br>
+        <strong>Months of Inventory (3mo):</strong> <span class="value">${monthsOfInventory3}</span>
+    `;
+    rightColumn.appendChild(inventoryItem);
+    
+    // Add columns to container
+    statsContainer.appendChild(leftColumn);
+    statsContainer.appendChild(rightColumn);
+    
+    // Add statistics to results container
+    resultsContainer.appendChild(statsContainer);
+    
+    // ... rest of the function for displaying individual results ...
+}</code></pre>
+
+    <h2>5. Metrics Formulas</h2>
+    
+    <div class="key-point">
+        <h3>Key Metrics and Their Calculations</h3>
+        
+        <div class="metric-formula">
+            <strong>Tax:</strong> Total number of properties in the search results
+        </div>
+        
+        <div class="metric-formula">
+            <strong>Active Count:</strong> Sum of properties with status = 'Active' or 'Coming Soon'
+        </div>
+        
+        <div class="metric-formula">
+            <strong>Active %:</strong> (Active Count / Total Properties) × 100
+        </div>
+        
+        <div class="metric-formula">
+            <strong>Closed (< 12 Mos.):</strong> Count of properties with status = 'Closed' and sold_date >= 12 months ago
+        </div>
+        
+        <div class="metric-formula">
+            <strong>Closed (< 3 Mos.):</strong> Count of properties with status = 'Closed' and sold_date >= 3 months ago
+        </div>
+        
+        <div class="metric-formula">
+            <strong>Months of Inventory (12mo):</strong> Active Listings ÷ (Closed < 12 Mos. ÷ 12)
+        </div>
+        
+        <div class="metric-formula">
+            <strong>Months of Inventory (3mo):</strong> Active Listings ÷ (Closed < 3 Mos. ÷ 3)
+        </div>
+        
+        <div class="metric-formula">
+            <strong>MLS Median Sale Price (YTD):</strong> Median of all sold_price values for properties with status = 'Closed' and sold_date between Jan 1 and current date for each year (2023, 2024, 2025)
+        </div>
+    </div>
+
+    <h2>6. Data Sources</h2>
+    
+    <div class="process-flow">
+        <h3>Database Tables and Views Used</h3>
+        <ul>
+            <li><strong>County-specific tax tables:</strong> Property tax assessment data (varies by county)</li>
+            <li><strong>mls.vw_beaches_residential_developments:</strong> MLS listing data for Palm Beach County</li>
+            <li><strong>County query builders:</strong> Located in <code>utils/queries/[county_name].js</code></li>
+        </ul>
+        
+        <h3>Key Data Fields</h3>
+        <ul>
+            <li><strong>parcel_id / property_control_number:</strong> Unique property identifier</li>
+            <li><strong>status:</strong> MLS listing status (Active, Closed, Pending, etc.)</li>
+            <li><strong>display_status:</strong> Processed status for categorization</li>
+            <li><strong>sold_date:</strong> Date property was sold</li>
+            <li><strong>sold_price:</strong> Sale price of the property</li>
+            <li><strong>listing_date:</strong> Date property was listed</li>
+            <li><strong>development_name:</strong> Name of the development/community</li>
+        </ul>
+    </div>
+
+    <h2>7. Implementation Notes for Developers</h2>
+    
+    <div class="key-point">
+        <h3>Critical Implementation Details</h3>
+        <ul>
+            <li><strong>Two-Stage Data Fetch:</strong> Always fetch the complete dataset for accurate statistics, even when displaying paginated results</li>
+            <li><strong>Client-Side Calculations:</strong> All metrics are computed on the client-side to ensure accuracy across all data</li>
+            <li><strong>MLS Enhancement:</strong> Palm Beach County gets additional MLS data merged with tax data</li>
+            <li><strong>Status Processing:</strong> Properties are categorized into display statuses based on MLS status and sold dates</li>
+            <li><strong>YTD Filtering:</strong> Median prices are filtered to include only sales from January 1st to the current date for fair year-over-year comparison</li>
+            <li><strong>Dynamic DOM Creation:</strong> The metrics container is built dynamically and only shown for Palm Beach County</li>
+            <li><strong>Error Handling:</strong> Robust error handling for authentication, network issues, and data parsing errors</li>
+        </ul>
+    </div>
+
+    <div class="process-flow">
+        <h3>Data Flow Summary</h3>
+        <ol>
+            <li><strong>User Input:</strong> Search form submission with filters</li>
+            <li><strong>API Request:</strong> POST to /api/search with search parameters</li>
+            <li><strong>Database Query:</strong> County-specific SQL queries executed</li>
+            <li><strong>MLS Enhancement:</strong> Additional MLS data fetched and merged (Palm Beach only)</li>
+            <li><strong>Full Dataset Fetch:</strong> Second API call to get complete dataset if needed</li>
+            <li><strong>Client Processing:</strong> Status categorization and metric calculations</li>
+            <li><strong>DOM Rendering:</strong> Dynamic creation of metrics container and display</li>
+        </ol>
+    </div>
+
+    <footer style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #ccc; text-align: center; color: #666;">
+        <p>County Tax Search Metrics Implementation Guide</p>
+        <p>Generated on: <script>document.write(new Date().toLocaleDateString());</script></p>
+    </footer>
+</body>
+</html> 

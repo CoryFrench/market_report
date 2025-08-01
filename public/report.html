@@ -360,6 +360,148 @@
             // Hide the development and subdivision elements since they're now in the address
             document.getElementById('propertyDevelopment').style.display = 'none';
             document.getElementById('propertySubdivision').style.display = 'none';
+            
+            // Load development stats if development name is available
+            if (data.development && data.development.trim()) {
+                loadDevelopmentStats(data.development.trim());
+            }
+        }
+        
+        // Function to load development statistics
+        async function loadDevelopmentStats(developmentName) {
+            try {
+                console.log('Loading stats for development:', developmentName);
+                
+                // Show loading state in stats section
+                const statsSection = document.querySelector('#homeStatsContent > div:last-child');
+                if (statsSection) {
+                    statsSection.innerHTML = `
+                        <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 150px;">
+                            <div style="text-align: center;">
+                                <div style="border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 2s linear infinite; margin: 0 auto 15px;"></div>
+                                <p style="margin: 0; color: #7f8c8d; font-size: 14px;">Loading ${developmentName} statistics...</p>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                const response = await fetch(`/api/development-stats/${encodeURIComponent(developmentName)}`);
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    displayDevelopmentStats(result.data);
+                } else {
+                    console.error('Error loading development stats:', result.error);
+                    displayStatsError('Unable to load development statistics');
+                }
+            } catch (error) {
+                console.error('Error fetching development stats:', error);
+                displayStatsError('Error loading statistics');
+            }
+        }
+        
+        // Function to display development statistics
+        function displayDevelopmentStats(stats) {
+            const statsSection = document.querySelector('#homeStatsContent > div:last-child');
+            if (!statsSection) return;
+            
+            // Format large numbers for display
+            const formatPrice = (price) => {
+                if (!price || price === 0) return 'N/A';
+                if (price >= 1000000) {
+                    return `$${(price / 1000000).toFixed(1)}M`;
+                } else if (price >= 1000) {
+                    return `$${(price / 1000).toFixed(0)}K`;
+                } else {
+                    return `$${price.toLocaleString()}`;
+                }
+            };
+            
+            statsSection.innerHTML = `
+                <div style="padding: 20px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h3 style="margin: 0; color: #2c3e50; font-size: 16px; font-weight: 600; margin-bottom: 5px;">${stats.developmentName}</h3>
+                        <div style="width: 60px; height: 2px; background: linear-gradient(90deg, #3498db, #27ae60); margin: 8px auto;"></div>
+                        <p style="margin: 0; color: #7f8c8d; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Development Statistics</p>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 13px;">
+                        <!-- Left Column -->
+                        <div>
+                            <div style="margin-bottom: 8px;">
+                                <strong>Tax:</strong> <span style="color: #2c3e50;">${stats.totalProperties}</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <strong>Active:</strong> <span style="color: #e74c3c;">${stats.activeListings}</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <strong>Active Under Contract:</strong> <span style="color: #f39c12;">${stats.underContract}</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <strong>Closed (&lt; 12 Mos.):</strong> <span style="color: #27ae60;">${stats.closedLast12Months}</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <strong>Closed (&lt; 3 Mos.):</strong> <span style="color: #27ae60;">${stats.closedLast3Months}</span>
+                            </div>
+                            ${stats.closedOlder > 0 ? `<div style="margin-bottom: 8px;"><strong>Closed (Older):</strong> <span style="color: #95a5a6;">${stats.closedOlder}</span></div>` : ''}
+                            ${stats.pending > 0 ? `<div style="margin-bottom: 8px;"><strong>Pending:</strong> <span style="color: #8e44ad;">${stats.pending}</span></div>` : ''}
+                            <div style="margin-bottom: 8px;">
+                                <strong>Active %:</strong> <span style="color: #2c3e50;">${stats.activePercentage}%</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Right Column -->
+                        <div>
+                            <div style="margin-bottom: 12px;">
+                                <strong>MLS Median Sale Price (YTD):</strong>
+                            </div>
+                            ${Object.keys(stats.medianPrices).length > 0 ? 
+                                Object.entries(stats.medianPrices)
+                                    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                                    .map(([year, price]) => {
+                                        const count = stats.saleCounts[year] || 0;
+                                        return `<div style="margin-bottom: 6px; margin-left: 10px;">
+                                            <strong>${year}:</strong> <span style="color: ${year === '2025' ? '#3498db' : '#2c3e50'};">${formatPrice(price)} (${count})</span>
+                                        </div>`;
+                                    }).join('') 
+                                : '<div style="margin-left: 10px; color: #95a5a6; font-style: italic;">No recent sales data</div>'
+                            }
+                            
+                            <div style="margin-top: 15px;">
+                                <div style="margin-bottom: 6px;">
+                                    <strong>Months of Inventory (12mo):</strong> <span style="color: #8e44ad;">${stats.inventoryMonths.twelveMonth}</span>
+                                </div>
+                                <div style="margin-bottom: 6px;">
+                                    <strong>Months of Inventory (3mo):</strong> <span style="color: #8e44ad;">${stats.inventoryMonths.threeMonth}</span>
+                                </div>
+                            </div>
+                            
+                            ${stats.avgDaysOnMarket > 0 ? `
+                            <div style="margin-top: 10px;">
+                                <strong>Avg DOM (Active):</strong> <span style="color: #34495e;">${stats.avgDaysOnMarket} days</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Function to display stats error
+        function displayStatsError(message) {
+            const statsSection = document.querySelector('#homeStatsContent > div:last-child');
+            if (statsSection) {
+                statsSection.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 150px;">
+                        <div style="text-align: center;">
+                            <div style="color: #e74c3c; font-size: 32px; margin-bottom: 15px;">📊</div>
+                            <h3 style="margin: 0; color: #2c3e50; font-size: 18px; font-weight: 300; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;">Stats</h3>
+                            <div style="width: 60px; height: 2px; background: linear-gradient(90deg, #3498db, #27ae60); margin: 8px auto 15px;"></div>
+                            <p style="margin: 0; color: #e74c3c; font-size: 13px;">${message}</p>
+                        </div>
+                    </div>
+                `;
+            }
         }
 
         // FRED series configuration

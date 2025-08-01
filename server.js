@@ -372,6 +372,206 @@ app.get('/api/reports', async (req, res) => {
   }
 });
 
+// Development stats API endpoint for Home Stats panel
+app.get('/api/development-stats/:developmentName', async (req, res) => {
+  try {
+    const { developmentName } = req.params;
+    
+    if (!developmentName) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Development name is required' 
+      });
+    }
+
+    // Query tax records database first (like county tax search), then enhance with MLS data
+    // This mirrors the county tax search metrics system exactly
+    
+    const taxStatsQuery = `
+      SELECT 
+        COUNT(DISTINCT property_control_number) as total_tax_properties
+      FROM tax.palm_beach_county_fl 
+      WHERE development_name = $1
+    `;
+    
+    const mlsStatsQuery = `
+      WITH deduplicated_mls AS (
+        SELECT 
+          mls.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY mls.listing_id
+            ORDER BY 
+              COALESCE(mls.status_change_date, mls.listing_date) DESC NULLS LAST,
+              mls.status DESC
+          ) as row_num
+        FROM mls.vw_beaches_residential_developments mls
+        WHERE mls.wf_development = $1
+      )
+      SELECT 
+        COUNT(DISTINCT tax.property_control_number) as total_mls_properties,
+        COUNT(DISTINCT CASE WHEN mls.status = 'Active' THEN tax.property_control_number END) as active_listings,
+        COUNT(DISTINCT CASE WHEN mls.status = 'Active Under Contract' THEN tax.property_control_number END) as under_contract,
+        COUNT(DISTINCT CASE WHEN mls.status = 'Pending' THEN tax.property_control_number END) as pending,
+        COUNT(DISTINCT CASE 
+          WHEN mls.status = 'Closed' 
+            AND mls.sold_date IS NOT NULL 
+            AND mls.sold_date <> '' 
+            AND TO_DATE(mls.sold_date, 'YYYY-MM-DD') >= NOW() - INTERVAL '12 months' 
+          THEN tax.property_control_number 
+        END) as closed_12mo,
+        COUNT(DISTINCT CASE 
+          WHEN mls.status = 'Closed' 
+            AND mls.sold_date IS NOT NULL 
+            AND mls.sold_date <> '' 
+            AND TO_DATE(mls.sold_date, 'YYYY-MM-DD') >= NOW() - INTERVAL '3 months' 
+          THEN tax.property_control_number 
+        END) as closed_3mo,
+        COUNT(DISTINCT CASE 
+          WHEN mls.status = 'Closed' 
+            AND mls.sold_date IS NOT NULL 
+            AND mls.sold_date <> '' 
+            AND TO_DATE(mls.sold_date, 'YYYY-MM-DD') < NOW() - INTERVAL '12 months' 
+          THEN tax.property_control_number 
+        END) as closed_older,
+        AVG(CASE 
+          WHEN mls.status = 'Active' 
+            AND mls.days_on_market IS NOT NULL 
+            AND mls.days_on_market <> '' 
+            AND LENGTH(TRIM(mls.days_on_market)) > 0
+            AND mls.days_on_market ~ '^[0-9]+(\.[0-9]+)?$'
+          THEN CAST(mls.days_on_market AS numeric)
+        END) as avg_dom_active
+      FROM tax.palm_beach_county_fl tax
+      LEFT JOIN deduplicated_mls mls 
+        ON tax.property_control_number = mls.parcel_id
+        AND mls.row_num = 1
+      WHERE tax.development_name = $1
+    `;
+    
+    const medianPricesQuery = `
+      WITH deduplicated_mls AS (
+        SELECT 
+          mls.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY mls.listing_id
+            ORDER BY 
+              COALESCE(mls.status_change_date, mls.listing_date) DESC NULLS LAST,
+              mls.status DESC
+          ) as row_num
+        FROM mls.vw_beaches_residential_developments mls
+        WHERE mls.wf_development = $1
+      )
+      SELECT 
+        EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) as sale_year,
+        COUNT(*) as sale_count,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sold_price::numeric) as median_price
+      FROM deduplicated_mls mls
+      WHERE mls.row_num = 1
+        AND status = 'Closed'
+        AND sold_date IS NOT NULL 
+        AND sold_date <> ''
+        AND sold_price IS NOT NULL 
+        AND sold_price <> ''
+        AND LENGTH(TRIM(sold_price)) > 0
+        AND sold_price ~ '^[0-9]+(\.[0-9]+)?$'
+        AND EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) IN (2023, 2024, 2025)
+        AND (
+          -- For current year: YTD (Jan 1 to current date)
+          (EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) = EXTRACT(YEAR FROM NOW()) 
+           AND TO_DATE(sold_date, 'YYYY-MM-DD') <= NOW()::date)
+          OR
+          -- For previous years: same period as current year (Jan 1 to same day/month)
+          (EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) < EXTRACT(YEAR FROM NOW())
+           AND TO_DATE(sold_date, 'YYYY-MM-DD') <= 
+               (DATE_TRUNC('year', TO_DATE(sold_date, 'YYYY-MM-DD')) + 
+                INTERVAL '1 day' * (EXTRACT(DOY FROM NOW()) - 1))::date)
+        )
+      GROUP BY EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD'))
+      ORDER BY sale_year;
+    `;
+
+    try {
+      const { query } = require('./db');
+      
+      // Use exact match instead of ILIKE pattern for more precise results
+      // This should match the way county tax search filters development records
+      const exactDevelopmentName = developmentName.trim();
+      
+      // Execute all three queries in parallel
+      const [taxResult, statsResult, pricesResult] = await Promise.all([
+        query(taxStatsQuery, [exactDevelopmentName]),
+        query(mlsStatsQuery, [exactDevelopmentName]),
+        query(medianPricesQuery, [exactDevelopmentName])
+      ]);
+
+      const taxStats = taxResult.rows[0] || {};
+      const stats = statsResult.rows[0] || {};
+      const priceData = pricesResult.rows || [];
+      
+      // Calculate active percentage
+      const totalTaxProperties = parseInt(taxStats.total_tax_properties) || 0;
+      const activeListings = parseInt(stats.active_listings) || 0;
+      const activePercentage = totalTaxProperties > 0 ? 
+        ((activeListings / totalTaxProperties) * 100).toFixed(2) : '0.00';
+      
+      // Calculate months of inventory
+      const closed12Mo = parseInt(stats.closed_12mo) || 0;
+      const closed3Mo = parseInt(stats.closed_3mo) || 0;
+      
+      const monthsInventory12 = closed12Mo > 0 ? 
+        (activeListings / (closed12Mo / 12)).toFixed(1) : 'N/A';
+      const monthsInventory3 = closed3Mo > 0 ? 
+        (activeListings / (closed3Mo / 3)).toFixed(1) : 'N/A';
+      
+      // Format median prices by year
+      const medianPrices = {};
+      const saleCounts = {};
+      
+      priceData.forEach(row => {
+        const year = row.sale_year;
+        medianPrices[year] = Math.round(parseFloat(row.median_price) || 0);
+        saleCounts[year] = parseInt(row.sale_count) || 0;
+      });
+
+      const developmentStats = {
+        developmentName: developmentName,
+        totalProperties: totalTaxProperties, // This is the "Tax" count from tax records
+        activeListings: activeListings,
+        activePercentage: parseFloat(activePercentage),
+        underContract: parseInt(stats.under_contract) || 0,
+        pending: parseInt(stats.pending) || 0,
+        closedLast12Months: closed12Mo,
+        closedLast3Months: closed3Mo,
+        closedOlder: parseInt(stats.closed_older) || 0,
+        medianPrices: medianPrices,
+        saleCounts: saleCounts,
+        avgDaysOnMarket: Math.round(parseFloat(stats.avg_dom_active) || 0),
+        inventoryMonths: {
+          twelveMonth: monthsInventory12,
+          threeMonth: monthsInventory3
+        }
+      };
+
+      res.json({
+        success: true,
+        data: developmentStats
+      });
+      
+    } catch (dbError) {
+      console.error('Database query error for development stats:', dbError);
+      throw new Error(`Failed to fetch development statistics: ${dbError.message}`);
+    }
+
+  } catch (error) {
+    console.error('Error fetching development stats:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch development statistics',
+      message: error.message 
+    });
+  }
+});
+
 // FRED API endpoint for fetching economic data
 app.get('/api/fred-data', async (req, res) => {
   try {
@@ -439,5 +639,6 @@ app.listen(PORT, async () => {
   console.log(`   GET /api/reports/complete/:reportId - Complete report with all data`);
   console.log(`   GET /api/reports/:reportId/fred-charts - Get FRED charts for report`);
   console.log(`   PUT /api/reports/:reportId/fred-charts - Update FRED charts for report`);
+  console.log(`   GET /api/development-stats/:developmentName - Development market statistics`);
   console.log(`   GET /api/fred-data?seriesId=&startDate=&endDate= - FRED economic data`);
 });
