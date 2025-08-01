@@ -172,7 +172,27 @@ app.put('/api/reports/:reportId/fred-charts', async (req, res) => {
 // Get area comparison for a specific report
 app.get('/api/reports/:reportId/area-comparison', async (req, res) => {
   try {
-    const { reportId } = req.params;
+    const { reportId: urlSlug } = req.params;
+    
+    // Extract numeric report_id from URL slug (e.g., "thomson-4" -> "4")
+    let reportId;
+    if (/^\d+$/.test(urlSlug)) {
+      // Old format: pure number
+      reportId = urlSlug;
+    } else {
+      // New format: lastname-id
+      const parts = urlSlug.split('-');
+      reportId = parts[parts.length - 1]; // Last part should be the ID
+      
+      // Validate that the last part is actually a number
+      if (!/^\d+$/.test(reportId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid report identifier format'
+        });
+      }
+    }
+    
     const result = await dbQueries.getAreaComparison(reportId);
     
     res.json({
@@ -193,8 +213,27 @@ app.get('/api/reports/:reportId/area-comparison', async (req, res) => {
 // Update area comparison for a specific report
 app.put('/api/reports/:reportId/area-comparison', async (req, res) => {
   try {
-    const { reportId } = req.params;
+    const { reportId: urlSlug } = req.params;
     const { seriesId, countyIds } = req.body;
+    
+    // Extract numeric report_id from URL slug (e.g., "thomson-4" -> "4")
+    let reportId;
+    if (/^\d+$/.test(urlSlug)) {
+      // Old format: pure number
+      reportId = urlSlug;
+    } else {
+      // New format: lastname-id
+      const parts = urlSlug.split('-');
+      reportId = parts[parts.length - 1]; // Last part should be the ID
+      
+      // Validate that the last part is actually a number
+      if (!/^\d+$/.test(reportId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid report identifier format'
+        });
+      }
+    }
     
     // Validate required fields
     if (!seriesId || !countyIds || !Array.isArray(countyIds)) {
