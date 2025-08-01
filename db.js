@@ -121,9 +121,18 @@ const dbQueries = {
               'stats_category', rc.stats_category,
               'locations', rc.locations
             )
-          ) FILTER (WHERE rc.chart_id IS NOT NULL), 
+          ) FILTER (WHERE rc.chart_id IS NOT NULL AND rc.chart_type != 'fred'), 
           '[]'::json
         ) as charts,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'chart_id', rfc.chart_id,
+              'series_id', rfc.series_id
+            )
+          ) FILTER (WHERE rfc.chart_id IS NOT NULL), 
+          '[]'::json
+        ) as fred_charts,
         COALESCE(
           json_agg(
             DISTINCT jsonb_build_object(
@@ -136,7 +145,8 @@ const dbQueries = {
         ) as interest_areas
       FROM customer.report_basic rb
       LEFT JOIN customer.report_home_info rhi ON rb.report_id = rhi.report_id
-      LEFT JOIN customer.report_charts rc ON rb.report_id = rc.report_id
+      LEFT JOIN customer.report_charts rc ON rb.report_id = rc.report_id AND rc.chart_type != 'fred'
+      LEFT JOIN customer.report_charts rfc ON rb.report_id = rfc.report_id AND rfc.chart_type = 'fred'
       LEFT JOIN customer.report_interest_area ria ON rb.report_id = ria.report_id
       WHERE rb.report_id = $1
       GROUP BY rb.report_id, rb.created_at, rb.last_updated, rb.report_url, 
@@ -223,6 +233,82 @@ const dbQueries = {
         createdAt
       };
       
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
+  // Get FRED charts for a specific report
+  getFredCharts: async (reportId) => {
+    const queryText = `
+      SELECT report_id, chart_id, series_id
+      FROM customer.report_charts
+      WHERE report_id = $1 AND chart_type = 'fred'
+      ORDER BY chart_id ASC
+    `;
+    return await query(queryText, [reportId]);
+  },
+
+  // Update/Insert FRED charts for a report (uses existing chart_ids)
+  upsertFredCharts: async (reportId, leftSeriesId, rightSeriesId) => {
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+
+      // Get existing FRED charts for this report
+      const existingCharts = await client.query(`
+        SELECT chart_id, series_id
+        FROM customer.report_charts 
+        WHERE report_id = $1 AND chart_type = 'fred'
+        ORDER BY chart_id ASC
+      `, [reportId]);
+
+      if (existingCharts.rowCount === 2) {
+        // Update existing charts - smaller chart_id = left, larger chart_id = right
+        const leftChartId = existingCharts.rows[0].chart_id;
+        const rightChartId = existingCharts.rows[1].chart_id;
+
+        await client.query(`
+          UPDATE customer.report_charts 
+          SET series_id = $1
+          WHERE chart_id = $2
+        `, [leftSeriesId, leftChartId]);
+
+        await client.query(`
+          UPDATE customer.report_charts 
+          SET series_id = $1
+          WHERE chart_id = $2
+        `, [rightSeriesId, rightChartId]);
+
+      } else {
+        // Need to create new charts - get next available chart_ids
+        const maxChartIdResult = await client.query(`
+          SELECT COALESCE(MAX(chart_id), 0) as max_chart_id
+          FROM customer.report_charts
+        `);
+        
+        const nextChartId = maxChartIdResult.rows[0].max_chart_id + 1;
+        const leftChartId = nextChartId;
+        const rightChartId = nextChartId + 1;
+
+        // Insert new charts
+        await client.query(`
+          INSERT INTO customer.report_charts (chart_id, report_id, chart_type, series_id, stats_category, locations)
+          VALUES ($1, $2, 'fred', $3, null, null)
+        `, [leftChartId, reportId, leftSeriesId]);
+
+        await client.query(`
+          INSERT INTO customer.report_charts (chart_id, report_id, chart_type, series_id, stats_category, locations)
+          VALUES ($1, $2, 'fred', $3, null, null)
+        `, [rightChartId, reportId, rightSeriesId]);
+      }
+
+      await client.query('COMMIT');
+      return { success: true };
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

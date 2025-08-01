@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
 require('dotenv').config();
 const { testConnection, dbQueries } = require('./db');
 
@@ -112,6 +113,57 @@ app.get('/api/reports/charts/:reportId', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch report charts',
+      message: error.message
+    });
+  }
+});
+
+// Get FRED charts for a specific report
+app.get('/api/reports/:reportId/fred-charts', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const result = await dbQueries.getFredCharts(reportId);
+    
+    res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching FRED charts:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch FRED charts',
+      message: error.message
+    });
+  }
+});
+
+// Update FRED charts for a specific report
+app.put('/api/reports/:reportId/fred-charts', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const { leftSeriesId, rightSeriesId } = req.body;
+    
+    // Validate required fields
+    if (!leftSeriesId || !rightSeriesId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Both leftSeriesId and rightSeriesId are required'
+      });
+    }
+    
+    const result = await dbQueries.upsertFredCharts(reportId, leftSeriesId, rightSeriesId);
+    
+    res.json({
+      success: true,
+      message: 'FRED charts updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating FRED charts:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update FRED charts',
       message: error.message
     });
   }
@@ -320,6 +372,28 @@ app.get('/api/reports', async (req, res) => {
   }
 });
 
+// FRED API endpoint for fetching economic data
+app.get('/api/fred-data', async (req, res) => {
+  try {
+    const { seriesId, startDate, endDate } = req.query;
+    const response = await axios.get(`https://api.stlouisfed.org/fred/series/observations`, {
+      params: {
+        series_id: seriesId,
+        api_key: process.env.FRED_API_KEY,
+        file_type: 'json',
+        observation_start: startDate,
+        observation_end: endDate
+      }
+    });
+    // console.log('FRED Data Response:', JSON.stringify(response.data, null, 2));
+
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error fetching FRED data:', error);
+    res.status(500).json({ error: 'Failed to fetch FRED data' });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -363,4 +437,7 @@ app.listen(PORT, async () => {
   console.log(`   GET /api/reports/interest-areas - All interest area data`);
   console.log(`   GET /api/reports/interest-areas/:reportId - Specific interest area data`);
   console.log(`   GET /api/reports/complete/:reportId - Complete report with all data`);
+  console.log(`   GET /api/reports/:reportId/fred-charts - Get FRED charts for report`);
+  console.log(`   PUT /api/reports/:reportId/fred-charts - Update FRED charts for report`);
+  console.log(`   GET /api/fred-data?seriesId=&startDate=&endDate= - FRED economic data`);
 });

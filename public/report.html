@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Professional Area Analysis Report</title>
     <link rel="stylesheet" href="/styles.css">
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -42,10 +48,75 @@
                 <div class="section">
                     <h2>FRED Charts</h2>
                     <div class="section-content">
-                        <div id="fredChartsContent">
-                            <div class="info-item">
-                                <div class="info-label">Economic Data</div>
-                                <div class="info-value">Federal Reserve Economic Data charts and indicators</div>
+                        <div id="fredChartsContent" style="display: flex; gap: 20px; flex-wrap: wrap;">
+                            <div class="chart-container" style="flex: 1; min-width: 300px; border: 1px solid #ddd; border-radius: 8px; padding: 15px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <h3 style="margin: 0; color: #333; font-size: 16px;" id="leftChartTitle">Housing Price Index</h3>
+                                    <select id="leftChartSelect" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;">
+                                        <option value="USSTHPI">Housing Price Index</option>
+                                        <option value="GDP">GDP</option>
+                                        <option value="CPIAUCSL">CPI</option>
+                                        <option value="PPIACO">PPI</option>
+                                        <option value="FEDFUNDS">Fed Funds Rate</option>
+                                        <option value="MORTGAGE30US">30-Year Mortgage</option>
+                                        <option value="MORTGAGE15US">15-Year Mortgage</option>
+                                        <option value="RHVRUSQ156N">Vacancy Rate</option>
+                                        <option value="LREM64TTUSM156S">Employment</option>
+                                        <option value="POPTHM">Population</option>
+                                        <option value="M2REAL">Money Stock</option>
+                                        <option value="FPCPITOTLZGUSA">Inflation</option>
+                                        <option value="GFDEBTN">Government Debt</option>
+                                        <option value="DGS10">10-Year Treasury</option>
+                                        <option value="DGS2">2-Year Treasury</option>
+                                        <option value="ACTLISCOUUS">Active Listings</option>
+                                        <option value="MSPUS">Median Sale Price</option>
+                                        <option value="NEWLISCOUUS">New Listings</option>
+                                        <option value="MEDDAYONMARUS">Median Days on Market</option>
+                                        <option value="UNRATE">Unemployment Rate</option>
+                                        <option value="DJIA">Dow Jones Industrial Average</option>
+                                    </select>
+                                </div>
+                                <div id="leftChart" style="width: 100%; height: 300px; display: flex; align-items: center; justify-content: center; background-color: #f9f9f9; border-radius: 4px;">
+                                    <div class="loading-spinner" style="text-align: center;">
+                                        <div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 2s linear infinite; margin: 0 auto;"></div>
+                                        <p style="margin-top: 10px; color: #666;">Loading chart data...</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="chart-container" style="flex: 1; min-width: 300px; border: 1px solid #ddd; border-radius: 8px; padding: 15px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <h3 style="margin: 0; color: #333; font-size: 16px;" id="rightChartTitle">Dow Jones Industrial Average</h3>
+                                    <select id="rightChartSelect" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;">
+                                        <option value="DJIA" selected>Dow Jones Industrial Average</option>
+                                        <option value="GDP">GDP</option>
+                                        <option value="USSTHPI">Housing Price Index</option>
+                                        <option value="CPIAUCSL">CPI</option>
+                                        <option value="PPIACO">PPI</option>
+                                        <option value="FEDFUNDS">Fed Funds Rate</option>
+                                        <option value="MORTGAGE30US">30-Year Mortgage</option>
+                                        <option value="MORTGAGE15US">15-Year Mortgage</option>
+                                        <option value="RHVRUSQ156N">Vacancy Rate</option>
+                                        <option value="LREM64TTUSM156S">Employment</option>
+                                        <option value="POPTHM">Population</option>
+                                        <option value="M2REAL">Money Stock</option>
+                                        <option value="FPCPITOTLZGUSA">Inflation</option>
+                                        <option value="GFDEBTN">Government Debt</option>
+                                        <option value="DGS10">10-Year Treasury</option>
+                                        <option value="DGS2">2-Year Treasury</option>
+                                        <option value="ACTLISCOUUS">Active Listings</option>
+                                        <option value="MSPUS">Median Sale Price</option>
+                                        <option value="NEWLISCOUUS">New Listings</option>
+                                        <option value="MEDDAYONMARUS">Median Days on Market</option>
+                                        <option value="UNRATE">Unemployment Rate</option>
+                                    </select>
+                                </div>
+                                <div id="rightChart" style="width: 100%; height: 300px; display: flex; align-items: center; justify-content: center; background-color: #f9f9f9; border-radius: 4px;">
+                                    <div class="loading-spinner" style="text-align: center;">
+                                        <div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 2s linear infinite; margin: 0 auto;"></div>
+                                        <p style="margin-top: 10px; color: #666;">Loading chart data...</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -193,16 +264,230 @@
                 document.getElementById('interestAreasContent').innerHTML = `<div class="info-grid">${areasHtml}</div>`;
             }
             
-            // FRED Charts
-            if (data.fred_charts && data.fred_charts.length > 0) {
-                const fredChartsHtml = data.fred_charts.map(chart => `
-                    <div class="info-item">
-                        <div class="info-label">${chart.chart_title || `FRED Chart ${chart.chart_id || ''}`}</div>
-                        <div class="info-value">${chart.description || chart.series_id || 'Economic data visualization'}</div>
-                    </div>
-                `).join('');
-                document.getElementById('fredChartsContent').innerHTML = `<div class="info-grid">${fredChartsHtml}</div>`;
+            // FRED Charts - Load the charts after displaying the report
+            loadFredCharts(data.report_id);
+        }
+
+        // FRED series configuration
+        const FRED_SERIES = {
+            'GDP': 'GDP',
+            'CPIAUCSL': 'CPI',
+            'PPIACO': 'PPI',
+            'FEDFUNDS': 'Fed Funds Rate',
+            'MORTGAGE30US': '30-Year Mortgage',
+            'MORTGAGE15US': '15-Year Mortgage',
+            'RHVRUSQ156N': 'Vacancy Rate',
+            'LREM64TTUSM156S': 'Employment',
+            'POPTHM': 'Population',
+            'M2REAL': 'Money Stock',
+            'FPCPITOTLZGUSA': 'Inflation',
+            'GFDEBTN': 'Government Debt',
+            'DGS10': '10-Year Treasury',
+            'DGS2': '2-Year Treasury',
+            'ACTLISCOUUS': 'Active Listings',
+            'MSPUS': 'Median Sale Price',
+            'NEWLISCOUUS': 'New Listings',
+            'MEDDAYONMARUS': 'Median Days on Market',
+            'USSTHPI': 'Housing Price Index',
+            'UNRATE': 'Unemployment Rate',
+            'DJIA': 'Dow Jones Industrial Average'
+        };
+
+        // Function to fetch and display FRED charts
+        async function loadFredCharts(reportId) {
+            let leftSeriesId = 'USSTHPI';  // Default
+            let rightSeriesId = 'DJIA';    // Default
+            
+            try {
+                // Load saved FRED charts from database
+                const response = await fetch(`/api/reports/${reportId}/fred-charts`);
+                const result = await response.json();
+                
+                if (response.ok && result.success && result.data.length > 0) {
+                    // Find left and right charts by chart_id (smaller = left, larger = right)
+                    const sortedCharts = result.data.sort((a, b) => a.chart_id - b.chart_id);
+                    const leftChart = sortedCharts[0];
+                    const rightChart = sortedCharts[1];
+                    
+                    if (leftChart) leftSeriesId = leftChart.series_id;
+                    if (rightChart) rightSeriesId = rightChart.series_id;
+                }
+            } catch (error) {
+                console.error('Error loading FRED charts from database:', error);
+                // Continue with defaults
             }
+            
+            // Set dropdown values and titles
+            document.getElementById('leftChartSelect').value = leftSeriesId;
+            document.getElementById('rightChartSelect').value = rightSeriesId;
+            document.getElementById('leftChartTitle').textContent = FRED_SERIES[leftSeriesId] || leftSeriesId;
+            document.getElementById('rightChartTitle').textContent = FRED_SERIES[rightSeriesId] || rightSeriesId;
+            
+            // Setup dropdown event listeners with save functionality
+            document.getElementById('leftChartSelect').addEventListener('change', async function() {
+                const seriesId = this.value;
+                const title = FRED_SERIES[seriesId] || seriesId;
+                document.getElementById('leftChartTitle').textContent = title;
+                loadChartData('leftChart', seriesId, '#2E8B57');
+                
+                // Save to database
+                await saveFredCharts(reportId);
+            });
+            
+            document.getElementById('rightChartSelect').addEventListener('change', async function() {
+                const seriesId = this.value;
+                const title = FRED_SERIES[seriesId] || seriesId;
+                document.getElementById('rightChartTitle').textContent = title;
+                loadChartData('rightChart', seriesId, '#1E90FF');
+                
+                // Save to database
+                await saveFredCharts(reportId);
+            });
+
+            // Load initial charts
+            loadChartData('leftChart', leftSeriesId, '#2E8B57');
+            loadChartData('rightChart', rightSeriesId, '#1E90FF');
+        }
+        
+        // Function to save FRED charts to database
+        async function saveFredCharts(reportId) {
+            try {
+                const leftSeriesId = document.getElementById('leftChartSelect').value;
+                const rightSeriesId = document.getElementById('rightChartSelect').value;
+                
+                const response = await fetch(`/api/reports/${reportId}/fred-charts`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        leftSeriesId: leftSeriesId,
+                        rightSeriesId: rightSeriesId
+                    })
+                });
+                
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    console.error('Error saving FRED charts:', result.error);
+                }
+            } catch (error) {
+                console.error('Error saving FRED charts:', error);
+            }
+        }
+
+        // Function to load chart data
+        function loadChartData(containerId, seriesId, color) {
+            const currentDate = new Date();
+            const fiveYearsAgo = new Date(currentDate.getFullYear() - 5, currentDate.getMonth(), currentDate.getDate());
+            
+            const startDate = fiveYearsAgo.toISOString().split('T')[0];
+            const endDate = currentDate.toISOString().split('T')[0];
+            
+            const title = FRED_SERIES[seriesId] || seriesId;
+            loadFredChart(seriesId, containerId, startDate, endDate, title, color);
+        }
+
+        // Function to load individual FRED chart
+        async function loadFredChart(seriesId, containerId, startDate, endDate, title, color) {
+            try {
+                const response = await fetch(`/api/fred-data?seriesId=${seriesId}&startDate=${startDate}&endDate=${endDate}`);
+                const data = await response.json();
+                
+                if (data.observations && data.observations.length > 0) {
+                    renderChart(containerId, data.observations, title, color);
+                } else {
+                    document.getElementById(containerId).innerHTML = `
+                        <div style="text-align: center; color: #666; padding: 20px;">
+                            <p>No data available for ${title}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error(`Error loading ${seriesId} data:`, error);
+                document.getElementById(containerId).innerHTML = `
+                    <div style="text-align: center; color: #e74c3c; padding: 20px;">
+                        <p>Error loading ${title} data</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Function to render a simple line chart
+        function renderChart(containerId, observations, title, color) {
+            const container = document.getElementById(containerId);
+            const validData = observations.filter(obs => obs.value !== '.' && !isNaN(parseFloat(obs.value)));
+            
+            if (validData.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; color: #666; padding: 20px;">
+                        <p>No valid data available for ${title}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const values = validData.map(obs => parseFloat(obs.value));
+            const dates = validData.map(obs => obs.date);
+            const minValue = Math.min(...values);
+            const maxValue = Math.max(...values);
+            const range = maxValue - minValue;
+            
+            const svgWidth = container.offsetWidth - 40;
+            const svgHeight = 260;
+            const padding = 40;
+            
+            let svgContent = `
+                <svg width="100%" height="${svgHeight}" style="background: white; border-radius: 4px;">
+                    <defs>
+                        <linearGradient id="gradient-${containerId}" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:${color};stop-opacity:0.3" />
+                            <stop offset="100%" style="stop-color:${color};stop-opacity:0.1" />
+                        </linearGradient>
+                    </defs>
+            `;
+            
+            // Create path for line chart
+            let pathData = '';
+            let areaPath = '';
+            
+            validData.forEach((obs, index) => {
+                const x = padding + (index / (validData.length - 1)) * (svgWidth - 2 * padding);
+                const y = svgHeight - padding - ((parseFloat(obs.value) - minValue) / range) * (svgHeight - 2 * padding);
+                
+                if (index === 0) {
+                    pathData += `M ${x} ${y}`;
+                    areaPath += `M ${x} ${svgHeight - padding} L ${x} ${y}`;
+                } else {
+                    pathData += ` L ${x} ${y}`;
+                    areaPath += ` L ${x} ${y}`;
+                }
+                
+                if (index === validData.length - 1) {
+                    areaPath += ` L ${x} ${svgHeight - padding} Z`;
+                }
+            });
+            
+            svgContent += `
+                <path d="${areaPath}" fill="url(#gradient-${containerId})" />
+                <path d="${pathData}" stroke="${color}" stroke-width="2" fill="none" />
+                
+                <!-- Y-axis labels -->
+                <text x="10" y="30" font-size="10" fill="#666">${maxValue.toLocaleString()}</text>
+                <text x="10" y="${svgHeight - 10}" font-size="10" fill="#666">${minValue.toLocaleString()}</text>
+                
+                <!-- X-axis labels -->
+                <text x="${padding}" y="${svgHeight - 5}" font-size="10" fill="#666">${dates[0]}</text>
+                <text x="${svgWidth - padding - 60}" y="${svgHeight - 5}" font-size="10" fill="#666">${dates[dates.length - 1]}</text>
+                
+                <!-- Latest value -->
+                <circle cx="${padding + ((validData.length - 1) / (validData.length - 1)) * (svgWidth - 2 * padding)}" 
+                        cy="${svgHeight - padding - ((values[values.length - 1] - minValue) / range) * (svgHeight - 2 * padding)}" 
+                        r="4" fill="${color}" />
+                
+                </svg>
+            `;
+            
+            container.innerHTML = svgContent;
         }
 
         // Load report on page load
