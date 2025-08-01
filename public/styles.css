@@ -547,39 +547,52 @@ body {
 /* Luxury FRED Comparison Styles for Areas of Interest */
 .fred-comparison-container {
     background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
-    border-radius: 16px;
     padding: 40px;
-    margin-bottom: 30px;
-    border-left: 6px solid #c6a96a;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-}
-
-/* Split Layout Styles */
-.fred-split-layout {
-    display: flex;
-    gap: 30px;
-    min-height: 600px;
-}
-
-.fred-controls-panel {
-    flex: 1;
-    min-width: 0; /* Prevent flex item from overflowing */
-    max-width: 33.333%; /* 1/3 of the width */
-}
-
-.fred-chart-panel {
-    flex: 2;
-    min-width: 0; /* Prevent flex item from overflowing */
-    max-width: 66.667%; /* 2/3 of the width */
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
 .comparison-controls {
-    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-    border-radius: 12px;
-    padding: 35px;
-    height: 100%;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-    border: 1px solid rgba(198, 169, 106, 0.2);
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+    border: none;
+    transition: opacity 0.3s ease;
+}
+
+.chart-section {
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+    border: none;
+    transition: opacity 0.3s ease;
+}
+
+.chart-controls {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(198, 169, 106, 0.2);
+}
+
+.back-to-controls-btn {
+    background: linear-gradient(135deg, #c6a96a 0%, #d4af37 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(198, 169, 106, 0.25);
+}
+
+.back-to-controls-btn:hover {
+    background: linear-gradient(135deg, #b8935a 0%, #c29e2a 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(198, 169, 106, 0.35);
 }
 
 .control-group {
@@ -687,38 +700,25 @@ body {
     box-shadow: 0 0 0 2px rgba(198, 169, 106, 0.15);
 }
 
-.add-location-btn, .remove-location-btn {
-    padding: 14px 28px;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    margin-right: 15px;
-    transition: all 0.3s ease;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-family: 'Source Sans Pro', sans-serif;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
 
-.add-location-btn {
+
+#add-location-btn {
     background: linear-gradient(135deg, #c6a96a 0%, #d4af37 100%);
     color: white;
 }
 
-.add-location-btn:hover {
+#add-location-btn:hover {
     background: linear-gradient(135deg, #b8944f 0%, #c19b24 100%);
     transform: translateY(-1px);
     box-shadow: 0 4px 15px rgba(198, 169, 106, 0.3);
 }
 
-.remove-location-btn {
+#remove-location-btn {
     background: linear-gradient(135deg, #718096 0%, #4a5568 100%);
     color: white;
 }
 
-.remove-location-btn:hover {
+#remove-location-btn:hover {
     background: linear-gradient(135deg, #5d6b7d 0%, #3b4552 100%);
     transform: translateY(-1px);
     box-shadow: 0 4px 15px rgba(74, 85, 104, 0.3);
@@ -726,36 +726,37 @@ body {
 
 .action-buttons {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     gap: 15px;
-    margin-top: 35px;
-    padding-top: 25px;
+    margin-top: 20px;
+    padding-top: 20px;
     border-top: 1px solid rgba(198, 169, 106, 0.2);
 }
 
-.compare-btn, .reset-btn {
-    padding: 16px 32px;
+.action-buttons button {
+    padding: 14px 20px;
     border: none;
     border-radius: 8px;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     font-family: 'Source Sans Pro', sans-serif;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    flex: 1;
+    min-width: 120px;
 }
 
-.compare-btn {
+#compare-btn {
     background: linear-gradient(135deg, #1a365d 0%, #2d3748 100%);
     color: white;
-    width: 100%;
     position: relative;
     overflow: hidden;
 }
 
-.compare-btn::before {
+#compare-btn::before {
     content: '';
     position: absolute;
     top: 0;
@@ -766,30 +767,29 @@ body {
     transition: left 0.5s;
 }
 
-.compare-btn:hover::before {
+#compare-btn:hover::before {
     left: 100%;
 }
 
-.compare-btn:hover {
+#compare-btn:hover {
     background: linear-gradient(135deg, #153451 0%, #252e3a 100%);
     transform: translateY(-2px);
     box-shadow: 0 6px 25px rgba(26, 54, 93, 0.3);
 }
 
-.compare-btn:disabled {
+#compare-btn:disabled {
     background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
     cursor: not-allowed;
     transform: none;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.reset-btn {
+#reset-comparison-btn {
     background: linear-gradient(135deg, #c6a96a 0%, #d4af37 100%);
     color: white;
-    width: 100%;
 }
 
-.reset-btn:hover {
+#reset-comparison-btn:hover {
     background: linear-gradient(135deg, #b8944f 0%, #c19b24 100%);
     transform: translateY(-2px);
     box-shadow: 0 6px 25px rgba(198, 169, 106, 0.3);
@@ -919,6 +919,7 @@ body {
     display: flex;
     gap: 15px;
     margin-top: 20px;
+    margin-bottom: 0;
     justify-content: flex-start;
 }
 
@@ -946,7 +947,7 @@ body {
     font-style: italic;
 }
 
-.compare-btn span {
+#compare-btn span {
     position: relative;
     z-index: 1;
 }
@@ -986,13 +987,17 @@ body {
     
     .action-buttons {
         flex-direction: column;
-        gap: 15px;
-    }
-    
-    .location-controls {
-        flex-direction: column;
         gap: 12px;
     }
+    
+    .action-buttons button {
+        flex: none;
+        min-width: auto;
+        font-size: 12px;
+        padding: 12px 16px;
+    }
+    
+
     
     .fred-comparison-container {
         padding: 25px;
@@ -1013,15 +1018,7 @@ body {
         font-size: 16px;
     }
     
-    .add-location-btn, .remove-location-btn {
-        padding: 12px 24px;
-        font-size: 13px;
-    }
-    
-    .compare-btn, .reset-btn {
-        padding: 14px 28px;
-        font-size: 14px;
-    }
+
     
     .fred-chart {
         min-height: 350px;
