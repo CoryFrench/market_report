@@ -1117,9 +1117,9 @@
         // Create a simple comparison chart using SVG
         function createSimpleComparisonChart(data, countyNames, title) {
             const container = document.getElementById('comparison-chart');
-            const containerWidth = container.offsetWidth || 500;
-            const containerHeight = Math.max(container.offsetHeight || 450, 450);
-            const margin = { top: 40, right: 100, bottom: 60, left: 80 };
+            const containerWidth = container.offsetWidth || 600;
+            const containerHeight = Math.max(container.offsetHeight || 500, 500);
+            const margin = { top: 40, right: 120, bottom: 60, left: 80 };
             const width = containerWidth - margin.left - margin.right;
             const height = containerHeight - margin.top - margin.bottom;
             
@@ -1195,9 +1195,9 @@
                         
                         <!-- Legend -->
                         ${Object.entries(countyNames).map(([countyId, name], index) => `
-                            <g transform="translate(${Math.min(width + 10, width - 80)}, ${index * 20 + 20})">
-                                <rect x="0" y="-6" width="12" height="3" fill="${colors[index % colors.length]}"/>
-                                <text x="18" y="0" font-size="11" fill="#333">${name.replace(' County', '')}</text>
+                            <g transform="translate(${width + 15}, ${index * 22 + 20})">
+                                <rect x="0" y="-7" width="14" height="4" fill="${colors[index % colors.length]}"/>
+                                <text x="20" y="0" font-size="12" fill="#333">${name.replace(' County', '')}</text>
                             </g>
                         `).join('')}
                         
