@@ -169,6 +169,57 @@ app.put('/api/reports/:reportId/fred-charts', async (req, res) => {
   }
 });
 
+// Get area comparison for a specific report
+app.get('/api/reports/:reportId/area-comparison', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const result = await dbQueries.getAreaComparison(reportId);
+    
+    res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows[0] || null
+    });
+  } catch (error) {
+    console.error('Error fetching area comparison:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch area comparison',
+      message: error.message
+    });
+  }
+});
+
+// Update area comparison for a specific report
+app.put('/api/reports/:reportId/area-comparison', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const { seriesId, countyIds } = req.body;
+    
+    // Validate required fields
+    if (!seriesId || !countyIds || !Array.isArray(countyIds)) {
+      return res.status(400).json({
+        success: false,
+        error: 'seriesId and countyIds (array) are required'
+      });
+    }
+    
+    const result = await dbQueries.upsertAreaComparison(reportId, seriesId, countyIds);
+    
+    res.json({
+      success: true,
+      message: 'Area comparison updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating area comparison:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update area comparison',
+      message: error.message
+    });
+  }
+});
+
 // Get all report home info
 app.get('/api/reports/home-info', async (req, res) => {
   try {
@@ -697,6 +748,8 @@ app.listen(PORT, async () => {
   console.log(`   GET /api/reports/complete/:reportId - Complete report with all data`);
   console.log(`   GET /api/reports/:reportId/fred-charts - Get FRED charts for report`);
   console.log(`   PUT /api/reports/:reportId/fred-charts - Update FRED charts for report`);
+  console.log(`   GET /api/reports/:reportId/area-comparison - Get area comparison for report`);
+  console.log(`   PUT /api/reports/:reportId/area-comparison - Update area comparison for report`);
   console.log(`   GET /api/development-stats/:developmentName - Development market statistics`);
   console.log(`   GET /api/fred-data?seriesId=&startDate=&endDate= - FRED economic data`);
   console.log(`   GET /api/fred-series?level=COUNTY - FRED series options for Areas of Interest`);

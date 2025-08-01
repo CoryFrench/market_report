@@ -794,8 +794,8 @@
                 // Load series options
                 await loadSeriesOptions();
                 
-                // Initialize with default Palm Beach County
-                resetToDefault();
+                // Load saved comparison data for this report
+                await loadSavedComparison();
                 
                 // Setup event listeners
                 setupEventListeners();
@@ -860,6 +860,112 @@
                     <option value="ATNHPIUS{COUNTY}A">All Transactions HPI</option>
                     <option value="GDPALL{COUNTY}">County GDP</option>
                 `;
+            }
+        }
+        
+        // Load saved comparison data for this report
+        async function loadSavedComparison() {
+            try {
+                console.log('Loading saved comparison for report:', urlSlug);
+                const response = await fetch(`/api/reports/${urlSlug}/area-comparison`);
+                const result = await response.json();
+                
+                if (response.ok && result.success && result.data) {
+                    const savedData = result.data;
+                    console.log('Found saved comparison:', savedData);
+                    
+                    // Set the series selection
+                    if (savedData.series_id) {
+                        document.getElementById('series-select').value = savedData.series_id;
+                    }
+                    
+                    // Load the county locations and populate dropdowns
+                    if (savedData.locations && savedData.locations.length > 0) {
+                        await loadSavedLocations(savedData.locations);
+                    } else {
+                        // No saved data, initialize with default Palm Beach County
+                        resetToDefault();
+                    }
+                } else {
+                    console.log('No saved comparison found, using defaults');
+                    // No saved data, initialize with default Palm Beach County
+                    resetToDefault();
+                }
+            } catch (error) {
+                console.error('Error loading saved comparison:', error);
+                // Fallback to default
+                resetToDefault();
+            }
+        }
+        
+        // Load saved locations and populate the dropdowns
+        async function loadSavedLocations(countyIds) {
+            try {
+                // Set the selection count based on saved locations
+                selectionCount = countyIds.length;
+                
+                // Update the location selections UI
+                updateLocationSelections();
+                
+                // For each saved county ID, we need to find the state and set the dropdowns
+                for (let i = 0; i < countyIds.length; i++) {
+                    const countyId = countyIds[i];
+                    const selectionIndex = i + 1;
+                    
+                    // Get state and county info for this county ID
+                    await loadCountyById(countyId, selectionIndex);
+                }
+                
+                updateButtons();
+                
+            } catch (error) {
+                console.error('Error loading saved locations:', error);
+                resetToDefault();
+            }
+        }
+        
+        // Load county info by ID and set the appropriate dropdowns
+        async function loadCountyById(countyId, selectionIndex) {
+            try {
+                // We need to find which state this county belongs to
+                // We'll try each state until we find the county
+                for (const state of availableStates) {
+                    const response = await fetch(`/api/counties?state=${encodeURIComponent(state)}`);
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {
+                        const county = result.data.find(c => c.id === countyId);
+                        if (county) {
+                            // Found the county in this state
+                            const stateSelect = document.getElementById(`state-select-${selectionIndex}`);
+                            const countySelect = document.getElementById(`county-select-${selectionIndex}`);
+                            
+                            if (stateSelect && countySelect) {
+                                // Set the state
+                                stateSelect.value = state;
+                                
+                                // Populate and set the county
+                                countySelect.innerHTML = '<option value="">Select County</option>';
+                                const sortedCounties = result.data.sort((a, b) => a.name.localeCompare(b.name));
+                                sortedCounties.forEach(countyOption => {
+                                    const option = document.createElement('option');
+                                    option.value = countyOption.id;
+                                    option.textContent = countyOption.name;
+                                    if (countyOption.id === countyId) {
+                                        option.selected = true;
+                                    }
+                                    countySelect.appendChild(option);
+                                });
+                            }
+                            
+                            return; // Found and set, exit the function
+                        }
+                    }
+                }
+                
+                console.warn(`County ID ${countyId} not found in any state`);
+            } catch (error) {
+                console.error(`Error loading county by ID ${countyId}:`, error);
             }
         }
         
@@ -992,7 +1098,7 @@
         }
         
         // Reset to default (Palm Beach County only)
-        function resetToDefault() {
+        async function resetToDefault() {
             selectionCount = 1;
             updateLocationSelections();
             updateButtons();
@@ -1004,8 +1110,43 @@
             document.getElementById('comparison-chart-header').style.display = 'none';
             document.getElementById('data-availability-notice').style.display = 'none';
             
+            // Reset series selection to default
+            const seriesSelect = document.getElementById('series-select');
+            const defaultSeries = 'ACTIVE_COUNTY_INVENTORY';
+            if (seriesOptionsCache && seriesOptionsCache[defaultSeries]) {
+                seriesSelect.value = defaultSeries;
+            } else if (seriesSelect.options.length > 1) {
+                seriesSelect.selectedIndex = 1; // First non-empty option
+            }
+            
+            // Clear saved comparison data
+            await clearSavedComparison();
+            
             // Switch back to controls view
             showControlsView();
+        }
+        
+        // Clear saved comparison data from database
+        async function clearSavedComparison() {
+            try {
+                // Save empty data to effectively clear the comparison
+                const response = await fetch(`/api/reports/${urlSlug}/area-comparison`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        seriesId: 'ACTIVE_COUNTY_INVENTORY',
+                        countyIds: ['12099'] // Default Palm Beach County
+                    })
+                });
+                
+                if (!response.ok) {
+                    console.warn('Failed to clear saved comparison data');
+                }
+            } catch (error) {
+                console.error('Error clearing saved comparison data:', error);
+            }
         }
         
         // Generate the comparison chart
@@ -1040,6 +1181,9 @@
                 alert('Please select at least one location to compare');
                 return;
             }
+            
+            // Save the comparison data before generating chart
+            await saveComparisonData(selectedSeries, selections);
             
             // Switch to chart view and show loading state
             showChartView();
@@ -1109,6 +1253,37 @@
                 console.error('Error generating comparison:', error);
                 document.getElementById('chart-loading').style.display = 'none';
                 document.getElementById('chart-error').style.display = 'flex';
+            }
+        }
+        
+        // Save comparison data to database
+        async function saveComparisonData(seriesId, selections) {
+            try {
+                console.log('Saving comparison data:', { seriesId, selections });
+                
+                // Extract county IDs from selections
+                const countyIds = selections.map(selection => selection.county);
+                
+                const response = await fetch(`/api/reports/${urlSlug}/area-comparison`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        seriesId: seriesId,
+                        countyIds: countyIds
+                    })
+                });
+                
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    console.error('Error saving comparison data:', result.error);
+                } else {
+                    console.log('Comparison data saved successfully');
+                }
+            } catch (error) {
+                console.error('Error saving comparison data:', error);
+                // Don't block the chart generation if save fails
             }
         }
         

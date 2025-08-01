@@ -339,6 +339,67 @@ const dbQueries = {
       ORDER BY countyname
     `;
     return await query(queryText, [state]);
+  },
+
+  // Get area comparison for a specific report
+  getAreaComparison: async (reportId) => {
+    const queryText = `
+      SELECT report_id, chart_id, series_id, locations
+      FROM customer.report_charts
+      WHERE report_id = $1 AND chart_type = 'area_comparison'
+      LIMIT 1
+    `;
+    return await query(queryText, [reportId]);
+  },
+
+  // Update/Insert area comparison for a report
+  upsertAreaComparison: async (reportId, seriesId, countyIds) => {
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+
+      // Get existing area comparison for this report
+      const existingComparison = await client.query(`
+        SELECT chart_id
+        FROM customer.report_charts 
+        WHERE report_id = $1 AND chart_type = 'area_comparison'
+      `, [reportId]);
+
+      if (existingComparison.rowCount > 0) {
+        // Update existing comparison
+        const chartId = existingComparison.rows[0].chart_id;
+
+        await client.query(`
+          UPDATE customer.report_charts 
+          SET series_id = $1, locations = $2
+          WHERE chart_id = $3
+        `, [seriesId, countyIds, chartId]);
+
+      } else {
+        // Create new comparison - get next available chart_id
+        const maxChartIdResult = await client.query(`
+          SELECT COALESCE(MAX(chart_id), 0) as max_chart_id
+          FROM customer.report_charts
+        `);
+        
+        const nextChartId = maxChartIdResult.rows[0].max_chart_id + 1;
+
+        // Insert new comparison
+        await client.query(`
+          INSERT INTO customer.report_charts (chart_id, report_id, chart_type, series_id, stats_category, locations)
+          VALUES ($1, $2, 'area_comparison', $3, null, $4)
+        `, [nextChartId, reportId, seriesId, countyIds]);
+      }
+
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 };
 
