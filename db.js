@@ -315,6 +315,30 @@ const dbQueries = {
     } finally {
       client.release();
     }
+  },
+
+  // Get FRED series options for comparison
+  getFredSeries: async (level = 'COUNTY') => {
+    const queryText = `
+      SELECT id, key_name, display_name, series_pattern, lead_zero, value_type, sort_order, description
+      FROM fred.series
+      WHERE level = $1 AND is_active = TRUE
+      ORDER BY sort_order
+    `;
+    return await query(queryText, [level.toUpperCase()]);
+  },
+
+  // Get counties by state for FRED comparison
+  getCountiesByState: async (state) => {
+    const queryText = `
+      SELECT 
+        countyname as name,
+        LPAD(statefips::text, 2, '0') || LPAD(countyfips::text, 3, '0') as id
+      FROM irs.county_fips_xref
+      WHERE state = $1
+      ORDER BY countyname
+    `;
+    return await query(queryText, [state]);
   }
 };
 

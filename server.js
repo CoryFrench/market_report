@@ -594,6 +594,64 @@ app.get('/api/fred-data', async (req, res) => {
   }
 });
 
+// FRED Series API endpoint for Areas of Interest comparison
+app.get('/api/fred-series', async (req, res) => {
+  try {
+    const { level } = req.query;
+    
+    if (!level || !['NATIONAL', 'STATE', 'COUNTY'].includes(level.toUpperCase())) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid or missing level parameter. Must be NATIONAL, STATE, or COUNTY' 
+      });
+    }
+    
+    const result = await dbQueries.getFredSeries(level);
+    
+    res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching FRED series:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch FRED series',
+      message: error.message 
+    });
+  }
+});
+
+// Counties API endpoint for Areas of Interest comparison
+app.get('/api/counties', async (req, res) => {
+  try {
+    const { state } = req.query;
+    
+    if (!state) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'State parameter is required' 
+      });
+    }
+    
+    const result = await dbQueries.getCountiesByState(state);
+    
+    res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching counties:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch counties',
+      message: error.message 
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -641,4 +699,6 @@ app.listen(PORT, async () => {
   console.log(`   PUT /api/reports/:reportId/fred-charts - Update FRED charts for report`);
   console.log(`   GET /api/development-stats/:developmentName - Development market statistics`);
   console.log(`   GET /api/fred-data?seriesId=&startDate=&endDate= - FRED economic data`);
+  console.log(`   GET /api/fred-series?level=COUNTY - FRED series options for Areas of Interest`);
+  console.log(`   GET /api/counties?state=StateName - Counties by state for FRED comparison`);
 });

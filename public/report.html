@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Professional Area Analysis Report</title>
     <link rel="stylesheet" href="/styles.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -178,9 +179,55 @@
                     <h2>Areas of Interest</h2>
                     <div class="section-content">
                         <div id="interestAreasContent">
-                            <div class="info-item">
-                                <div class="info-label">Coverage Areas</div>
-                                <div class="info-value">Market analysis encompasses primary and secondary coverage areas</div>
+                            <!-- Premium FRED Comparison Interface -->
+                            <div class="fred-comparison-container">
+                                <div class="comparison-controls">
+                                    <div class="control-group">
+                                        <label for="series-select">Economic Indicator Selection</label>
+                                        <select id="series-select" class="fred-select">
+                                            <option value="loading">Loading available metrics...</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="locations-container">
+                                        <h4>Regional Comparison Analysis</h4>
+                                        <div id="location-selections">
+                                            <!-- Dynamic location selectors will be added here -->
+                                        </div>
+                                        <div class="location-controls">
+                                            <button id="add-location-btn" class="add-location-btn">Add Location</button>
+                                            <button id="remove-location-btn" class="remove-location-btn" style="display: none;">Remove Location</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="action-buttons">
+                                        <button id="compare-btn" class="compare-btn">
+                                            <span>Generate Analysis</span>
+                                        </button>
+                                        <button id="reset-comparison-btn" class="reset-btn">Reset to Default</button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Premium Chart Container -->
+                                <div class="chart-section">
+                                    <div id="comparison-chart-header" class="chart-header" style="display: none;">
+                                        <h3>Comparative Market Analysis</h3>
+                                        <p>Professional economic indicator comparison across selected regions</p>
+                                    </div>
+                                    <div id="comparison-chart-container">
+                                        <div id="comparison-chart" class="fred-chart"></div>
+                                        <div id="chart-loading" class="chart-loading-message" style="display: none;">
+                                            <div class="loading-spinner-small"></div>
+                                            <p>Generating comprehensive market analysis...</p>
+                                        </div>
+                                        <div id="chart-error" class="chart-error-message" style="display: none;">
+                                            <p>Analysis temporarily unavailable. Please verify your selections and try again.</p>
+                                        </div>
+                                        <div id="data-availability-notice" class="data-notice" style="display: none;">
+                                            <!-- Professional notice for unavailable data will be inserted here -->
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -726,8 +773,483 @@
             container.innerHTML = svgContent;
         }
 
+        // FRED Comparison Functionality for Areas of Interest
+        let seriesOptionsCache = null;
+        let selectionCount = 1;
+        const maxSelections = 5;
+        
+        // Available states for county selection
+        const availableStates = [
+            'Florida', 'California', 'Texas', 'New York', 'Illinois', 'Pennsylvania',
+            'Ohio', 'Georgia', 'North Carolina', 'Michigan', 'New Jersey', 'Virginia',
+            'Washington', 'Arizona', 'Massachusetts', 'Tennessee', 'Indiana', 'Missouri',
+            'Maryland', 'Wisconsin', 'Colorado', 'Minnesota', 'South Carolina', 'Alabama',
+            'Louisiana', 'Kentucky', 'Oregon', 'Oklahoma', 'Connecticut', 'Utah'
+        ];
+        
+        // Initialize FRED comparison functionality
+        async function initializeFredComparison() {
+            try {
+                // Load series options
+                await loadSeriesOptions();
+                
+                // Initialize with default Palm Beach County
+                resetToDefault();
+                
+                // Setup event listeners
+                setupEventListeners();
+                
+            } catch (error) {
+                console.error('Error initializing FRED comparison:', error);
+                document.getElementById('interestAreasContent').innerHTML = `
+                    <div class="info-item">
+                        <div class="info-label">Areas of Interest</div>
+                        <div class="info-value">Unable to load comparison tools. Please try refreshing the page.</div>
+                    </div>
+                `;
+            }
+        }
+        
+        // Load available FRED series from database
+        async function loadSeriesOptions() {
+            try {
+                const response = await fetch('/api/fred-series?level=COUNTY');
+                const result = await response.json();
+                
+                if (!response.ok || !result.success) {
+                    throw new Error('Failed to fetch series options');
+                }
+                
+                const seriesSelect = document.getElementById('series-select');
+                seriesSelect.innerHTML = '';
+                
+                // Convert to the expected format
+                const options = {};
+                result.data.forEach(item => {
+                    options[item.key_name] = {
+                        series: item.series_pattern,
+                        lead_zero: item.lead_zero,
+                        display_name: item.display_name,
+                        sort_order: item.sort_order || 999,
+                        description: item.description || ''
+                    };
+                    
+                    // Add option to select element
+                    const option = document.createElement('option');
+                    option.value = item.key_name;
+                    option.textContent = item.display_name;
+                    seriesSelect.appendChild(option);
+                });
+                
+                seriesOptionsCache = options;
+                
+                // Set default selection to Active County Inventory or first available
+                const defaultSeries = 'ACTIVE_COUNTY_INVENTORY';
+                if (options[defaultSeries]) {
+                    seriesSelect.value = defaultSeries;
+                } else if (result.data.length > 0) {
+                    seriesSelect.value = result.data[0].key_name;
+                }
+                
+            } catch (error) {
+                console.error('Error loading series options:', error);
+                // Fallback options
+                document.getElementById('series-select').innerHTML = `
+                    <option value="ACTLISCOU{COUNTY}">Active County Inventory</option>
+                    <option value="ATNHPIUS{COUNTY}A">All Transactions HPI</option>
+                    <option value="GDPALL{COUNTY}">County GDP</option>
+                `;
+            }
+        }
+        
+        // Setup event listeners for the comparison controls
+        function setupEventListeners() {
+            document.getElementById('add-location-btn').addEventListener('click', addLocationSelection);
+            document.getElementById('remove-location-btn').addEventListener('click', removeLocationSelection);
+            document.getElementById('compare-btn').addEventListener('click', generateComparison);
+            document.getElementById('reset-comparison-btn').addEventListener('click', resetToDefault);
+        }
+        
+        // Add a new location selection dropdown
+        function addLocationSelection() {
+            if (selectionCount >= maxSelections) return;
+            
+            selectionCount++;
+            updateLocationSelections();
+            updateButtons();
+        }
+        
+        // Remove the last location selection
+        function removeLocationSelection() {
+            if (selectionCount <= 1) return;
+            
+            selectionCount--;
+            updateLocationSelections();
+            updateButtons();
+        }
+        
+        // Update the location selection interface
+        function updateLocationSelections() {
+            const container = document.getElementById('location-selections');
+            let html = '';
+            
+            for (let i = 1; i <= selectionCount; i++) {
+                html += `
+                    <div class="location-selection" id="location-${i}">
+                        <div>
+                            <label>State Selection</label>
+                            <select id="state-select-${i}" onchange="updateCounties(${i})">
+                                <option value="">Choose State</option>
+                                ${availableStates.map(state => 
+                                    `<option value="${state}"${state === 'Florida' && i === 1 ? ' selected' : ''}>${state}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label>County Selection</label>
+                            <select id="county-select-${i}">
+                                <option value="">Choose County</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html;
+            
+            // Load counties for each state selection
+            for (let i = 1; i <= selectionCount; i++) {
+                const stateSelect = document.getElementById(`state-select-${i}`);
+                if (stateSelect.value) {
+                    updateCounties(i);
+                }
+            }
+        }
+        
+        // Update counties dropdown when state changes
+        async function updateCounties(selectionIndex) {
+            const stateSelect = document.getElementById(`state-select-${selectionIndex}`);
+            const countySelect = document.getElementById(`county-select-${selectionIndex}`);
+            
+            if (!stateSelect.value) {
+                countySelect.innerHTML = '<option value="">Select County</option>';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/counties?state=${encodeURIComponent(stateSelect.value)}`);
+                const result = await response.json();
+                
+                if (!response.ok || !result.success) {
+                    throw new Error('Failed to fetch counties');
+                }
+                
+                countySelect.innerHTML = '<option value="">Select County</option>';
+                result.data.forEach(county => {
+                    const option = document.createElement('option');
+                    option.value = county.id;
+                    option.textContent = county.name;
+                    
+                    // Default Palm Beach County for Florida
+                    if (selectionIndex === 1 && stateSelect.value === 'Florida' && county.name === 'Palm Beach County') {
+                        option.selected = true;
+                    }
+                    
+                    countySelect.appendChild(option);
+                });
+                
+            } catch (error) {
+                console.error('Error fetching counties:', error);
+                countySelect.innerHTML = '<option value="">Error loading counties</option>';
+            }
+        }
+        
+        // Update button visibility
+        function updateButtons() {
+            const addBtn = document.getElementById('add-location-btn');
+            const removeBtn = document.getElementById('remove-location-btn');
+            
+            addBtn.style.display = selectionCount >= maxSelections ? 'none' : 'inline-block';
+            removeBtn.style.display = selectionCount <= 1 ? 'none' : 'inline-block';
+        }
+        
+        // Reset to default (Palm Beach County only)
+        function resetToDefault() {
+            selectionCount = 1;
+            updateLocationSelections();
+            updateButtons();
+            
+            // Clear any existing chart, header, and notices
+            document.getElementById('comparison-chart').innerHTML = '';
+            document.getElementById('chart-loading').style.display = 'none';
+            document.getElementById('chart-error').style.display = 'none';
+            document.getElementById('comparison-chart-header').style.display = 'none';
+            document.getElementById('data-availability-notice').style.display = 'none';
+        }
+        
+        // Generate the comparison chart
+        async function generateComparison() {
+            const seriesSelect = document.getElementById('series-select');
+            const selectedSeries = seriesSelect.value;
+            
+            if (!selectedSeries || !seriesOptionsCache) {
+                alert('Please select a metric to compare');
+                return;
+            }
+            
+            // Collect all selections  
+            const selections = [];
+            let hasValidSelections = false;
+            
+            for (let i = 1; i <= selectionCount; i++) {
+                const stateSelect = document.getElementById(`state-select-${i}`);
+                const countySelect = document.getElementById(`county-select-${i}`);
+                
+                if (stateSelect && countySelect && stateSelect.value && countySelect.value) {
+                    selections.push({
+                        state: stateSelect.value,
+                        county: countySelect.value,
+                        countyName: countySelect.options[countySelect.selectedIndex].text
+                    });
+                    hasValidSelections = true;
+                }
+            }
+            
+            if (!hasValidSelections) {
+                alert('Please select at least one location to compare');
+                return;
+            }
+            
+            // Show loading state
+            document.getElementById('chart-loading').style.display = 'flex';
+            document.getElementById('chart-error').style.display = 'none';
+            document.getElementById('comparison-chart').innerHTML = '';
+            
+            try {
+                const seriesOption = seriesOptionsCache[selectedSeries];
+                const chartData = {};
+                const countyNames = {};
+                const unavailableLocations = [];
+                
+                // Fetch data for each selected location
+                for (const selection of selections) {
+                    // Apply leading zeros based on series configuration
+                    const countyCode = seriesOption.lead_zero ? 
+                        selection.county.padStart(5, '0') : 
+                        selection.county.replace(/^0+/, '');
+                    
+                    // Replace {COUNTY} placeholder with actual county code
+                    const seriesId = seriesOption.series.replace('{COUNTY}', countyCode);
+                    
+                    try {
+                        const fredData = await fetchFredData(seriesId);
+                        if (fredData && fredData.length > 0) {
+                            chartData[selection.county] = fredData.map(obs => ({
+                                date: new Date(obs.date),
+                                value: parseFloat(obs.value)
+                            })).filter(obs => !isNaN(obs.value));
+                            countyNames[selection.county] = selection.countyName;
+                        } else {
+                            unavailableLocations.push({
+                                name: selection.countyName,
+                                seriesId: seriesId
+                            });
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to fetch data for ${selection.countyName}:`, error);
+                        unavailableLocations.push({
+                            name: selection.countyName,
+                            seriesId: seriesId,
+                            error: error.message
+                        });
+                    }
+                }
+                
+                // Hide loading state
+                document.getElementById('chart-loading').style.display = 'none';
+                
+                if (Object.keys(chartData).length === 0) {
+                    document.getElementById('chart-error').style.display = 'flex';
+                    document.getElementById('comparison-chart-header').style.display = 'none';
+                    return;
+                }
+                
+                // Show chart header and create the comparison chart
+                document.getElementById('comparison-chart-header').style.display = 'block';
+                createSimpleComparisonChart(chartData, countyNames, seriesOption.display_name);
+                
+                // Display professional notification for unavailable data
+                if (unavailableLocations.length > 0) {
+                    displayDataAvailabilityNotice(unavailableLocations, seriesOption.display_name);
+                }
+                
+            } catch (error) {
+                console.error('Error generating comparison:', error);
+                document.getElementById('chart-loading').style.display = 'none';
+                document.getElementById('chart-error').style.display = 'flex';
+            }
+        }
+        
+        // Fetch FRED data for a specific series
+        async function fetchFredData(seriesId) {
+            const endDate = new Date().toISOString().split('T')[0];
+            const startDate = new Date(new Date().setFullYear(new Date().getFullYear() - 5))
+                .toISOString().split('T')[0];
+            
+            const response = await fetch(`/api/fred-data?seriesId=${seriesId}&startDate=${startDate}&endDate=${endDate}`);
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to fetch FRED data');
+            }
+            
+            return data.observations || [];
+        }
+        
+        // Create a simple comparison chart using SVG
+        function createSimpleComparisonChart(data, countyNames, title) {
+            const container = document.getElementById('comparison-chart');
+            const containerWidth = container.offsetWidth || 800;
+            const containerHeight = 400;
+            const margin = { top: 40, right: 120, bottom: 60, left: 80 };
+            const width = containerWidth - margin.left - margin.right;
+            const height = containerHeight - margin.top - margin.bottom;
+            
+            // Luxury color palette for different counties
+            const colors = ['#1a365d', '#c6a96a', '#2d3748', '#d4af37', '#4a5568'];
+            
+            // Combine all data to find extents
+            const allData = Object.values(data).flat();
+            if (allData.length === 0) return;
+            
+            const xExtent = d3.extent(allData, d => d.date);
+            const yExtent = d3.extent(allData, d => d.value);
+            
+            // Create scales
+            const xScale = d3.scaleTime()
+                .domain(xExtent)
+                .range([0, width]);
+                
+            const yScale = d3.scaleLinear()
+                .domain(yExtent)
+                .range([height, 0]);
+            
+            // Create line generator
+            const line = d3.line()
+                .x(d => xScale(d.date))
+                .y(d => yScale(d.value))
+                .curve(d3.curveMonotoneX);
+            
+            // Create SVG
+            let svgContent = `
+                <svg width="100%" height="${containerHeight}">
+                    <g transform="translate(${margin.left},${margin.top})">
+                        <!-- Grid lines -->
+                        <defs>
+                            <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
+                                <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#f0f0f0" stroke-width="1"/>
+                            </pattern>
+                        </defs>
+                        <rect width="${width}" height="${height}" fill="url(#grid)" />
+                        
+                        <!-- Y-axis -->
+                        <g>
+                            ${yScale.ticks(6).map(tick => `
+                                <g>
+                                    <line x1="0" y1="${yScale(tick)}" x2="${width}" y2="${yScale(tick)}" stroke="#e0e0e0" stroke-width="1"/>
+                                    <text x="-10" y="${yScale(tick)}" text-anchor="end" dy="0.35em" font-size="12" fill="#666">
+                                        ${tick.toLocaleString()}
+                                    </text>
+                                </g>
+                            `).join('')}
+                        </g>
+                        
+                        <!-- X-axis -->
+                        <g transform="translate(0,${height})">
+                            ${xScale.ticks(6).map(tick => `
+                                <g>
+                                    <line x1="${xScale(tick)}" y1="0" x2="${xScale(tick)}" y2="-${height}" stroke="#e0e0e0" stroke-width="1"/>
+                                    <text x="${xScale(tick)}" y="20" text-anchor="middle" font-size="12" fill="#666">
+                                        ${tick.getFullYear()}
+                                    </text>
+                                </g>
+                            `).join('')}
+                        </g>
+                        
+                        <!-- Data lines -->
+                        ${Object.entries(data).map(([countyId, countyData], index) => `
+                            <path d="${line(countyData)}" 
+                                  fill="none" 
+                                  stroke="${colors[index % colors.length]}" 
+                                  stroke-width="3" 
+                                  opacity="0.8"/>
+                        `).join('')}
+                        
+                        <!-- Legend -->
+                        ${Object.entries(countyNames).map(([countyId, name], index) => `
+                            <g transform="translate(${width + 10}, ${index * 25 + 20})">
+                                <rect x="0" y="-8" width="15" height="3" fill="${colors[index % colors.length]}"/>
+                                <text x="20" y="0" font-size="12" fill="#333">${name.replace(' County', '')}</text>
+                            </g>
+                        `).join('')}
+                        
+                        <!-- Title -->
+                        <text x="${width/2}" y="-15" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">
+                            ${title}
+                        </text>
+                    </g>
+                </svg>
+            `;
+            
+            container.innerHTML = svgContent;
+        }
+        
+        // Display professional notice for unavailable data series
+        function displayDataAvailabilityNotice(unavailableLocations, seriesName) {
+            const noticeContainer = document.getElementById('data-availability-notice');
+            
+            if (unavailableLocations.length === 0) {
+                noticeContainer.style.display = 'none';
+                return;
+            }
+            
+            const locationsList = unavailableLocations.map(location => 
+                `<li>${location.name}</li>`
+            ).join('');
+            
+            const pluralText = unavailableLocations.length === 1 ? 'location' : 'locations';
+            const verbText = unavailableLocations.length === 1 ? 'is' : 'are';
+            
+            noticeContainer.innerHTML = `
+                <div class="data-notice-header">
+                    <svg class="data-notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <h4 class="data-notice-title">Data Availability Notice</h4>
+                </div>
+                <p class="data-notice-content">
+                    The <strong>${seriesName}</strong> indicator ${verbText} currently unavailable for the following ${pluralText}. 
+                    This may be due to data collection schedules or regional reporting variations. 
+                    The analysis above reflects all available data sources.
+                </p>
+                <ul class="unavailable-locations">
+                    ${locationsList}
+                </ul>
+            `;
+            
+            noticeContainer.style.display = 'block';
+        }
+        
+        // Global function to update counties (called from inline onchange)
+        window.updateCounties = updateCounties;
+        
         // Load report on page load
         loadReport();
+        
+        // Initialize FRED comparison after report loads
+        setTimeout(initializeFredComparison, 1000);
     </script>
 </body>
 </html>
