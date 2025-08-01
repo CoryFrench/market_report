@@ -779,13 +779,13 @@
         let selectionCount = 1;
         const maxSelections = 5;
         
-        // Available states for county selection
+        // Available states for county selection (alphabetically sorted)
         const availableStates = [
-            'Florida', 'California', 'Texas', 'New York', 'Illinois', 'Pennsylvania',
-            'Ohio', 'Georgia', 'North Carolina', 'Michigan', 'New Jersey', 'Virginia',
-            'Washington', 'Arizona', 'Massachusetts', 'Tennessee', 'Indiana', 'Missouri',
-            'Maryland', 'Wisconsin', 'Colorado', 'Minnesota', 'South Carolina', 'Alabama',
-            'Louisiana', 'Kentucky', 'Oregon', 'Oklahoma', 'Connecticut', 'Utah'
+            'Alabama', 'Arizona', 'California', 'Colorado', 'Connecticut', 'Florida',
+            'Georgia', 'Illinois', 'Indiana', 'Kentucky', 'Louisiana', 'Maryland',
+            'Massachusetts', 'Michigan', 'Minnesota', 'Missouri', 'New Jersey', 'New York',
+            'North Carolina', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania', 'South Carolina',
+            'Tennessee', 'Texas', 'Utah', 'Virginia', 'Washington', 'Wisconsin'
         ];
         
         // Initialize FRED comparison functionality
@@ -959,7 +959,11 @@
                 }
                 
                 countySelect.innerHTML = '<option value="">Select County</option>';
-                result.data.forEach(county => {
+                
+                // Sort counties alphabetically by name
+                const sortedCounties = result.data.sort((a, b) => a.name.localeCompare(b.name));
+                
+                sortedCounties.forEach(county => {
                     const option = document.createElement('option');
                     option.value = county.id;
                     option.textContent = county.name;
