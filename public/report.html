@@ -181,50 +181,58 @@
                         <div id="interestAreasContent">
                             <!-- Premium FRED Comparison Interface -->
                             <div class="fred-comparison-container">
-                                <div class="comparison-controls">
-                                    <div class="control-group">
-                                        <label for="series-select">Economic Indicator Selection</label>
-                                        <select id="series-select" class="fred-select">
-                                            <option value="loading">Loading available metrics...</option>
-                                        </select>
+                                <!-- Split Layout: Controls Left, Chart Right -->
+                                <div class="fred-split-layout">
+                                    <!-- Left Side: Controls -->
+                                    <div class="fred-controls-panel">
+                                        <div class="comparison-controls">
+                                            <div class="control-group">
+                                                <label for="series-select">Economic Indicator Selection</label>
+                                                <select id="series-select" class="fred-select">
+                                                    <option value="loading">Loading available metrics...</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <div class="locations-container">
+                                                <h4>Regional Comparison Analysis</h4>
+                                                <div id="location-selections">
+                                                    <!-- Dynamic location selectors will be added here -->
+                                                </div>
+                                                <div class="location-controls">
+                                                    <button id="add-location-btn" class="add-location-btn">Add Location</button>
+                                                    <button id="remove-location-btn" class="remove-location-btn" style="display: none;">Remove Location</button>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="action-buttons">
+                                                <button id="compare-btn" class="compare-btn">
+                                                    <span>Generate Analysis</span>
+                                                </button>
+                                                <button id="reset-comparison-btn" class="reset-btn">Reset to Default</button>
+                                            </div>
+                                        </div>
                                     </div>
                                     
-                                    <div class="locations-container">
-                                        <h4>Regional Comparison Analysis</h4>
-                                        <div id="location-selections">
-                                            <!-- Dynamic location selectors will be added here -->
-                                        </div>
-                                        <div class="location-controls">
-                                            <button id="add-location-btn" class="add-location-btn">Add Location</button>
-                                            <button id="remove-location-btn" class="remove-location-btn" style="display: none;">Remove Location</button>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="action-buttons">
-                                        <button id="compare-btn" class="compare-btn">
-                                            <span>Generate Analysis</span>
-                                        </button>
-                                        <button id="reset-comparison-btn" class="reset-btn">Reset to Default</button>
-                                    </div>
-                                </div>
-                                
-                                <!-- Premium Chart Container -->
-                                <div class="chart-section">
-                                    <div id="comparison-chart-header" class="chart-header" style="display: none;">
-                                        <h3>Comparative Market Analysis</h3>
-                                        <p>Professional economic indicator comparison across selected regions</p>
-                                    </div>
-                                    <div id="comparison-chart-container">
-                                        <div id="comparison-chart" class="fred-chart"></div>
-                                        <div id="chart-loading" class="chart-loading-message" style="display: none;">
-                                            <div class="loading-spinner-small"></div>
-                                            <p>Generating comprehensive market analysis...</p>
-                                        </div>
-                                        <div id="chart-error" class="chart-error-message" style="display: none;">
-                                            <p>Analysis temporarily unavailable. Please verify your selections and try again.</p>
-                                        </div>
-                                        <div id="data-availability-notice" class="data-notice" style="display: none;">
-                                            <!-- Professional notice for unavailable data will be inserted here -->
+                                    <!-- Right Side: Chart -->
+                                    <div class="fred-chart-panel">
+                                        <div class="chart-section">
+                                            <div id="comparison-chart-header" class="chart-header" style="display: none;">
+                                                <h3>Comparative Market Analysis</h3>
+                                                <p>Professional economic indicator comparison across selected regions</p>
+                                            </div>
+                                            <div id="comparison-chart-container">
+                                                <div id="comparison-chart" class="fred-chart"></div>
+                                                <div id="chart-loading" class="chart-loading-message" style="display: none;">
+                                                    <div class="loading-spinner-small"></div>
+                                                    <p>Generating comprehensive market analysis...</p>
+                                                </div>
+                                                <div id="chart-error" class="chart-error-message" style="display: none;">
+                                                    <p>Analysis temporarily unavailable. Please verify your selections and try again.</p>
+                                                </div>
+                                                <div id="data-availability-notice" class="data-notice" style="display: none;">
+                                                    <!-- Professional notice for unavailable data will be inserted here -->
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -1109,9 +1117,9 @@
         // Create a simple comparison chart using SVG
         function createSimpleComparisonChart(data, countyNames, title) {
             const container = document.getElementById('comparison-chart');
-            const containerWidth = container.offsetWidth || 800;
-            const containerHeight = 400;
-            const margin = { top: 40, right: 120, bottom: 60, left: 80 };
+            const containerWidth = container.offsetWidth || 500;
+            const containerHeight = Math.max(container.offsetHeight || 450, 450);
+            const margin = { top: 40, right: 100, bottom: 60, left: 80 };
             const width = containerWidth - margin.left - margin.right;
             const height = containerHeight - margin.top - margin.bottom;
             
@@ -1187,9 +1195,9 @@
                         
                         <!-- Legend -->
                         ${Object.entries(countyNames).map(([countyId, name], index) => `
-                            <g transform="translate(${width + 10}, ${index * 25 + 20})">
-                                <rect x="0" y="-8" width="15" height="3" fill="${colors[index % colors.length]}"/>
-                                <text x="20" y="0" font-size="12" fill="#333">${name.replace(' County', '')}</text>
+                            <g transform="translate(${Math.min(width + 10, width - 80)}, ${index * 20 + 20})">
+                                <rect x="0" y="-6" width="12" height="3" fill="${colors[index % colors.length]}"/>
+                                <text x="18" y="0" font-size="11" fill="#333">${name.replace(' County', '')}</text>
                             </g>
                         `).join('')}
                         
