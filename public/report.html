@@ -129,17 +129,14 @@
                             <!-- Left Side - Property Information -->
                             <div style="flex: 1; padding: 25px; background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); border-radius: 12px; border: 1px solid #e9ecef; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
                                 <div style="margin-bottom: 20px;">
-                                    <h3 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 18px; font-weight: 600; letter-spacing: 0.5px;">Property Details</h3>
-                                    <div>
-                                        <div id="propertyAddress" style="color: #34495e; font-size: 16px; font-weight: 500; margin-bottom: 8px; line-height: 1.4;">
-                                            Loading address...
-                                        </div>
-                                        <div id="propertyDevelopment" style="color: #7f8c8d; font-size: 14px; margin-bottom: 6px;">
-                                            Development information
-                                        </div>
-                                        <div id="propertySubdivision" style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">
-                                            Subdivision details
-                                        </div>
+                                    <div id="propertyAddress" style="color: #34495e; font-size: 16px; font-weight: 500; margin-bottom: 8px; line-height: 1.4;">
+                                        Loading address...
+                                    </div>
+                                    <div id="propertyDevelopment" style="color: #7f8c8d; font-size: 14px; margin-bottom: 6px;">
+                                        Development information
+                                    </div>
+                                    <div id="propertySubdivision" style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">
+                                        Subdivision details
                                     </div>
                                 </div>
                                 
@@ -316,13 +313,23 @@
             // Update property details
             document.getElementById('propertyAddress').textContent = fullAddress;
             
-            // Development information
-            const development = data.development || 'Development information not specified';
-            document.getElementById('propertyDevelopment').innerHTML = `<strong>Development:</strong> ${development}`;
+            // Development information - only show if provided
+            const developmentElement = document.getElementById('propertyDevelopment');
+            if (data.development && data.development.trim()) {
+                developmentElement.innerHTML = `<strong>Development:</strong> ${data.development}`;
+                developmentElement.style.display = 'block';
+            } else {
+                developmentElement.style.display = 'none';
+            }
             
-            // Subdivision information  
-            const subdivision = data.subdivision || 'Subdivision information not specified';
-            document.getElementById('propertySubdivision').innerHTML = `<strong>Subdivision:</strong> ${subdivision}`;
+            // Subdivision information - only show if provided
+            const subdivisionElement = document.getElementById('propertySubdivision');
+            if (data.subdivision && data.subdivision.trim()) {
+                subdivisionElement.innerHTML = `<strong>Subdivision:</strong> ${data.subdivision}`;
+                subdivisionElement.style.display = 'block';
+            } else {
+                subdivisionElement.style.display = 'none';
+            }
         }
 
         // FRED series configuration
