@@ -1596,80 +1596,110 @@
             
             // Add parcel polygons
             const parcelLayer = L.geoJSON(geojsonData, {
-                style: {
-                    color: '#3498db',
-                    weight: 2,
-                    fillColor: '#3498db',
-                    fillOpacity: 0.3
+                style: function(feature) {
+                    // Different colors based on land use
+                    const landUse = feature.properties.land_use_description || '';
+                    const isCondominium = landUse.toUpperCase().includes('CONDOMINIUM');
+                    
+                    return {
+                        color: isCondominium ? '#8e44ad' : '#3498db',
+                        weight: 2,
+                        fillColor: isCondominium ? '#8e44ad' : '#3498db',
+                        fillOpacity: 0.3
+                    };
                 },
                 onEachFeature: function(feature, layer) {
                     // Create popup content using tax record template
                     const props = feature.properties;
+                    const landUse = props.land_use_description || '';
+                    const isCondominium = landUse.toUpperCase().includes('CONDOMINIUM');
                     
-                    // Format address
-                    let address = 'N/A';
-                    if (props.address) {
-                        let fullAddress = props.address;
-                        if (props.city) fullAddress += ` ${props.city}`;
-                        if (props.zip_code) fullAddress += `, FL ${props.zip_code}`;
-                        address = fullAddress;
-                    }
+                    let popupContent;
                     
-                    // Format market value
-                    let marketValue = 'N/A';
-                    if (props.market_value) {
-                        marketValue = new Intl.NumberFormat('en-US', {
-                            style: 'currency',
-                            currency: 'USD',
-                            minimumFractionDigits: 0
-                        }).format(props.market_value);
-                    }
-                    
-                    // Format last sale price
-                    let lastSalePrice = 'N/A';
-                    if (props.last_sale_price) {
-                        lastSalePrice = new Intl.NumberFormat('en-US', {
-                            style: 'currency',
-                            currency: 'USD',
-                            minimumFractionDigits: 0
-                        }).format(props.last_sale_price);
-                    }
-                    
-                    // Format bathrooms (convert to numbers to remove leading zeros)
-                    let bathrooms = 'N/A';
-                    if (props.full_baths || props.half_baths) {
-                        const full = parseInt(props.full_baths) || 0;
-                        const half = parseInt(props.half_baths) || 0;
-                        if (half > 0) {
-                            bathrooms = `${full} full, ${half} half`;
-                        } else {
-                            bathrooms = `${full} full`;
+                    if (isCondominium) {
+                        // Simplified popup for condominiums - just subdivision info
+                        popupContent = `
+                            <div style="min-width: 280px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.4;">
+                                <div style="margin-bottom: 8px; font-size: 16px; font-weight: 600; color: #8e44ad;">Condominium Building</div>
+                                <div style="margin-bottom: 8px;"><strong>Development:</strong> ${props.development_name || 'N/A'}</div>
+                                <div style="margin-bottom: 8px;"><strong>Subdivision:</strong> ${props.subdivision_name || 'N/A'}</div>
+                        `;
+                        
+                        // Add unit count info
+                        if (props.unit_count && props.unit_count > 1) {
+                            popupContent += `<div style="margin-top: 12px; padding: 8px; background-color: #f8f4ff; border-left: 3px solid #8e44ad; font-size: 12px; color: #666;">
+                                <strong>Building Info:</strong> This building contains ${props.unit_count} condominium units
+                            </div>`;
                         }
+                        
+                        popupContent += '</div>';
+                    } else {
+                        // Full popup for non-condominium properties
+                        
+                        // Format address
+                        let address = 'N/A';
+                        if (props.address) {
+                            let fullAddress = props.address;
+                            if (props.city) fullAddress += ` ${props.city}`;
+                            if (props.zip_code) fullAddress += `, FL ${props.zip_code}`;
+                            address = fullAddress;
+                        }
+                        
+                        // Format market value
+                        let marketValue = 'N/A';
+                        if (props.market_value) {
+                            marketValue = new Intl.NumberFormat('en-US', {
+                                style: 'currency',
+                                currency: 'USD',
+                                minimumFractionDigits: 0
+                            }).format(props.market_value);
+                        }
+                        
+                        // Format last sale price
+                        let lastSalePrice = 'N/A';
+                        if (props.last_sale_price) {
+                            lastSalePrice = new Intl.NumberFormat('en-US', {
+                                style: 'currency',
+                                currency: 'USD',
+                                minimumFractionDigits: 0
+                            }).format(props.last_sale_price);
+                        }
+                        
+                        // Format bathrooms (convert to numbers to remove leading zeros)
+                        let bathrooms = 'N/A';
+                        if (props.full_baths || props.half_baths) {
+                            const full = parseInt(props.full_baths) || 0;
+                            const half = parseInt(props.half_baths) || 0;
+                            if (half > 0) {
+                                bathrooms = `${full} full, ${half} half`;
+                            } else {
+                                bathrooms = `${full} full`;
+                            }
+                        }
+                        
+                        popupContent = `
+                            <div style="min-width: 280px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.4;">
+                                <div style="margin-bottom: 8px;"><strong>Address:</strong> ${address}</div>
+                                <div style="margin-bottom: 8px;"><strong>Parcel ID:</strong> ${props.property_control_number || 'N/A'} [TAX]</div>
+                                <div style="margin-bottom: 8px;"><strong>Year Built:</strong> ${props.year_built || 'N/A'}</div>
+                                <div style="margin-bottom: 8px;"><strong>Development:</strong> ${props.development_name || 'N/A'}</div>
+                                <div style="margin-bottom: 8px;"><strong>Subdivision:</strong> ${props.subdivision_name || 'N/A'}</div>
+                                <div style="margin-bottom: 8px;"><strong>Bedrooms:</strong> ${props.bedrooms ? parseInt(props.bedrooms) : 'N/A'}</div>
+                                <div style="margin-bottom: 8px;"><strong>Bathrooms:</strong> ${bathrooms}</div>
+                                <div style="margin-bottom: 8px;"><strong>Market Value:</strong> <span style="color: #27ae60; font-weight: 600;">${marketValue}</span></div>
+                                <div style="margin-bottom: 8px;"><strong>Last Sale Date:</strong> ${props.last_sale_date || 'N/A'}</div>
+                                <div style="margin-bottom: 0;"><strong>Last Sale Price:</strong> ${lastSalePrice}</div>
+                        `;
+                        
+                        // Add unit count info for multi-unit buildings
+                        if (props.unit_count && props.unit_count > 1) {
+                            popupContent += `<div style="margin-top: 12px; padding: 8px; background-color: #f8f9fa; border-left: 3px solid #3498db; font-size: 12px; color: #666;">
+                                <strong>Building Info:</strong> This building contains ${props.unit_count} units
+                            </div>`;
+                        }
+                        
+                        popupContent += '</div>';
                     }
-                    
-                    let popupContent = `
-                        <div style="min-width: 280px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.4;">
-                            <div style="margin-bottom: 8px;"><strong>Address:</strong> ${address}</div>
-                            <div style="margin-bottom: 8px;"><strong>Parcel ID:</strong> ${props.property_control_number || 'N/A'} [TAX]</div>
-                            <div style="margin-bottom: 8px;"><strong>Year Built:</strong> ${props.year_built || 'N/A'}</div>
-                            <div style="margin-bottom: 8px;"><strong>Development:</strong> ${props.development_name || 'N/A'}</div>
-                            <div style="margin-bottom: 8px;"><strong>Subdivision:</strong> ${props.subdivision_name || 'N/A'}</div>
-                            <div style="margin-bottom: 8px;"><strong>Bedrooms:</strong> ${props.bedrooms ? parseInt(props.bedrooms) : 'N/A'}</div>
-                            <div style="margin-bottom: 8px;"><strong>Bathrooms:</strong> ${bathrooms}</div>
-                            <div style="margin-bottom: 8px;"><strong>Market Value:</strong> <span style="color: #27ae60; font-weight: 600;">${marketValue}</span></div>
-                            <div style="margin-bottom: 8px; font-weight: 600; color: #2c3e50;">Tax</div>
-                            <div style="margin-bottom: 8px;"><strong>Last Sale Date:</strong> ${props.last_sale_date || 'N/A'}</div>
-                            <div style="margin-bottom: 0;"><strong>Last Sale Price:</strong> ${lastSalePrice}</div>
-                    `;
-                    
-                    // Add unit count info if it's a multi-unit building
-                    if (props.unit_count && props.unit_count > 1) {
-                        popupContent += `<div style="margin-top: 12px; padding: 8px; background-color: #f8f9fa; border-left: 3px solid #3498db; font-size: 12px; color: #666;">
-                            <strong>Building Info:</strong> This building contains ${props.unit_count} units
-                        </div>`;
-                    }
-                    
-                    popupContent += '</div>';
                     
                     layer.bindPopup(popupContent);
                     

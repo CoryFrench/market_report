@@ -778,6 +778,7 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
           t.number_of_half_bathrooms,
           t.sales_date_1,
           t.sales_price_1,
+          t.land_use_description,
           COUNT(*) OVER (PARTITION BY p.geom) as unit_count
         FROM geodata.palm_beach_county_fl p
         INNER JOIN tax.palm_beach_county_fl t 
@@ -823,7 +824,8 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
         half_baths: row.number_of_half_bathrooms,
         market_value: row.total_market_value,
         last_sale_date: row.sales_date_1,
-        last_sale_price: row.sales_price_1
+        last_sale_price: row.sales_price_1,
+        land_use_description: row.land_use_description
       }
     }));
 
