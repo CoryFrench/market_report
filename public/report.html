@@ -1817,7 +1817,19 @@
         
         // Initialize map functionality
         initializeMapButton();
-        initializeMapModal();
+        
+        // Initialize map modal after DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeMapModal();
+        });
+        
+        // Also try initializing immediately in case DOMContentLoaded already fired
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeMapModal);
+        } else {
+            // DOM is already loaded
+            setTimeout(initializeMapModal, 100);
+        }
         
         // Initialize FRED comparison after report loads
         function waitForElements() {
