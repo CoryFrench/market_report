@@ -6,6 +6,8 @@
     <title>Professional Area Analysis Report</title>
     <link rel="stylesheet" href="/styles.css">
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Chart.js for interactive charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Leaflet CSS and JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -187,26 +189,24 @@
                             <div style="border-top: 1px solid #e9ecef; padding-top: 30px;">
                                 <h3 style="text-align: center; color: #2c3e50; margin-bottom: 20px;">Development Comparison Analysis</h3>
                                 
-                                <!-- Development Comparison Controls -->
-                                <div class="comparison-controls" id="dev-controls-section">
-                                    <div class="locations-container">
-                                        <h4>Select Developments to Compare</h4>
-                                        <div id="development-selections">
-                                            <!-- Dynamic development selectors will be added here -->
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="action-buttons" style="margin-top: 20px;">
-                                        <button id="add-development-btn" class="add-location-btn">Add Development</button>
-                                        <button id="remove-development-btn" class="remove-location-btn" style="display: none;">Remove Development</button>
-                                        <button id="compare-developments-btn" class="compare-btn">
-                                            <span>Generate Comparison</span>
-                                        </button>
-                                        <button id="reset-development-comparison-btn" class="reset-btn">Reset</button>
-                                    </div>
-                                </div>
-                                
-                                <!-- Development Comparison Chart View -->
+                <!-- Development Comparison Controls -->
+                <div class="comparison-controls" id="dev-controls-section">
+                    <div class="locations-container">
+                        <h4>Development Comparison Analysis</h4>
+                        <div id="development-selections">
+                            <!-- Dynamic development selectors will be added here -->
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button id="add-development-btn" class="add-location-btn">Add Development</button>
+                        <button id="remove-development-btn" class="remove-location-btn" style="display: none;">Remove Development</button>
+                        <button id="compare-developments-btn" class="compare-btn">
+                            <span>Generate Analysis</span>
+                        </button>
+                        <button id="reset-development-comparison-btn" class="reset-btn">Reset to Default</button>
+                    </div>
+                </div>                                <!-- Development Comparison Chart View -->
                                 <div class="chart-section" id="dev-chart-section" style="display: none;">
                                     <div class="chart-controls">
                                         <button id="back-to-dev-controls-btn" class="back-to-controls-btn">← Back to Controls</button>
@@ -219,8 +219,8 @@
                                         <button id="development-sales-chart-btn" class="active" style="margin-right: 10px; padding: 8px 16px; border: 1px solid #ddd; background: #3498db; color: white; border-radius: 4px; cursor: pointer;">Sales Count</button>
                                         <button id="development-price-chart-btn" style="padding: 8px 16px; border: 1px solid #ddd; background: #f8f9fa; color: #333; border-radius: 4px; cursor: pointer;">Average Price</button>
                                     </div>
-                                    <div id="dev-comparison-chart-container">
-                                        <div id="dev-comparison-chart" class="fred-chart"></div>
+                                    <div id="dev-comparison-chart-container" style="position: relative; height: 500px; width: 100%;">
+                                        <canvas id="dev-comparison-chart" class="fred-chart"></canvas>
                                         <div id="dev-chart-loading" class="chart-loading-message" style="display: none;">
                                             <div class="loading-spinner-small"></div>
                                             <p>Generating development comparison analysis...</p>
@@ -2145,6 +2145,7 @@
             try {
                 await loadDevelopmentsList();
                 populateInitialDevelopmentDropdowns();
+                autoSelectReportDevelopment();
                 setupDevelopmentComparisonEventHandlers();
             } catch (error) {
                 console.error('Error initializing development comparison:', error);
@@ -2182,13 +2183,18 @@
             const container = document.getElementById('development-selections');
             if (container) {
                 const selectionDiv = document.createElement('div');
-                selectionDiv.className = 'development-selection';
+                selectionDiv.className = 'location-selection';
                 selectionDiv.id = `development-selection-1`;
                 
                 selectionDiv.innerHTML = `
-                    <select id="development-select-1" class="development-select">
-                        <option value="">Select Development...</option>
-                    </select>
+                    <div class="location-row">
+                        <div class="location-field">
+                            <label for="development-select-1">Development 1</label>
+                            <select id="development-select-1" class="fred-select">
+                                <option value="">Select Development...</option>
+                            </select>
+                        </div>
+                    </div>
                 `;
                 
                 container.appendChild(selectionDiv);
@@ -2221,6 +2227,64 @@
             }
         }
 
+        // Auto-select the development from the report's property address
+        function autoSelectReportDevelopment() {
+            try {
+                // Get the current report's development name
+                const reportData = getCurrentReportData();
+                if (!reportData || !reportData.development) {
+                    console.log('No development found in report data for auto-selection');
+                    return;
+                }
+
+                const reportDevelopment = reportData.development.trim();
+                console.log('Attempting to auto-select development:', reportDevelopment);
+
+                // Find the first development dropdown
+                const firstDropdown = document.getElementById('development-select-1');
+                if (!firstDropdown) {
+                    console.warn('First development dropdown not found');
+                    return;
+                }
+
+                // Look for exact match or partial match
+                let matchFound = false;
+                for (let i = 0; i < firstDropdown.options.length; i++) {
+                    const option = firstDropdown.options[i];
+                    if (option.value === reportDevelopment) {
+                        // Exact match
+                        firstDropdown.selectedIndex = i;
+                        matchFound = true;
+                        console.log('Exact match found and selected:', reportDevelopment);
+                        break;
+                    }
+                }
+
+                // If no exact match, try partial match
+                if (!matchFound) {
+                    for (let i = 0; i < firstDropdown.options.length; i++) {
+                        const option = firstDropdown.options[i];
+                        if (option.value && (
+                            option.value.toLowerCase().includes(reportDevelopment.toLowerCase()) ||
+                            reportDevelopment.toLowerCase().includes(option.value.toLowerCase())
+                        )) {
+                            firstDropdown.selectedIndex = i;
+                            matchFound = true;
+                            console.log('Partial match found and selected:', option.value, 'for report development:', reportDevelopment);
+                            break;
+                        }
+                    }
+                }
+
+                if (!matchFound) {
+                    console.log('No matching development found in dropdown for:', reportDevelopment);
+                }
+
+            } catch (error) {
+                console.error('Error auto-selecting report development:', error);
+            }
+        }
+
         // Setup event handlers for development comparison
         function setupDevelopmentComparisonEventHandlers() {
             // Add development button
@@ -2229,10 +2293,36 @@
                 addDevelopmentBtn.addEventListener('click', addDevelopmentSelection);
             }
 
+            // Remove development button
+            const removeDevelopmentBtn = document.getElementById('remove-development-btn');
+            if (removeDevelopmentBtn) {
+                removeDevelopmentBtn.addEventListener('click', () => {
+                    // Remove the last development selection
+                    const container = document.getElementById('development-selections');
+                    if (container && container.children.length > 1) {
+                        const lastChild = container.lastElementChild;
+                        lastChild.remove();
+                        updateDevelopmentButtons();
+                    }
+                });
+            }
+
+            // Reset button
+            const resetDevelopmentBtn = document.getElementById('reset-development-comparison-btn');
+            if (resetDevelopmentBtn) {
+                resetDevelopmentBtn.addEventListener('click', resetDevelopmentComparison);
+            }
+
             // Generate comparison button
             const generateDevelopmentBtn = document.getElementById('compare-developments-btn');
             if (generateDevelopmentBtn) {
                 generateDevelopmentBtn.addEventListener('click', generateDevelopmentComparison);
+            }
+
+            // Back to controls button
+            const backToDevControlsBtn = document.getElementById('back-to-dev-controls-btn');
+            if (backToDevControlsBtn) {
+                backToDevControlsBtn.addEventListener('click', showDevelopmentControlsView);
             }
 
             // Switch between chart types
@@ -2253,16 +2343,21 @@
             const container = document.getElementById('development-selections');
             
             const selectionDiv = document.createElement('div');
-            selectionDiv.className = 'development-selection';
+            selectionDiv.className = 'location-selection';
             selectionDiv.id = `development-selection-${developmentSelectionCount}`;
             
             selectionDiv.innerHTML = `
-                <select id="development-select-${developmentSelectionCount}" class="development-select">
-                    <option value="">Select Development...</option>
-                </select>
-                <button type="button" class="remove-development-btn" onclick="removeDevelopmentSelection(${developmentSelectionCount})">
-                    Remove
-                </button>
+                <div class="location-row">
+                    <div class="location-field">
+                        <label for="development-select-${developmentSelectionCount}">Development ${developmentSelectionCount}</label>
+                        <select id="development-select-${developmentSelectionCount}" class="fred-select">
+                            <option value="">Select Development...</option>
+                        </select>
+                    </div>
+                    <button type="button" class="remove-location-btn" onclick="removeDevelopmentSelection(${developmentSelectionCount})" style="margin-left: 10px;">
+                        Remove
+                    </button>
+                </div>
             `;
             
             container.appendChild(selectionDiv);
@@ -2271,10 +2366,8 @@
             const newSelect = document.getElementById(`development-select-${developmentSelectionCount}`);
             populateDevelopmentDropdown(newSelect);
             
-            // Limit to 10 selections
-            if (developmentSelectionCount >= 10) {
-                document.getElementById('add-development-btn').disabled = true;
-            }
+            // Update button visibility
+            updateDevelopmentButtons();
         }
 
         // Remove development selection
@@ -2284,10 +2377,58 @@
                 selectionDiv.remove();
             }
             
-            // Re-enable add button if we're under the limit
-            if (developmentSelectionCount >= 10) {
-                document.getElementById('add-development-btn').disabled = false;
+            // Update button visibility
+            updateDevelopmentButtons();
+        }
+
+        // Update development button visibility
+        function updateDevelopmentButtons() {
+            const addBtn = document.getElementById('add-development-btn');
+            const removeBtn = document.getElementById('remove-development-btn');
+            const container = document.getElementById('development-selections');
+            const currentSelections = container ? container.children.length : 0;
+            
+            if (addBtn) {
+                addBtn.style.display = currentSelections >= 10 ? 'none' : 'inline-block';
             }
+            if (removeBtn) {
+                removeBtn.style.display = currentSelections <= 1 ? 'none' : 'inline-block';
+            }
+        }
+
+        // Reset development comparison to default
+        function resetDevelopmentComparison() {
+            developmentSelectionCount = 1;
+            const container = document.getElementById('development-selections');
+            
+            // Clear all selections
+            if (container) {
+                container.innerHTML = '';
+            }
+            
+            // Recreate the first selection
+            populateInitialDevelopmentDropdowns();
+            updateDevelopmentButtons();
+            
+            // Clear any existing chart and hide chart view
+            if (window.developmentChart) {
+                window.developmentChart.destroy();
+                window.developmentChart = null;
+            }
+            
+            // Clear stored data
+            window.developmentComparisonData = null;
+            window.selectedDevelopments = null;
+            
+            // Hide chart elements
+            const chartButtons = document.getElementById('development-chart-buttons');
+            if (chartButtons) chartButtons.style.display = 'none';
+            
+            const chartHeader = document.getElementById('dev-comparison-chart-header');
+            if (chartHeader) chartHeader.style.display = 'none';
+            
+            // Show controls view
+            showDevelopmentControlsView();
         }
 
         // Generate development comparison
@@ -2346,10 +2487,19 @@
                 // Process and display the data
                 displayDevelopmentComparisonChart(data, selections);
                 
+                // Switch to chart view and show chart elements
+                showDevelopmentChartView();
+                
                 // Show chart buttons
                 const chartButtons = document.getElementById('development-chart-buttons');
                 if (chartButtons) {
                     chartButtons.style.display = 'block';
+                }
+                
+                // Show chart header
+                const chartHeader = document.getElementById('dev-comparison-chart-header');
+                if (chartHeader) {
+                    chartHeader.style.display = 'block';
                 }
                 
             } catch (error) {
@@ -2372,6 +2522,7 @@
 
         // Display development comparison chart
         function displayDevelopmentComparisonChart(data, developments) {
+            console.log('displayDevelopmentComparisonChart called with:', { data, developments });
             developmentChartData = data;
             
             // Process data by development and year
@@ -2391,21 +2542,35 @@
                 };
             });
             
+            console.log('Processed data:', processedData);
+            
             // Store processed data globally
             window.developmentComparisonData = processedData;
             window.selectedDevelopments = developments;
             
             // Display initial chart (sales)
+            console.log('About to call renderDevelopmentChart');
             renderDevelopmentChart('sales');
         }
 
-        // Render development chart based on type
+        // Global Chart.js instance
+        let developmentChart = null;
+
+        // Render development chart based on type using Chart.js
         function renderDevelopmentChart(chartType) {
-            const chartContainer = document.getElementById('dev-comparison-chart');
-            if (!chartContainer || !window.developmentComparisonData) return;
+            console.log('renderDevelopmentChart called with chartType:', chartType);
+            const chartCanvas = document.getElementById('dev-comparison-chart');
+            console.log('Chart canvas found:', !!chartCanvas);
+            console.log('Development comparison data exists:', !!window.developmentComparisonData);
+            
+            if (!chartCanvas || !window.developmentComparisonData) {
+                console.log('Early return - missing canvas or data');
+                return;
+            }
             
             const data = window.developmentComparisonData;
             const developments = window.selectedDevelopments;
+            console.log('About to process chart with data:', data, 'developments:', developments);
             
             // Get all years across all developments
             const allYears = new Set();
@@ -2413,160 +2578,148 @@
                 Object.keys(devData).forEach(year => allYears.add(parseInt(year)));
             });
             const years = Array.from(allYears).sort((a, b) => a - b);
+            console.log('Years found:', years);
             
-            // Chart dimensions
-            const margin = { top: 20, right: 120, bottom: 40, left: 60 };
-            const width = 800 - margin.left - margin.right;
-            const height = 400 - margin.top - margin.bottom;
+            // Destroy existing chart if it exists
+            if (developmentChart) {
+                developmentChart.destroy();
+            }
             
-            // Clear previous chart
-            chartContainer.innerHTML = '';
-            
-            // Create SVG
-            const svg = d3.select(chartContainer)
-                .append('svg')
-                .attr('width', width + margin.left + margin.right)
-                .attr('height', height + margin.top + margin.bottom);
-            
-            const g = svg.append('g')
-                .attr('transform', `translate(${margin.left},${margin.top})`);
-            
-            // Scales
-            const xScale = d3.scaleBand()
-                .domain(years)
-                .range([0, width])
-                .padding(0.1);
-            
-            const yScale = d3.scaleLinear()
-                .range([height, 0]);
-            
-            // Color scale
-            const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
-            
-            // Determine y-axis domain based on chart type
-            let maxValue = 0;
+            // Determine data key and formatting
             const dataKey = chartType === 'sales' ? 'sales_count' : 'avg_price';
+            const yAxisLabel = chartType === 'sales' ? 'Number of Sales' : 'Average Sale Price';
             
-            developments.forEach(dev => {
-                if (data[dev]) {
-                    years.forEach(year => {
-                        if (data[dev][year]) {
-                            maxValue = Math.max(maxValue, data[dev][year][dataKey]);
-                        }
-                    });
-                }
-            });
-            
-            yScale.domain([0, maxValue * 1.1]);
-            
-            // Create grouped bars
-            const barWidth = xScale.bandwidth() / developments.length;
-            
-            developments.forEach((dev, devIndex) => {
-                if (!data[dev]) return;
-                
-                const bars = g.selectAll(`.bar-${devIndex}`)
-                    .data(years)
-                    .enter()
-                    .append('rect')
-                    .attr('class', `bar-${devIndex}`)
-                    .attr('x', d => xScale(d) + (barWidth * devIndex))
-                    .attr('y', d => {
-                        const value = data[dev][d] ? data[dev][d][dataKey] : 0;
-                        return yScale(value);
-                    })
-                    .attr('width', barWidth)
-                    .attr('height', d => {
-                        const value = data[dev][d] ? data[dev][d][dataKey] : 0;
-                        return height - yScale(value);
-                    })
-                    .attr('fill', colorScale(devIndex))
-                    .attr('opacity', 0.8);
-                
-                // Add hover effects
-                bars.on('mouseover', function(event, d) {
-                    const value = data[dev][d] ? data[dev][d][dataKey] : 0;
-                    const formattedValue = chartType === 'sales' ? 
-                        value.toLocaleString() : 
-                        '$' + value.toLocaleString();
-                    
-                    // Show tooltip
-                    const tooltip = d3.select('body').append('div')
-                        .attr('class', 'chart-tooltip')
-                        .style('opacity', 0)
-                        .style('position', 'absolute')
-                        .style('background', 'rgba(0, 0, 0, 0.8)')
-                        .style('color', 'white')
-                        .style('padding', '8px')
-                        .style('border-radius', '4px')
-                        .style('font-size', '12px')
-                        .style('pointer-events', 'none');
-                    
-                    tooltip.transition()
-                        .duration(200)
-                        .style('opacity', .9);
-                    
-                    tooltip.html(`${dev}<br/>${d}: ${formattedValue}`)
-                        .style('left', (event.pageX + 10) + 'px')
-                        .style('top', (event.pageY - 28) + 'px');
-                })
-                .on('mouseout', function() {
-                    d3.selectAll('.chart-tooltip').remove();
+            // Prepare datasets for Chart.js
+            const datasets = developments.map((dev, index) => {
+                const developmentData = years.map(year => {
+                    return data[dev] && data[dev][year] ? data[dev][year][dataKey] : 0;
                 });
+                
+                // Use distinct colors for each development
+                const colors = [
+                    '#3498db', // Blue
+                    '#e74c3c', // Red
+                    '#2ecc71', // Green
+                    '#f39c12', // Orange
+                    '#9b59b6', // Purple
+                    '#1abc9c', // Teal
+                    '#34495e', // Dark Gray
+                    '#e67e22', // Dark Orange
+                    '#95a5a6', // Gray
+                    '#8e44ad'  // Dark Purple
+                ];
+                
+                return {
+                    label: dev,
+                    data: developmentData,
+                    backgroundColor: colors[index % colors.length] + '20', // 20% opacity for fill
+                    borderColor: colors[index % colors.length],
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.4,
+                    pointBackgroundColor: colors[index % colors.length],
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointHoverBackgroundColor: colors[index % colors.length],
+                    pointHoverBorderColor: '#ffffff'
+                };
             });
             
-            // Add axes
-            g.append('g')
-                .attr('class', 'x-axis')
-                .attr('transform', `translate(0,${height})`)
-                .call(d3.axisBottom(xScale));
-            
-            g.append('g')
-                .attr('class', 'y-axis')
-                .call(d3.axisLeft(yScale).tickFormat(d => {
-                    if (chartType === 'sales') {
-                        return d.toLocaleString();
-                    } else {
-                        return '$' + (d / 1000).toFixed(0) + 'K';
+            // Create Chart.js configuration
+            const config = {
+                type: 'line',
+                data: {
+                    labels: years,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Development Trends - ${yAxisLabel}`,
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: '#ffffff',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed.y;
+                                    const formattedValue = chartType === 'sales' ? 
+                                        value.toLocaleString() + ' sales' : 
+                                        '$' + value.toLocaleString();
+                                    return `${context.dataset.label}: ${formattedValue}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Year'
+                            },
+                            grid: {
+                                display: true,
+                                color: '#f0f0f0',
+                                borderDash: [2, 2]
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: yAxisLabel
+                            },
+                            beginAtZero: true,
+                            grid: {
+                                display: true,
+                                color: '#f0f0f0',
+                                borderDash: [2, 2]
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    if (chartType === 'sales') {
+                                        return value.toLocaleString();
+                                    } else {
+                                        return '$' + (value / 1000).toFixed(0) + 'K';
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeInOutQuart'
                     }
-                }));
+                }
+            };
             
-            // Add axis labels
-            g.append('text')
-                .attr('transform', 'rotate(-90)')
-                .attr('y', 0 - margin.left)
-                .attr('x', 0 - (height / 2))
-                .attr('dy', '1em')
-                .style('text-anchor', 'middle')
-                .style('font-size', '12px')
-                .text(chartType === 'sales' ? 'Number of Sales' : 'Average Sale Price');
+            // Create the chart
+            const ctx = chartCanvas.getContext('2d');
+            developmentChart = new Chart(ctx, config);
             
-            g.append('text')
-                .attr('transform', `translate(${width / 2}, ${height + margin.bottom})`)
-                .style('text-anchor', 'middle')
-                .style('font-size', '12px')
-                .text('Year');
-            
-            // Add legend
-            const legend = svg.append('g')
-                .attr('class', 'legend')
-                .attr('transform', `translate(${width + margin.left + 10}, ${margin.top})`);
-            
-            developments.forEach((dev, i) => {
-                const legendRow = legend.append('g')
-                    .attr('transform', `translate(0, ${i * 20})`);
-                
-                legendRow.append('rect')
-                    .attr('width', 10)
-                    .attr('height', 10)
-                    .attr('fill', colorScale(i));
-                
-                legendRow.append('text')
-                    .attr('x', 15)
-                    .attr('y', 10)
-                    .style('font-size', '12px')
-                    .text(dev);
-            });
+            console.log('Chart.js chart created successfully');
         }
 
         // Switch between chart types
@@ -2584,6 +2737,18 @@
             
             // Render the appropriate chart
             renderDevelopmentChart(chartType);
+        }
+
+        // Show the development controls view and hide the chart view
+        function showDevelopmentControlsView() {
+            document.getElementById('dev-controls-section').style.display = 'block';
+            document.getElementById('dev-chart-section').style.display = 'none';
+        }
+        
+        // Show the development chart view and hide the controls view  
+        function showDevelopmentChartView() {
+            document.getElementById('dev-controls-section').style.display = 'none';
+            document.getElementById('dev-chart-section').style.display = 'block';
         }
 
         // Initialize development comparison when page loads
