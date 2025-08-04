@@ -798,6 +798,125 @@ app.get('/api/development-chart/:developmentName', async (req, res) => {
   }
 });
 
+// Get all distinct developments for comparison dropdowns
+app.get('/api/developments', async (req, res) => {
+  try {
+    const developmentsQuery = `
+      SELECT DISTINCT wf_development as development_name
+      FROM mls.vw_beaches_residential_developments
+      WHERE wf_development IS NOT NULL 
+        AND wf_development != ''
+        AND LENGTH(TRIM(wf_development)) > 0
+      ORDER BY wf_development ASC;
+    `;
+
+    try {
+      const { query } = require('./db');
+      const result = await query(developmentsQuery);
+      
+      res.json({
+        success: true,
+        data: result.rows
+      });
+      
+    } catch (dbError) {
+      console.error('Database query error for developments:', dbError);
+      throw new Error(`Failed to fetch developments: ${dbError.message}`);
+    }
+
+  } catch (error) {
+    console.error('Error fetching developments:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch developments',
+      message: error.message 
+    });
+  }
+});
+
+// Multi-development comparison chart data
+app.get('/api/developments-comparison', async (req, res) => {
+  try {
+    const { developments } = req.query;
+    
+    if (!developments) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Development names are required' 
+      });
+    }
+
+    // Parse development names (comma-separated)
+    const developmentList = developments.split(',').map(d => d.trim()).filter(d => d.length > 0);
+    
+    if (developmentList.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'At least one development name is required' 
+      });
+    }
+
+    // Query to get annual sales data for multiple developments
+    const comparisonQuery = `  
+      WITH deduplicated_mls AS (
+        SELECT 
+          mls.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY mls.listing_id
+            ORDER BY 
+              COALESCE(mls.status_change_date, mls.listing_date) DESC NULLS LAST,
+              mls.status DESC
+          ) as row_num
+        FROM mls.vw_beaches_residential_developments mls
+        WHERE mls.wf_development = ANY($1)
+      )
+      SELECT 
+        wf_development as development_name,
+        EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) as sale_year,
+        COUNT(*) as sales_count,
+        AVG(sold_price::numeric) as avg_price,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sold_price::numeric) as median_price
+      FROM deduplicated_mls mls
+      WHERE mls.row_num = 1
+        AND status = 'Closed'
+        AND sold_date IS NOT NULL 
+        AND sold_date <> ''
+        AND sold_price IS NOT NULL 
+        AND sold_price <> ''
+        AND LENGTH(TRIM(sold_price)) > 0
+        AND sold_price ~ '^[0-9]+(\.[0-9]+)?$'
+        AND EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) >= EXTRACT(YEAR FROM NOW()) - 10
+      GROUP BY wf_development, EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD'))
+      ORDER BY development_name ASC, sale_year ASC;
+    `;
+
+    try {
+      const { query } = require('./db');
+      const result = await query(comparisonQuery, [developmentList]);
+      
+      res.json({
+        success: true,
+        data: {
+          developments: developmentList,
+          comparisonData: result.rows
+        }
+      });
+      
+    } catch (dbError) {
+      console.error('Database query error for developments comparison:', dbError);
+      throw new Error(`Failed to fetch developments comparison data: ${dbError.message}`);
+    }
+
+  } catch (error) {
+    console.error('Error fetching developments comparison data:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch developments comparison data',
+      message: error.message 
+    });
+  }
+});
+
 // FRED API endpoint for fetching economic data
 app.get('/api/fred-data', async (req, res) => {
   try {
