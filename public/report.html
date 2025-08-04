@@ -47,7 +47,7 @@
             <div id="reportContent" style="display: none;">
 
                 <div class="section">
-                    <h2>FRED Charts</h2>
+                    <h2>National Charts</h2>
                     <div class="section-content">
                         <div id="fredChartsContent" style="display: flex; gap: 20px; flex-wrap: wrap;">
                             <div class="chart-container" style="flex: 1; min-width: 300px; border: 1px solid #ddd; border-radius: 8px; padding: 15px;">
@@ -176,7 +176,7 @@
                 </div>
 
                 <div class="section">
-                    <h2>Areas of Interest</h2>
+                    <h2 style="text-align: center;">Neighbourhood Charts</h2>
                     <div class="section-content">
                         <div id="interestAreasContent">
                             <div class="info-item">
@@ -188,7 +188,7 @@
                 </div>
 
                 <div class="section">
-                    <h2>Area Charts</h2>
+                    <h2>County Charts</h2>
                     <div class="section-content">
                         <div id="chartsContent">
                             <!-- Premium FRED Comparison Interface -->
@@ -905,7 +905,7 @@
                 selectionCount = countyIds.length;
                 
                 // Update the location selections UI
-                updateLocationSelections();
+                await updateLocationSelections();
                 
                 // For each saved county ID, we need to find the state and set the dropdowns
                 for (let i = 0; i < countyIds.length; i++) {
@@ -920,7 +920,7 @@
                 
             } catch (error) {
                 console.error('Error loading saved locations:', error);
-                resetToDefault();
+                await resetToDefault();
             }
         }
         
@@ -971,8 +971,12 @@
         
         // Setup event listeners for the comparison controls
         function setupEventListeners() {
-            document.getElementById('add-location-btn').addEventListener('click', addLocationSelection);
-            document.getElementById('remove-location-btn').addEventListener('click', removeLocationSelection);
+            document.getElementById('add-location-btn').addEventListener('click', async () => {
+                await addLocationSelection();
+            });
+            document.getElementById('remove-location-btn').addEventListener('click', async () => {
+                await removeLocationSelection();
+            });
             document.getElementById('compare-btn').addEventListener('click', generateComparison);
             document.getElementById('reset-comparison-btn').addEventListener('click', resetToDefault);
             document.getElementById('back-to-controls-btn').addEventListener('click', showControlsView);
@@ -991,31 +995,50 @@
         }
         
         // Add a new location selection dropdown
-        function addLocationSelection() {
+        async function addLocationSelection() {
             if (selectionCount >= maxSelections) return;
             
             selectionCount++;
-            updateLocationSelections();
+            await updateLocationSelections();
             updateButtons();
         }
         
         // Remove the last location selection
-        function removeLocationSelection() {
+        async function removeLocationSelection() {
             if (selectionCount <= 1) return;
             
             selectionCount--;
-            updateLocationSelections();
+            await updateLocationSelections();
             updateButtons();
         }
         
         // Update the location selection interface
-        function updateLocationSelections() {
+        async function updateLocationSelections() {
             const container = document.getElementById('location-selections');
-            let html = '';
             
-            for (let i = 1; i <= selectionCount; i++) {
-                html += `
-                    <div class="location-selection" id="location-${i}">
+            // Store current selections before updating
+            const currentSelections = {};
+            for (let i = 1; i <= Math.max(selectionCount, container.children.length); i++) {
+                const stateSelect = document.getElementById(`state-select-${i}`);
+                const countySelect = document.getElementById(`county-select-${i}`);
+                if (stateSelect && countySelect) {
+                    currentSelections[i] = {
+                        state: stateSelect.value,
+                        county: countySelect.value
+                    };
+                }
+            }
+            
+            // Only rebuild if we need more elements or fewer elements
+            const currentCount = container.children.length;
+            
+            if (selectionCount > currentCount) {
+                // Add new location selections
+                for (let i = currentCount + 1; i <= selectionCount; i++) {
+                    const locationDiv = document.createElement('div');
+                    locationDiv.className = 'location-selection';
+                    locationDiv.id = `location-${i}`;
+                    locationDiv.innerHTML = `
                         <div>
                             <label>State Selection</label>
                             <select id="state-select-${i}" onchange="updateCounties(${i})">
@@ -1031,17 +1054,39 @@
                                 <option value="">Choose County</option>
                             </select>
                         </div>
-                    </div>
-                `;
+                    `;
+                    container.appendChild(locationDiv);
+                }
+            } else if (selectionCount < currentCount) {
+                // Remove excess location selections
+                for (let i = currentCount; i > selectionCount; i--) {
+                    const locationDiv = document.getElementById(`location-${i}`);
+                    if (locationDiv) {
+                        locationDiv.remove();
+                    }
+                }
             }
             
-            container.innerHTML = html;
-            
-            // Load counties for each state selection
+            // Restore previous selections
             for (let i = 1; i <= selectionCount; i++) {
                 const stateSelect = document.getElementById(`state-select-${i}`);
-                if (stateSelect.value) {
-                    updateCounties(i);
+                const countySelect = document.getElementById(`county-select-${i}`);
+                
+                if (currentSelections[i] && currentSelections[i].state) {
+                    // Restore state selection
+                    stateSelect.value = currentSelections[i].state;
+                    
+                    // Load counties for this state and then restore county selection
+                    await updateCounties(i);
+                    
+                    // Restore county selection
+                    if (currentSelections[i].county) {
+                        countySelect.value = currentSelections[i].county;
+                    }
+                } else if (i === 1 && !currentSelections[i]) {
+                    // Default first selection to Florida if no previous selection
+                    stateSelect.value = 'Florida';
+                    await updateCounties(i);
                 }
             }
         }
@@ -1100,7 +1145,7 @@
         // Reset to default (Palm Beach County only)
         async function resetToDefault() {
             selectionCount = 1;
-            updateLocationSelections();
+            await updateLocationSelections();
             updateButtons();
             
             // Clear any existing chart, header, and notices
