@@ -1357,8 +1357,35 @@
             const width = containerWidth - margin.left - margin.right;
             const height = containerHeight - margin.top - margin.bottom;
             
-            // Luxury color palette for different counties
-            const colors = ['#1a365d', '#c6a96a', '#2d3748', '#d4af37', '#4a5568'];
+            // Function to get color for a county
+            function getCountyColor(countyId) {
+                // Check if this is Palm Beach County (ID: 12099 or name contains "Palm Beach")
+                const countyName = countyNames[countyId] || '';
+                if (countyId === '12099' || countyName.includes('Palm Beach')) {
+                    return '#003366'; // Dark blue for Palm Beach County
+                }
+                
+                // Distinct, bright colors for other counties - easy to differentiate
+                const otherColors = [
+                    '#e74c3c',  // Bright red
+                    '#f39c12',  // Orange
+                    '#27ae60',  // Green  
+                    '#9b59b6',  // Purple
+                    '#3498db',  // Light blue (distinct from Palm Beach dark blue)
+                    '#e67e22',  // Dark orange
+                    '#1abc9c',  // Teal
+                    '#34495e',  // Dark gray
+                    '#f1c40f',  // Yellow
+                    '#8e44ad'   // Dark purple
+                ];
+                
+                // Assign colors to non-Palm Beach counties in order
+                const nonPalmBeachIds = Object.keys(countyNames).filter(id => 
+                    id !== '12099' && !countyNames[id].includes('Palm Beach')
+                );
+                const colorIndex = nonPalmBeachIds.indexOf(countyId);
+                return otherColors[colorIndex % otherColors.length];
+            }
             
             // Combine all data to find extents
             const allData = Object.values(data).flat();
@@ -1422,7 +1449,7 @@
                         ${Object.entries(data).map(([countyId, countyData], index) => `
                             <path d="${line(countyData)}" 
                                   fill="none" 
-                                  stroke="${colors[index % colors.length]}" 
+                                  stroke="${getCountyColor(countyId)}" 
                                   stroke-width="3" 
                                   opacity="0.8"/>
                         `).join('')}
@@ -1430,7 +1457,7 @@
                         <!-- Legend -->
                         ${Object.entries(countyNames).map(([countyId, name], index) => `
                             <g transform="translate(${width + 15}, ${index * 20 + 20})">
-                                <rect x="0" y="-7" width="14" height="4" fill="${colors[index % colors.length]}"/>
+                                <rect x="0" y="-7" width="14" height="4" fill="${getCountyColor(countyId)}"/>
                                 <text x="20" y="0" font-size="11" fill="#333">${name.replace(' County', '')}</text>
                             </g>
                         `).join('')}
