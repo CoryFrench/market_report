@@ -52,29 +52,30 @@
                         <div id="fredChartsContent" style="display: flex; gap: 20px; flex-wrap: wrap;">
                             <div class="chart-container" style="flex: 1; min-width: 300px; border: 1px solid #ddd; border-radius: 8px; padding: 15px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                    <h3 style="margin: 0; color: #333; font-size: 16px;" id="leftChartTitle">Housing Price Index</h3>
+                                    <h3 style="margin: 0; color: #333; font-size: 16px;" id="leftChartTitle">Housing Price Index (Source: FRED)</h3>
+                                    
                                     <select id="leftChartSelect" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;">
-                                        <option value="USSTHPI">Housing Price Index</option>
-                                        <option value="GDP">GDP</option>
-                                        <option value="CPIAUCSL">CPI</option>
-                                        <option value="PPIACO">PPI</option>
-                                        <option value="FEDFUNDS">Fed Funds Rate</option>
-                                        <option value="MORTGAGE30US">30-Year Mortgage</option>
-                                        <option value="MORTGAGE15US">15-Year Mortgage</option>
-                                        <option value="RHVRUSQ156N">Vacancy Rate</option>
-                                        <option value="LREM64TTUSM156S">Employment</option>
-                                        <option value="POPTHM">Population</option>
-                                        <option value="M2REAL">Money Stock</option>
-                                        <option value="FPCPITOTLZGUSA">Inflation</option>
-                                        <option value="GFDEBTN">Government Debt</option>
-                                        <option value="DGS10">10-Year Treasury</option>
                                         <option value="DGS2">2-Year Treasury</option>
+                                        <option value="DGS10">10-Year Treasury</option>
+                                        <option value="MORTGAGE15US">15-Year Mortgage</option>
+                                        <option value="MORTGAGE30US">30-Year Mortgage</option>
                                         <option value="ACTLISCOUUS">Active Listings</option>
-                                        <option value="MSPUS">Median Sale Price</option>
-                                        <option value="NEWLISCOUUS">New Listings</option>
-                                        <option value="MEDDAYONMARUS">Median Days on Market</option>
-                                        <option value="UNRATE">Unemployment Rate</option>
+                                        <option value="CPIAUCSL">CPI</option>
                                         <option value="DJIA">Dow Jones Industrial Average</option>
+                                        <option value="LREM64TTUSM156S">Employment</option>
+                                        <option value="FEDFUNDS">Fed Funds Rate</option>
+                                        <option value="GDP">GDP</option>
+                                        <option value="GFDEBTN">Government Debt</option>
+                                        <option value="USSTHPI">Housing Price Index</option>
+                                        <option value="FPCPITOTLZGUSA">Inflation</option>
+                                        <option value="MEDDAYONMARUS">Median Days on Market</option>
+                                        <option value="MSPUS">Median Sale Price</option>
+                                        <option value="M2REAL">Money Stock</option>
+                                        <option value="NEWLISCOUUS">New Listings</option>
+                                        <option value="POPTHM">Population</option>
+                                        <option value="PPIACO">PPI</option>
+                                        <option value="UNRATE">Unemployment Rate</option>
+                                        <option value="RHVRUSQ156N">Vacancy Rate</option>
                                     </select>
                                 </div>
                                 <div id="leftChart" style="width: 100%; height: 300px; display: flex; align-items: center; justify-content: center; background-color: #f9f9f9; border-radius: 4px;">
@@ -87,29 +88,29 @@
                             
                             <div class="chart-container" style="flex: 1; min-width: 300px; border: 1px solid #ddd; border-radius: 8px; padding: 15px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                    <h3 style="margin: 0; color: #333; font-size: 16px;" id="rightChartTitle">Dow Jones Industrial Average</h3>
+                                    <h3 style="margin: 0; color: #333; font-size: 16px;" id="rightChartTitle">Dow Jones Industrial Average (Source: FRED)</h3>
                                     <select id="rightChartSelect" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;">
-                                        <option value="DJIA" selected>Dow Jones Industrial Average</option>
-                                        <option value="GDP">GDP</option>
-                                        <option value="USSTHPI">Housing Price Index</option>
-                                        <option value="CPIAUCSL">CPI</option>
-                                        <option value="PPIACO">PPI</option>
-                                        <option value="FEDFUNDS">Fed Funds Rate</option>
-                                        <option value="MORTGAGE30US">30-Year Mortgage</option>
-                                        <option value="MORTGAGE15US">15-Year Mortgage</option>
-                                        <option value="RHVRUSQ156N">Vacancy Rate</option>
-                                        <option value="LREM64TTUSM156S">Employment</option>
-                                        <option value="POPTHM">Population</option>
-                                        <option value="M2REAL">Money Stock</option>
-                                        <option value="FPCPITOTLZGUSA">Inflation</option>
-                                        <option value="GFDEBTN">Government Debt</option>
-                                        <option value="DGS10">10-Year Treasury</option>
                                         <option value="DGS2">2-Year Treasury</option>
+                                        <option value="DGS10">10-Year Treasury</option>
+                                        <option value="MORTGAGE15US">15-Year Mortgage</option>
+                                        <option value="MORTGAGE30US">30-Year Mortgage</option>
                                         <option value="ACTLISCOUUS">Active Listings</option>
-                                        <option value="MSPUS">Median Sale Price</option>
-                                        <option value="NEWLISCOUUS">New Listings</option>
+                                        <option value="CPIAUCSL">CPI</option>
+                                        <option value="DJIA" selected>Dow Jones Industrial Average</option>
+                                        <option value="LREM64TTUSM156S">Employment</option>
+                                        <option value="FEDFUNDS">Fed Funds Rate</option>
+                                        <option value="GDP">GDP</option>
+                                        <option value="GFDEBTN">Government Debt</option>
+                                        <option value="USSTHPI">Housing Price Index</option>
+                                        <option value="FPCPITOTLZGUSA">Inflation</option>
                                         <option value="MEDDAYONMARUS">Median Days on Market</option>
+                                        <option value="MSPUS">Median Sale Price</option>
+                                        <option value="M2REAL">Money Stock</option>
+                                        <option value="NEWLISCOUUS">New Listings</option>
+                                        <option value="POPTHM">Population</option>
+                                        <option value="PPIACO">PPI</option>
                                         <option value="UNRATE">Unemployment Rate</option>
+                                        <option value="RHVRUSQ156N">Vacancy Rate</option>
                                     </select>
                                 </div>
                                 <div id="rightChart" style="width: 100%; height: 300px; display: flex; align-items: center; justify-content: center; background-color: #f9f9f9; border-radius: 4px;">
@@ -595,14 +596,14 @@
             // Set dropdown values and titles
             document.getElementById('leftChartSelect').value = leftSeriesId;
             document.getElementById('rightChartSelect').value = rightSeriesId;
-            document.getElementById('leftChartTitle').textContent = FRED_SERIES[leftSeriesId] || leftSeriesId;
-            document.getElementById('rightChartTitle').textContent = FRED_SERIES[rightSeriesId] || rightSeriesId;
+            document.getElementById('leftChartTitle').textContent = (FRED_SERIES[leftSeriesId] || leftSeriesId) + ' (Source: Federal Reserve)';
+            document.getElementById('rightChartTitle').textContent = (FRED_SERIES[rightSeriesId] || rightSeriesId) + ' (Source: Federal Reserve)';
             
             // Setup dropdown event listeners with save functionality
             document.getElementById('leftChartSelect').addEventListener('change', async function() {
                 const seriesId = this.value;
                 const title = FRED_SERIES[seriesId] || seriesId;
-                document.getElementById('leftChartTitle').textContent = title;
+                document.getElementById('leftChartTitle').textContent = title + ' (Source: FRED)';
                 loadChartData('leftChart', seriesId, '#2E8B57');
                 
                 // Save to database
@@ -612,8 +613,8 @@
             document.getElementById('rightChartSelect').addEventListener('change', async function() {
                 const seriesId = this.value;
                 const title = FRED_SERIES[seriesId] || seriesId;
-                document.getElementById('rightChartTitle').textContent = title;
-                loadChartData('rightChart', seriesId, '#1E90FF');
+                document.getElementById('rightChartTitle').textContent = title + ' (Source: FRED)';
+                loadChartData('rightChart', seriesId, '#1E90FF)');
                 
                 // Save to database
                 await saveFredCharts(reportId);
