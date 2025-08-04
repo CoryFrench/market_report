@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Professional Area Analysis Report</title>
     <link rel="stylesheet" href="/styles.css">
-    <script src="https://d3js.org/d3.v7.min.js"></script>
     <!-- Chart.js for interactive charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
     <!-- Leaflet CSS and JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -83,8 +83,9 @@
                                         <option value="RHVRUSQ156N">Vacancy Rate</option>
                                     </select>
                                 </div>
-                                <div id="leftChart" style="width: 100%; height: 300px; display: flex; align-items: center; justify-content: center; background-color: #f9f9f9; border-radius: 4px;">
-                                    <div class="loading-spinner" style="text-align: center;">
+                                <div style="position: relative; width: 100%; height: 300px; background-color: #f9f9f9; border-radius: 4px;">
+                                    <canvas id="leftChart" style="width: 100%; height: 100%;"></canvas>
+                                    <div id="leftChart-loading" class="loading-spinner" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
                                         <div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 2s linear infinite; margin: 0 auto;"></div>
                                         <p style="margin-top: 10px; color: #666;">Loading chart data...</p>
                                     </div>
@@ -118,8 +119,9 @@
                                         <option value="RHVRUSQ156N">Vacancy Rate</option>
                                     </select>
                                 </div>
-                                <div id="rightChart" style="width: 100%; height: 300px; display: flex; align-items: center; justify-content: center; background-color: #f9f9f9; border-radius: 4px;">
-                                    <div class="loading-spinner" style="text-align: center;">
+                                <div style="position: relative; width: 100%; height: 300px; background-color: #f9f9f9; border-radius: 4px;">
+                                    <canvas id="rightChart" style="width: 100%; height: 100%;"></canvas>
+                                    <div id="rightChart-loading" class="loading-spinner" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
                                         <div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 2s linear infinite; margin: 0 auto;"></div>
                                         <p style="margin-top: 10px; color: #666;">Loading chart data...</p>
                                     </div>
@@ -274,8 +276,8 @@
                                         <h3>Comparative Market Analysis</h3>
                                         <p>Professional economic indicator comparison across selected regions</p>
                                     </div>
-                                    <div id="comparison-chart-container">
-                                        <div id="comparison-chart" class="fred-chart"></div>
+                                    <div id="comparison-chart-container" style="position: relative; height: 500px; width: 100%;">
+                                        <canvas id="comparison-chart" class="fred-chart"></canvas>
                                         <div id="chart-loading" class="chart-loading-message" style="display: none;">
                                             <div class="loading-spinner-small"></div>
                                             <p>Generating comprehensive market analysis...</p>
@@ -566,16 +568,16 @@
                         <!-- Sales Count Chart -->
                         <div style="flex: 1;">
                             <h4 style="text-align: center; color: #34495e; margin-bottom: 15px;">Number of Sales per Year</h4>
-                            <div id="salesCountChart" style="height: 300px; position: relative;">
-                                ${renderBarChart(chartData, 'sales_count', '#3498db', 'Sales')}
+                            <div style="height: 300px; position: relative;">
+                                <canvas id="salesCountChart" style="width: 100%; height: 100%;"></canvas>
                             </div>
                         </div>
                         
                         <!-- Average Price Chart -->
                         <div style="flex: 1;">
                             <h4 style="text-align: center; color: #34495e; margin-bottom: 15px;">Average Sale Price per Year</h4>
-                            <div id="avgPriceChart" style="height: 300px; position: relative;">
-                                ${renderBarChart(chartData, 'avg_price', '#27ae60', '$')}
+                            <div style="height: 300px; position: relative;">
+                                <canvas id="avgPriceChart" style="width: 100%; height: 100%;"></canvas>
                             </div>
                         </div>
                     </div>
@@ -598,7 +600,10 @@
                             <tbody>
             `;
             
-            chartData.forEach(row => {
+            // Sort chartData by year in descending order (newest first)
+            const sortedChartData = [...chartData].sort((a, b) => parseInt(b.sale_year) - parseInt(a.sale_year));
+            
+            sortedChartData.forEach(row => {
                 const avgPrice = row.avg_price ? `$${parseInt(row.avg_price).toLocaleString()}` : 'N/A';
                 const medianPrice = row.median_price ? `$${parseInt(row.median_price).toLocaleString()}` : 'N/A';
                 const minPrice = row.min_price ? `$${parseInt(row.min_price).toLocaleString()}` : 'N/A';
@@ -624,6 +629,12 @@
             `;
             
             content.innerHTML = chartHtml;
+            
+            // Render Chart.js charts
+            setTimeout(() => {
+                renderPopupChart('salesCountChart', chartData, 'sales_count', '#3498db', 'Number of Sales');
+                renderPopupChart('avgPriceChart', chartData, 'avg_price', '#27ae60', 'Average Sale Price');
+            }, 100);
         }
         
         // Function to render simple bar chart
@@ -678,6 +689,155 @@
             return chartHtml;
         }
         
+        // Function to render popup charts using Chart.js
+        function renderPopupChart(canvasId, data, valueField, color, label) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) {
+                console.error(`Canvas ${canvasId} not found`);
+                return;
+            }
+            
+            // Destroy existing chart instance
+            if (canvasId === 'salesCountChart' && salesCountChartInstance) {
+                salesCountChartInstance.destroy();
+            } else if (canvasId === 'avgPriceChart' && avgPriceChartInstance) {
+                avgPriceChartInstance.destroy();
+            }
+            
+            // Prepare data for Chart.js
+            const chartData = data.map(item => ({
+                x: item.sale_year.toString(),
+                y: parseFloat(item[valueField]) || 0
+            }));
+            
+            const ctx = canvas.getContext('2d');
+            
+            // Determine if this is a price chart for formatting
+            const isPrice = valueField === 'avg_price';
+            
+            // Create Chart.js configuration
+            const config = {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: label,
+                        data: chartData,
+                        backgroundColor: color + '20', // 20% opacity for fill
+                        borderColor: color,
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: color,
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        pointHoverBackgroundColor: color,
+                        pointHoverBorderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    return `Year ${tooltipItems[0].label}`;
+                                },
+                                label: function(context) {
+                                    const value = context.parsed.y;
+                                    if (isPrice) {
+                                        return `${label}: $${Math.round(value).toLocaleString()}`;
+                                    } else {
+                                        return `${label}: ${value}`;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'category',
+                            title: {
+                                display: true,
+                                text: 'Year',
+                                color: '#2c3e50',
+                                font: {
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#2c3e50',
+                                font: {
+                                    weight: '500'
+                                }
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: label,
+                                color: '#2c3e50',
+                                font: {
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                color: '#f0f0f0'
+                            },
+                            ticks: {
+                                color: '#666',
+                                callback: function(value) {
+                                    if (isPrice) {
+                                        return '$' + Math.round(value).toLocaleString();
+                                    } else {
+                                        return value;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 800,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            };
+            
+            // Create the chart and store the instance
+            const newChart = new Chart(ctx, config);
+            
+            if (canvasId === 'salesCountChart') {
+                salesCountChartInstance = newChart;
+            } else if (canvasId === 'avgPriceChart') {
+                avgPriceChartInstance = newChart;
+            }
+        }
+        
+        // Function to close chart overlay and clean up chart instances
+        function closeChartOverlay() {
+            const overlay = document.getElementById('chartOverlay');
+            overlay.style.display = 'none';
+            
+            // Destroy chart instances to free memory
+            if (salesCountChartInstance) {
+                salesCountChartInstance.destroy();
+                salesCountChartInstance = null;
+            }
+            if (avgPriceChartInstance) {
+                avgPriceChartInstance.destroy();
+                avgPriceChartInstance = null;
+            }
+        }
+        
         // Setup chart overlay close handlers
         document.addEventListener('DOMContentLoaded', function() {
             const overlay = document.getElementById('chartOverlay');
@@ -685,20 +845,20 @@
             
             // Close overlay when clicking close button
             closeButton.addEventListener('click', () => {
-                overlay.style.display = 'none';
+                closeChartOverlay();
             });
             
             // Close overlay when clicking outside the content
             overlay.addEventListener('click', (e) => {
                 if (e.target === overlay) {
-                    overlay.style.display = 'none';
+                    closeChartOverlay();
                 }
             });
             
             // Close overlay with Escape key
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && overlay.style.display === 'flex') {
-                    overlay.style.display = 'none';
+                    closeChartOverlay();
                 }
             });
         });
@@ -910,7 +1070,7 @@
                 const seriesId = this.value;
                 const title = FRED_SERIES[seriesId] || seriesId;
                 document.getElementById('rightChartTitle').textContent = title + ' (Source: FRED)';
-                loadChartData('rightChart', seriesId, '#1E90FF)');
+                loadChartData('rightChart', seriesId, '#1E90FF');
                 
                 // Save to database
                 await saveFredCharts(reportId);
@@ -968,104 +1128,200 @@
                 if (data.observations && data.observations.length > 0) {
                     renderChart(containerId, data.observations, title, color);
                 } else {
-                    document.getElementById(containerId).innerHTML = `
-                        <div style="text-align: center; color: #666; padding: 20px;">
-                            <p>No data available for ${title}</p>
-                        </div>
-                    `;
+                    // Show no data message
+                    const canvas = document.getElementById(containerId);
+                    const loadingDiv = document.getElementById(containerId + '-loading');
+                    if (loadingDiv) {
+                        loadingDiv.style.display = 'none';
+                    }
+                    if (canvas) {
+                        const parent = canvas.parentElement;
+                        parent.innerHTML = `
+                            <div style="display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; color: #666;">
+                                <p>No data available for ${title}</p>
+                            </div>
+                        `;
+                    }
                 }
             } catch (error) {
                 console.error(`Error loading ${seriesId} data:`, error);
-                document.getElementById(containerId).innerHTML = `
-                    <div style="text-align: center; color: #e74c3c; padding: 20px;">
-                        <p>Error loading ${title} data</p>
-                    </div>
-                `;
+                const canvas = document.getElementById(containerId);
+                const loadingDiv = document.getElementById(containerId + '-loading');
+                if (loadingDiv) {
+                    loadingDiv.style.display = 'none';
+                }
+                if (canvas) {
+                    const parent = canvas.parentElement;
+                    parent.innerHTML = `
+                        <div style="display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; color: #e74c3c;">
+                            <p>Error loading ${title} data</p>
+                        </div>
+                    `;
+                }
             }
         }
 
-        // Function to render a simple line chart
+        // Function to render a simple line chart using Chart.js
         function renderChart(containerId, observations, title, color) {
-            const container = document.getElementById(containerId);
+            const canvas = document.getElementById(containerId);
+            const loadingDiv = document.getElementById(containerId + '-loading');
+            
+            if (!canvas) {
+                console.error(`Canvas element ${containerId} not found`);
+                return;
+            }
+            
+            // Hide loading spinner
+            if (loadingDiv) {
+                loadingDiv.style.display = 'none';
+            }
+            
             const validData = observations.filter(obs => obs.value !== '.' && !isNaN(parseFloat(obs.value)));
             
             if (validData.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align: center; color: #666; padding: 20px;">
+                // Show error message
+                const parent = canvas.parentElement;
+                parent.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; color: #666;">
                         <p>No valid data available for ${title}</p>
                     </div>
                 `;
                 return;
             }
 
-            const values = validData.map(obs => parseFloat(obs.value));
-            const dates = validData.map(obs => obs.date);
-            const minValue = Math.min(...values);
-            const maxValue = Math.max(...values);
-            const range = maxValue - minValue;
+            // Get chart instance based on container ID
+            let chartInstance;
+            if (containerId === 'leftChart') {
+                chartInstance = leftChartInstance;
+            } else if (containerId === 'rightChart') {
+                chartInstance = rightChartInstance;
+            }
+
+            // Destroy existing chart if it exists
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            // Prepare data for Chart.js
+            const chartData = validData.map(obs => ({
+                x: obs.date,
+                y: parseFloat(obs.value)
+            }));
+
+            const ctx = canvas.getContext('2d');
             
-            const svgWidth = container.offsetWidth - 40;
-            const svgHeight = 260;
-            const padding = 40;
-            
-            let svgContent = `
-                <svg width="100%" height="${svgHeight}" style="background: white; border-radius: 4px;">
-                    <defs>
-                        <linearGradient id="gradient-${containerId}" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" style="stop-color:${color};stop-opacity:0.3" />
-                            <stop offset="100%" style="stop-color:${color};stop-opacity:0.1" />
-                        </linearGradient>
-                    </defs>
-            `;
-            
-            // Create path for line chart
-            let pathData = '';
-            let areaPath = '';
-            
-            validData.forEach((obs, index) => {
-                const x = padding + (index / (validData.length - 1)) * (svgWidth - 2 * padding);
-                const y = svgHeight - padding - ((parseFloat(obs.value) - minValue) / range) * (svgHeight - 2 * padding);
-                
-                if (index === 0) {
-                    pathData += `M ${x} ${y}`;
-                    areaPath += `M ${x} ${svgHeight - padding} L ${x} ${y}`;
-                } else {
-                    pathData += ` L ${x} ${y}`;
-                    areaPath += ` L ${x} ${y}`;
+            // Create Chart.js configuration
+            const config = {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: title,
+                        data: chartData,
+                        backgroundColor: color + '20', // 20% opacity for fill
+                        borderColor: color,
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: color,
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointHoverBackgroundColor: color,
+                        pointHoverBorderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    const date = new Date(tooltipItems[0].parsed.x);
+                                    return date.toLocaleDateString();
+                                },
+                                label: function(context) {
+                                    return `${title}: ${context.parsed.y.toLocaleString()}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'month',
+                                displayFormats: {
+                                    month: 'MMM yyyy'
+                                }
+                            },
+                            grid: {
+                                display: true,
+                                color: '#f0f0f0'
+                            },
+                            ticks: {
+                                color: '#666',
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        y: {
+                            grid: {
+                                display: true,
+                                color: '#f0f0f0'
+                            },
+                            ticks: {
+                                color: '#666',
+                                font: {
+                                    size: 11
+                                },
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false
+                    },
+                    elements: {
+                        line: {
+                            tension: 0.4
+                        }
+                    }
                 }
-                
-                if (index === validData.length - 1) {
-                    areaPath += ` L ${x} ${svgHeight - padding} Z`;
-                }
-            });
+            };
+
+            // Create the chart and store the instance
+            const newChart = new Chart(ctx, config);
             
-            svgContent += `
-                <path d="${areaPath}" fill="url(#gradient-${containerId})" />
-                <path d="${pathData}" stroke="${color}" stroke-width="2" fill="none" />
-                
-                <!-- Y-axis labels -->
-                <text x="10" y="30" font-size="10" fill="#666">${maxValue.toLocaleString()}</text>
-                <text x="10" y="${svgHeight - 10}" font-size="10" fill="#666">${minValue.toLocaleString()}</text>
-                
-                <!-- X-axis labels -->
-                <text x="${padding}" y="${svgHeight - 5}" font-size="10" fill="#666">${dates[0]}</text>
-                <text x="${svgWidth - padding - 60}" y="${svgHeight - 5}" font-size="10" fill="#666">${dates[dates.length - 1]}</text>
-                
-                <!-- Latest value -->
-                <circle cx="${padding + ((validData.length - 1) / (validData.length - 1)) * (svgWidth - 2 * padding)}" 
-                        cy="${svgHeight - padding - ((values[values.length - 1] - minValue) / range) * (svgHeight - 2 * padding)}" 
-                        r="4" fill="${color}" />
-                
-                </svg>
-            `;
-            
-            container.innerHTML = svgContent;
+            if (containerId === 'leftChart') {
+                leftChartInstance = newChart;
+            } else if (containerId === 'rightChart') {
+                rightChartInstance = newChart;
+            }
         }
 
         // FRED Comparison Functionality for Area Charts
         let seriesOptionsCache = null;
         let selectionCount = 1;
         const maxSelections = 5;
+        
+        // Chart.js instances for FRED charts
+        let leftChartInstance = null;
+        let rightChartInstance = null;
+        let comparisonChartInstance = null;
+        
+        // Chart.js instances for popup charts
+        let salesCountChartInstance = null;
+        let avgPriceChartInstance = null;
         
         // Available states for county selection (alphabetically sorted)
         const availableStates = [
@@ -1446,7 +1702,10 @@
             updateButtons();
             
             // Clear any existing chart, header, and notices
-            document.getElementById('comparison-chart').innerHTML = '';
+            if (comparisonChartInstance) {
+                comparisonChartInstance.destroy();
+                comparisonChartInstance = null;
+            }
             document.getElementById('chart-loading').style.display = 'none';
             document.getElementById('chart-error').style.display = 'none';
             document.getElementById('comparison-chart-header').style.display = 'none';
@@ -1531,7 +1790,10 @@
             showChartView();
             document.getElementById('chart-loading').style.display = 'flex';
             document.getElementById('chart-error').style.display = 'none';
-            document.getElementById('comparison-chart').innerHTML = '';
+            if (comparisonChartInstance) {
+                comparisonChartInstance.destroy();
+                comparisonChartInstance = null;
+            }
             
             try {
                 const seriesOption = seriesOptionsCache[selectedSeries];
@@ -1645,14 +1907,14 @@
             return data.observations || [];
         }
         
-        // Create a simple comparison chart using SVG
+        // Create a simple comparison chart using Chart.js
         function createSimpleComparisonChart(data, countyNames, title) {
-            const container = document.getElementById('comparison-chart');
-            const containerWidth = container.offsetWidth || 500;
-            const containerHeight = Math.max(container.offsetHeight || 450, 450);
-            const margin = { top: 40, right: 120, bottom: 60, left: 80 };
-            const width = containerWidth - margin.left - margin.right;
-            const height = containerHeight - margin.top - margin.bottom;
+            const canvas = document.getElementById('comparison-chart');
+            
+            if (!canvas) {
+                console.error('Comparison chart canvas not found');
+                return;
+            }
             
             // Function to get color for a county
             function getCountyColor(countyId) {
@@ -1684,90 +1946,134 @@
                 return otherColors[colorIndex % otherColors.length];
             }
             
-            // Combine all data to find extents
-            const allData = Object.values(data).flat();
-            if (allData.length === 0) return;
+            // Destroy existing chart if it exists
+            if (comparisonChartInstance) {
+                comparisonChartInstance.destroy();
+            }
             
-            const xExtent = d3.extent(allData, d => d.date);
-            const yExtent = d3.extent(allData, d => d.value);
-            
-            // Create scales
-            const xScale = d3.scaleTime()
-                .domain(xExtent)
-                .range([0, width]);
+            // Prepare datasets for Chart.js
+            const datasets = Object.entries(data).map(([countyId, countyData]) => {
+                const color = getCountyColor(countyId);
+                const countyName = countyNames[countyId] || `County ${countyId}`;
                 
-            const yScale = d3.scaleLinear()
-                .domain(yExtent)
-                .range([height, 0]);
+                return {
+                    label: countyName.replace(' County', ''),
+                    data: countyData.map(d => ({
+                        x: d.date,
+                        y: d.value
+                    })),
+                    backgroundColor: color + '20', // 20% opacity for fill
+                    borderColor: color,
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.4,
+                    pointBackgroundColor: color,
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 6,
+                    pointHoverBackgroundColor: color,
+                    pointHoverBorderColor: '#ffffff'
+                };
+            });
             
-            // Create line generator
-            const line = d3.line()
-                .x(d => xScale(d.date))
-                .y(d => yScale(d.value))
-                .curve(d3.curveMonotoneX);
+            const ctx = canvas.getContext('2d');
             
-            // Create SVG
-            let svgContent = `
-                <svg width="100%" height="${containerHeight}">
-                    <g transform="translate(${margin.left},${margin.top})">
-                        <!-- Grid lines -->
-                        <defs>
-                            <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
-                                <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#f0f0f0" stroke-width="1"/>
-                            </pattern>
-                        </defs>
-                        <rect width="${width}" height="${height}" fill="url(#grid)" />
-                        
-                        <!-- Y-axis -->
-                        <g>
-                            ${yScale.ticks(6).map(tick => `
-                                <g>
-                                    <line x1="0" y1="${yScale(tick)}" x2="${width}" y2="${yScale(tick)}" stroke="#e0e0e0" stroke-width="1"/>
-                                    <text x="-10" y="${yScale(tick)}" text-anchor="end" dy="0.35em" font-size="12" fill="#666">
-                                        ${tick.toLocaleString()}
-                                    </text>
-                                </g>
-                            `).join('')}
-                        </g>
-                        
-                        <!-- X-axis -->
-                        <g transform="translate(0,${height})">
-                            ${xScale.ticks(6).map(tick => `
-                                <g>
-                                    <line x1="${xScale(tick)}" y1="0" x2="${xScale(tick)}" y2="-${height}" stroke="#e0e0e0" stroke-width="1"/>
-                                    <text x="${xScale(tick)}" y="20" text-anchor="middle" font-size="12" fill="#666">
-                                        ${tick.getFullYear()}
-                                    </text>
-                                </g>
-                            `).join('')}
-                        </g>
-                        
-                        <!-- Data lines -->
-                        ${Object.entries(data).map(([countyId, countyData], index) => `
-                            <path d="${line(countyData)}" 
-                                  fill="none" 
-                                  stroke="${getCountyColor(countyId)}" 
-                                  stroke-width="3" 
-                                  opacity="0.8"/>
-                        `).join('')}
-                        
-                        <!-- Legend -->
-                        ${Object.entries(countyNames).map(([countyId, name], index) => `
-                            <g transform="translate(${width + 15}, ${index * 20 + 20})">
-                                <rect x="0" y="-7" width="14" height="4" fill="${getCountyColor(countyId)}"/>
-                                <text x="20" y="0" font-size="11" fill="#333">${name.replace(' County', '')}</text>
-                            </g>
-                        `).join('')}
-                        
-                        <!-- Title -->
-                        <text x="${width/2}" y="-15" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">
-                            ${title}
-                        </text>
-                    </g>
-                </svg>
-            `;
-            
-            container.innerHTML = svgContent;
+            // Create Chart.js configuration
+            const config = {
+                type: 'line',
+                data: {
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: title,
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            },
+                            color: '#333'
+                        },
+                        legend: {
+                            display: true,
+                            position: 'right',
+                            labels: {
+                                usePointStyle: false,
+                                boxWidth: 14,
+                                boxHeight: 4,
+                                font: {
+                                    size: 11
+                                },
+                                color: '#333'
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    const date = new Date(tooltipItems[0].parsed.x);
+                                    return date.toLocaleDateString();
+                                },
+                                label: function(context) {
+                                    return `${context.dataset.label}: ${context.parsed.y.toLocaleString()}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'month',
+                                displayFormats: {
+                                    month: 'MMM yyyy'
+                                }
+                            },
+                            grid: {
+                                display: true,
+                                color: '#f0f0f0'
+                            },
+                            ticks: {
+                                color: '#666',
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        y: {
+                            grid: {
+                                display: true,
+                                color: '#f0f0f0'
+                            },
+                            ticks: {
+                                color: '#666',
+                                font: {
+                                    size: 11
+                                },
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false
+                    },
+                    elements: {
+                        line: {
+                            tension: 0.4
+                        }
+                    }
+                }
+            };
+
+            // Create the chart and store the instance
+            comparisonChartInstance = new Chart(ctx, config);
         }
         
         // Display professional notice for unavailable data series
