@@ -400,6 +400,40 @@ const dbQueries = {
     } finally {
       client.release();
     }
+  },
+
+  // Get neighborhood sales data for a specific development
+  getNeighborhoodSalesData: async (reportId) => {
+    const queryText = `
+      WITH report_development AS (
+        SELECT development 
+        FROM customer.report_home_info 
+        WHERE report_id = $1
+      ),
+      recent_sales AS (
+        SELECT mbr.*
+        FROM mls.beaches_residential mbr
+        INNER JOIN waterfrontdata.development_data dd 
+          ON mbr.parcel_id = dd.parcel_number
+        WHERE dd.development_name = (SELECT development FROM report_development)
+          AND mbr.sold_date IS NOT NULL 
+          AND mbr.sold_date != ''
+          AND mbr.sold_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+          AND EXTRACT(YEAR FROM mbr.sold_date::DATE) >= EXTRACT(YEAR FROM CURRENT_DATE) - 10
+          AND mbr.sold_price IS NOT NULL
+          AND mbr.sold_price != ''
+          AND mbr.sold_price ~ '^[0-9]+(\\.[0-9]+)?$'
+      )
+      SELECT 
+        COUNT(*) as total_sales_count,
+        (SELECT development FROM report_development) as development_name,
+        MIN(sold_date::DATE) as earliest_sale_date,
+        MAX(sold_date::DATE) as latest_sale_date,
+        COUNT(DISTINCT parcel_id) as unique_parcels_with_sales
+      FROM recent_sales;
+    `;
+    
+    return await query(queryText, [reportId]);
   }
 };
 

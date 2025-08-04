@@ -385,6 +385,66 @@ app.get('/api/reports/complete/:urlSlug', async (req, res) => {
   }
 });
 
+// Get neighborhood sales data for a specific report
+app.get('/api/reports/:urlSlug/neighborhood-sales', async (req, res) => {
+  try {
+    const { urlSlug } = req.params;
+    
+    if (!urlSlug) {
+      return res.status(400).json({
+        success: false,
+        error: 'Report identifier is required'
+      });
+    }
+    
+    let reportId;
+    
+    // Check if it's a pure number (old format) or lastname-id format
+    if (/^\d+$/.test(urlSlug)) {
+      // Old format: pure number
+      reportId = urlSlug;
+    } else {
+      // New format: lastname-id - need to get the report_id first
+      const reportResult = await dbQueries.getReportByUrl(urlSlug);
+      if (reportResult.rowCount === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Report not found'
+        });
+      }
+      reportId = reportResult.rows[0].report_id;
+    }
+    
+    const result = await dbQueries.getNeighborhoodSalesData(reportId);
+    
+    if (result.rowCount === 0) {
+      return res.json({
+        success: true,
+        data: {
+          total_sales_count: 0,
+          development_name: null,
+          earliest_sale_date: null,
+          latest_sale_date: null,
+          unique_parcels_with_sales: 0,
+          message: 'No sales data found for this development'
+        }
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching neighborhood sales data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch neighborhood sales data',
+      message: error.message
+    });
+  }
+});
+
 // Create new report
 app.post('/api/reports/create', async (req, res) => {
   try {
@@ -657,6 +717,82 @@ app.get('/api/development-stats/:developmentName', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to fetch development statistics',
+      message: error.message 
+    });
+  }
+});
+
+// Development chart data API endpoint - annual sales data for chart popup
+app.get('/api/development-chart/:developmentName', async (req, res) => {
+  try {
+    const { developmentName } = req.params;
+    
+    if (!developmentName) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Development name is required' 
+      });
+    }
+
+    // Query to get annual sales data (count and average price)
+    const chartDataQuery = `  
+      WITH deduplicated_mls AS (
+        SELECT 
+          mls.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY mls.listing_id
+            ORDER BY 
+              COALESCE(mls.status_change_date, mls.listing_date) DESC NULLS LAST,
+              mls.status DESC
+          ) as row_num
+        FROM mls.vw_beaches_residential_developments mls
+        WHERE mls.wf_development = $1
+      )
+      SELECT 
+        EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) as sale_year,
+        COUNT(*) as sales_count,
+        AVG(sold_price::numeric) as avg_price,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sold_price::numeric) as median_price,
+        MIN(sold_price::numeric) as min_price,
+        MAX(sold_price::numeric) as max_price
+      FROM deduplicated_mls mls
+      WHERE mls.row_num = 1
+        AND status = 'Closed'
+        AND sold_date IS NOT NULL 
+        AND sold_date <> ''
+        AND sold_price IS NOT NULL 
+        AND sold_price <> ''
+        AND LENGTH(TRIM(sold_price)) > 0
+        AND sold_price ~ '^[0-9]+(\.[0-9]+)?$'
+        AND EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) >= EXTRACT(YEAR FROM NOW()) - 10
+      GROUP BY EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD'))
+      ORDER BY sale_year ASC;
+    `;
+
+    try {
+      const { query } = require('./db');
+      const exactDevelopmentName = developmentName.trim();
+      
+      const chartResult = await query(chartDataQuery, [exactDevelopmentName]);
+      
+      res.json({
+        success: true,
+        data: {
+          developmentName: exactDevelopmentName,
+          chartData: chartResult.rows
+        }
+      });
+      
+    } catch (dbError) {
+      console.error('Database query error for development chart data:', dbError);
+      throw new Error(`Failed to fetch development chart data: ${dbError.message}`);
+    }
+
+  } catch (error) {
+    console.error('Error fetching development chart data:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch development chart data',
       message: error.message 
     });
   }

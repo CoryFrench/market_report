@@ -154,7 +154,7 @@
                                         </svg>
                                         <span style="color: #3498db; font-size: 13px; font-weight: 500;">Map</span>
                                     </div>
-                                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+                                    <div id="chartButton" style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <line x1="18" y1="20" x2="18" y2="10"></line>
                                             <line x1="12" y1="20" x2="12" y2="4"></line>
@@ -182,10 +182,28 @@
                 <div class="section">
                     <h2 style="text-align: center;">Neighbourhood Charts</h2>
                     <div class="section-content">
-                        <div id="interestAreasContent">
+                        <div id="neighborhoodSalesContent">
                             <div class="info-item">
-                                <div class="info-label">Areas of Interest</div>
-                                <div class="info-value">Content coming soon</div>
+                                <div class="info-label">Development Sales Analysis</div>
+                                <div class="info-value" id="salesSummary">Loading sales data...</div>
+                            </div>
+                            <div id="salesDetails" style="margin-top: 15px; display: none;">
+                                <div class="info-item">
+                                    <div class="info-label">Development Name</div>
+                                    <div class="info-value" id="developmentName">-</div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">Total Sales (Last 10 Years)</div>
+                                    <div class="info-value" id="totalSales">-</div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">Unique Parcels with Sales</div>
+                                    <div class="info-value" id="uniqueParcels">-</div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">Date Range</div>
+                                    <div class="info-value" id="dateRange">-</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -254,6 +272,23 @@
                     <div class="confidential-text">
                         This area analysis has been prepared exclusively for authorized personnel and contains confidential and proprietary information. 
                         Distribution, reproduction, or disclosure to third parties is strictly prohibited without written consent.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart Overlay -->
+        <div id="chartOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 900px; width: 90%; max-height: 80%; overflow-y: auto; position: relative;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px;">
+                    <h2 style="margin: 0; color: #2c3e50;" id="chartOverlayTitle">Development Sales Analysis</h2>
+                    <button id="closeChartOverlay" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #95a5a6; padding: 5px;">&times;</button>
+                </div>
+                
+                <div id="chartOverlayContent">
+                    <div style="text-align: center; padding: 40px;">
+                        <div style="border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 2s linear infinite; margin: 0 auto 20px;"></div>
+                        <p style="color: #7f8c8d; font-size: 16px;">Loading sales chart data...</p>
                     </div>
                 </div>
             </div>
@@ -408,7 +443,242 @@
             if (data.development && data.development.trim()) {
                 loadDevelopmentStats(data.development.trim());
             }
+            
+            // Load neighborhood sales data
+            loadNeighborhoodSalesData();
+            
+            // Setup chart button click handler
+            setupChartButton(data.development && data.development.trim() ? data.development.trim() : null);
         }
+        
+        // Function to setup chart button click handler
+        function setupChartButton(developmentName) {
+            const chartButton = document.getElementById('chartButton');
+            if (chartButton && developmentName) {
+                chartButton.addEventListener('click', () => {
+                    showChartOverlay(developmentName);
+                });
+                
+                // Add hover effect
+                chartButton.addEventListener('mouseenter', function() {
+                    this.style.backgroundColor = '#f8f9fa';
+                    this.style.borderColor = '#27ae60';
+                    this.style.transform = 'translateY(-1px)';
+                });
+                
+                chartButton.addEventListener('mouseleave', function() {
+                    this.style.backgroundColor = '#ffffff';
+                    this.style.borderColor = '#dee2e6';
+                    this.style.transform = 'translateY(0)';
+                });
+            } else if (chartButton) {
+                // Disable chart button if no development
+                chartButton.style.opacity = '0.5';
+                chartButton.style.cursor = 'not-allowed';
+                chartButton.title = 'Chart data not available for this property';
+            }
+        }
+        
+        // Function to show chart overlay
+        async function showChartOverlay(developmentName) {
+            const overlay = document.getElementById('chartOverlay');
+            const title = document.getElementById('chartOverlayTitle');
+            const content = document.getElementById('chartOverlayContent');
+            
+            // Show overlay
+            overlay.style.display = 'flex';
+            title.textContent = `${developmentName} - Sales Analysis`;
+            
+            // Show loading state
+            content.innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <div style="border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 2s linear infinite; margin: 0 auto 20px;"></div>
+                    <p style="color: #7f8c8d; font-size: 16px;">Loading sales chart data...</p>
+                </div>
+            `;
+            
+            try {
+                // Fetch chart data
+                const response = await fetch(`/api/development-chart/${encodeURIComponent(developmentName)}`);
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    displayChartData(result.data);
+                } else {
+                    throw new Error(result.error || 'Failed to load chart data');
+                }
+            } catch (error) {
+                console.error('Error loading chart data:', error);
+                content.innerHTML = `
+                    <div style="text-align: center; padding: 40px;">
+                        <div style="color: #e74c3c; font-size: 48px; margin-bottom: 20px;">📊</div>
+                        <h3 style="color: #2c3e50; margin-bottom: 10px;">Chart Data Unavailable</h3>
+                        <p style="color: #7f8c8d;">Unable to load sales data for this development.</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Function to display chart data
+        function displayChartData(data) {
+            const content = document.getElementById('chartOverlayContent');
+            const chartData = data.chartData;
+            
+            if (!chartData || chartData.length === 0) {
+                content.innerHTML = `
+                    <div style="text-align: center; padding: 40px;">
+                        <div style="color: #f39c12; font-size: 48px; margin-bottom: 20px;">📈</div>
+                        <h3 style="color: #2c3e50; margin-bottom: 10px;">No Sales Data</h3>
+                        <p style="color: #7f8c8d;">No recorded sales found for ${data.developmentName} in the last 10 years.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Create chart HTML
+            let chartHtml = `
+                <div style="margin-bottom: 30px;">
+                    <h3 style="text-align: center; color: #2c3e50; margin-bottom: 20px;">Annual Sales Summary - Last 10 Years</h3>
+                    <div style="display: flex; gap: 30px;">
+                        <!-- Sales Count Chart -->
+                        <div style="flex: 1;">
+                            <h4 style="text-align: center; color: #34495e; margin-bottom: 15px;">Number of Sales per Year</h4>
+                            <div id="salesCountChart" style="height: 300px; position: relative;">
+                                ${renderBarChart(chartData, 'sales_count', '#3498db', 'Sales')}
+                            </div>
+                        </div>
+                        
+                        <!-- Average Price Chart -->
+                        <div style="flex: 1;">
+                            <h4 style="text-align: center; color: #34495e; margin-bottom: 15px;">Average Sale Price per Year</h4>
+                            <div id="avgPriceChart" style="height: 300px; position: relative;">
+                                ${renderBarChart(chartData, 'avg_price', '#27ae60', '$')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Data Table -->
+                <div style="margin-top: 20px;">
+                    <h4 style="color: #2c3e50; margin-bottom: 15px;">Detailed Sales Data</h4>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+                            <thead>
+                                <tr style="background: #f8f9fa;">
+                                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd; color: #2c3e50;">Year</th>
+                                    <th style="padding: 12px; text-align: right; border: 1px solid #ddd; color: #2c3e50;">Sales Count</th>
+                                    <th style="padding: 12px; text-align: right; border: 1px solid #ddd; color: #2c3e50;">Average Price</th>
+                                    <th style="padding: 12px; text-align: right; border: 1px solid #ddd; color: #2c3e50;">Median Price</th>
+                                    <th style="padding: 12px; text-align: right; border: 1px solid #ddd; color: #2c3e50;">Price Range</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            chartData.forEach(row => {
+                const avgPrice = row.avg_price ? `$${parseInt(row.avg_price).toLocaleString()}` : 'N/A';
+                const medianPrice = row.median_price ? `$${parseInt(row.median_price).toLocaleString()}` : 'N/A';
+                const minPrice = row.min_price ? `$${parseInt(row.min_price).toLocaleString()}` : 'N/A';
+                const maxPrice = row.max_price ? `$${parseInt(row.max_price).toLocaleString()}` : 'N/A';
+                const priceRange = (row.min_price && row.max_price) ? `${minPrice} - ${maxPrice}` : 'N/A';
+                
+                chartHtml += `
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #ddd; font-weight: 500;">${row.sale_year}</td>
+                        <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${row.sales_count}</td>
+                        <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${avgPrice}</td>
+                        <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${medianPrice}</td>
+                        <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 12px;">${priceRange}</td>
+                    </tr>
+                `;
+            });
+            
+            chartHtml += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            
+            content.innerHTML = chartHtml;
+        }
+        
+        // Function to render simple bar chart
+        function renderBarChart(data, valueField, color, prefix = '') {
+            if (!data || data.length === 0) return '<p>No data available</p>';
+            
+            const maxValue = Math.max(...data.map(d => parseFloat(d[valueField]) || 0));
+            const minValue = Math.min(...data.map(d => parseFloat(d[valueField]) || 0));
+            
+            let chartHtml = `
+                <div style="display: flex; align-items: end; height: 100%; gap: 8px; padding: 20px 10px 30px;">
+            `;
+            
+            data.forEach(item => {
+                const value = parseFloat(item[valueField]) || 0;
+                const height = maxValue > 0 ? (value / maxValue) * 200 : 0;
+                const displayValue = valueField === 'avg_price' ? 
+                    `${prefix}${Math.round(value).toLocaleString()}` : 
+                    `${value}${prefix}`;
+                
+                chartHtml += `
+                    <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+                        <div style="position: relative; margin-bottom: 8px;">
+                            <div style="
+                                width: 100%; 
+                                height: ${height}px; 
+                                background: ${color}; 
+                                border-radius: 4px 4px 0 0;
+                                min-height: 2px;
+                                position: relative;
+                                display: flex;
+                                align-items: end;
+                                justify-content: center;
+                                padding-bottom: 5px;
+                            ">
+                                <span style="
+                                    color: white; 
+                                    font-size: 10px; 
+                                    font-weight: bold;
+                                    text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+                                    writing-mode: vertical-rl;
+                                    text-orientation: mixed;
+                                ">${displayValue}</span>
+                            </div>
+                        </div>
+                        <div style="font-size: 12px; font-weight: 500; color: #2c3e50;">${item.sale_year}</div>
+                    </div>
+                `;
+            });
+            
+            chartHtml += `</div>`;
+            return chartHtml;
+        }
+        
+        // Setup chart overlay close handlers
+        document.addEventListener('DOMContentLoaded', function() {
+            const overlay = document.getElementById('chartOverlay');
+            const closeButton = document.getElementById('closeChartOverlay');
+            
+            // Close overlay when clicking close button
+            closeButton.addEventListener('click', () => {
+                overlay.style.display = 'none';
+            });
+            
+            // Close overlay when clicking outside the content
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.style.display = 'none';
+                }
+            });
+            
+            // Close overlay with Escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && overlay.style.display === 'flex') {
+                    overlay.style.display = 'none';
+                }
+            });
+        });
         
         // Function to load development statistics
         async function loadDevelopmentStats(developmentName) {
@@ -544,6 +814,57 @@
                         </div>
                     </div>
                 `;
+            }
+        }
+
+        // Function to load neighborhood sales data
+        async function loadNeighborhoodSalesData() {
+            try {
+                console.log('Loading neighborhood sales data for report:', urlSlug);
+                
+                // Show loading state
+                document.getElementById('salesSummary').textContent = 'Loading sales data...';
+                
+                const response = await fetch(`/api/reports/${urlSlug}/neighborhood-sales`);
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    displayNeighborhoodSalesData(result.data);
+                } else {
+                    console.error('Error loading neighborhood sales data:', result.error);
+                    document.getElementById('salesSummary').textContent = 'Unable to load sales data';
+                }
+            } catch (error) {
+                console.error('Error fetching neighborhood sales data:', error);
+                document.getElementById('salesSummary').textContent = 'Error loading sales data';
+            }
+        }
+        
+        // Function to display neighborhood sales data
+        function displayNeighborhoodSalesData(data) {
+            console.log('Displaying neighborhood sales data:', data);
+            
+            // Update the summary
+            if (data.total_sales_count > 0) {
+                document.getElementById('salesSummary').textContent = `Found ${data.total_sales_count} sales in the last 10 years`;
+                
+                // Show details
+                document.getElementById('salesDetails').style.display = 'block';
+                document.getElementById('developmentName').textContent = data.development_name || 'Unknown Development';
+                document.getElementById('totalSales').textContent = data.total_sales_count.toLocaleString();
+                document.getElementById('uniqueParcels').textContent = data.unique_parcels_with_sales.toLocaleString();
+                
+                // Format date range
+                if (data.earliest_sale_date && data.latest_sale_date) {
+                    const earliestDate = new Date(data.earliest_sale_date).toLocaleDateString();
+                    const latestDate = new Date(data.latest_sale_date).toLocaleDateString();
+                    document.getElementById('dateRange').textContent = `${earliestDate} - ${latestDate}`;
+                } else {
+                    document.getElementById('dateRange').textContent = 'Date range unavailable';
+                }
+            } else {
+                document.getElementById('salesSummary').textContent = data.message || 'No sales data found for this development';
+                document.getElementById('salesDetails').style.display = 'none';
             }
         }
 
