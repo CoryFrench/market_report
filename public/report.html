@@ -1603,43 +1603,70 @@
                     fillOpacity: 0.3
                 },
                 onEachFeature: function(feature, layer) {
-                    // Create popup content
+                    // Create popup content using tax record template
                     const props = feature.properties;
-                    let popupContent = `
-                        <div style="min-width: 200px;">
-                            <h4 style="margin: 0 0 10px; color: #2c3e50; font-size: 16px;">
-                                Parcel ${props.parcelno}
-                            </h4>
-                    `;
                     
+                    // Format address
+                    let address = 'N/A';
                     if (props.address) {
-                        popupContent += `<p style="margin: 5px 0; font-weight: 500;">${props.address}</p>`;
+                        let fullAddress = props.address;
+                        if (props.city) fullAddress += ` ${props.city}`;
+                        if (props.zip_code) fullAddress += `, FL ${props.zip_code}`;
+                        address = fullAddress;
                     }
                     
-                    if (props.list_price) {
-                        const formattedPrice = new Intl.NumberFormat('en-US', {
+                    // Format market value
+                    let marketValue = 'N/A';
+                    if (props.market_value) {
+                        marketValue = new Intl.NumberFormat('en-US', {
                             style: 'currency',
                             currency: 'USD',
                             minimumFractionDigits: 0
-                        }).format(props.list_price);
-                        popupContent += `<p style="margin: 5px 0; color: #27ae60; font-weight: 600; font-size: 18px;">${formattedPrice}</p>`;
+                        }).format(props.market_value);
                     }
                     
-                    if (props.status) {
-                        const statusColor = getStatusColor(props.status);
-                        popupContent += `<p style="margin: 5px 0;"><strong>Status:</strong> <span style="color: ${statusColor};">${props.status}</span></p>`;
+                    // Format last sale price
+                    let lastSalePrice = 'N/A';
+                    if (props.last_sale_price) {
+                        lastSalePrice = new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: 'USD',
+                            minimumFractionDigits: 0
+                        }).format(props.last_sale_price);
                     }
                     
-                    if (props.sqft_living) {
-                        popupContent += `<p style="margin: 5px 0;"><strong>Living Area:</strong> ${props.sqft_living.toLocaleString()} sq ft</p>`;
+                    // Format bathrooms (convert to numbers to remove leading zeros)
+                    let bathrooms = 'N/A';
+                    if (props.full_baths || props.half_baths) {
+                        const full = parseInt(props.full_baths) || 0;
+                        const half = parseInt(props.half_baths) || 0;
+                        if (half > 0) {
+                            bathrooms = `${full} full, ${half} half`;
+                        } else {
+                            bathrooms = `${full} full`;
+                        }
                     }
                     
-                    if (props.property_type) {
-                        popupContent += `<p style="margin: 5px 0;"><strong>Type:</strong> ${props.property_type}</p>`;
-                    }
+                    let popupContent = `
+                        <div style="min-width: 280px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.4;">
+                            <div style="margin-bottom: 8px;"><strong>Address:</strong> ${address}</div>
+                            <div style="margin-bottom: 8px;"><strong>Parcel ID:</strong> ${props.property_control_number || 'N/A'} [TAX]</div>
+                            <div style="margin-bottom: 8px;"><strong>Year Built:</strong> ${props.year_built || 'N/A'}</div>
+                            <div style="margin-bottom: 8px;"><strong>Development:</strong> ${props.development_name || 'N/A'}</div>
+                            <div style="margin-bottom: 8px;"><strong>Subdivision:</strong> ${props.subdivision_name || 'N/A'}</div>
+                            <div style="margin-bottom: 8px;"><strong>Bedrooms:</strong> ${props.bedrooms ? parseInt(props.bedrooms) : 'N/A'}</div>
+                            <div style="margin-bottom: 8px;"><strong>Bathrooms:</strong> ${bathrooms}</div>
+                            <div style="margin-bottom: 8px;"><strong>Market Value:</strong> <span style="color: #27ae60; font-weight: 600;">${marketValue}</span></div>
+                            <div style="margin-bottom: 8px; font-weight: 600; color: #2c3e50;">Tax</div>
+                            <div style="margin-bottom: 8px;"><strong>Last Sale Date:</strong> ${props.last_sale_date || 'N/A'}</div>
+                            <div style="margin-bottom: 0;"><strong>Last Sale Price:</strong> ${lastSalePrice}</div>
+                    `;
                     
-                    if (props.year_built) {
-                        popupContent += `<p style="margin: 5px 0;"><strong>Built:</strong> ${props.year_built}</p>`;
+                    // Add unit count info if it's a multi-unit building
+                    if (props.unit_count && props.unit_count > 1) {
+                        popupContent += `<div style="margin-top: 12px; padding: 8px; background-color: #f8f9fa; border-left: 3px solid #3498db; font-size: 12px; color: #666;">
+                            <strong>Building Info:</strong> This building contains ${props.unit_count} units
+                        </div>`;
                     }
                     
                     popupContent += '</div>';
