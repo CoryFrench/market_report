@@ -156,7 +156,7 @@ body {
 }
 
 .property-address {
-    font-size: 1.3em;
+    font-size: 1.5em;
     color: #4a5568;
     font-weight: 400;
     margin-bottom: 20px;
@@ -192,7 +192,7 @@ body {
 .info-label {
     font-weight: 600;
     color: #4a5568;
-    font-size: 0.9em;
+    font-size: 1.1em;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 12px;
@@ -200,7 +200,7 @@ body {
 
 .info-value {
     color: #1a202c;
-    font-size: 1.15em;
+    font-size: 1.6em;
     font-weight: 500;
     line-height: 1.5;
 }
@@ -933,7 +933,7 @@ body {
 .chart-header h3 {
     font-family: 'Playfair Display', serif;
     color: #1a365d;
-    font-size: 20px;
+    font-size: 26px;
     font-weight: 600;
     margin: 0 0 8px 0;
     letter-spacing: -0.01em;
@@ -941,7 +941,7 @@ body {
 
 .chart-header p {
     color: #4a5568;
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 400;
     margin: 0;
     font-style: italic;
@@ -1063,4 +1063,52 @@ body {
     .chart-header p {
         font-size: 13px;
     }
+}
+
+/* Chart text size overrides - targeting dynamically generated chart elements */
+svg text {
+    font-size: 16px !important;
+    font-family: 'Source Sans Pro', sans-serif !important;
+}
+
+svg .tick text {
+    font-size: 15px !important;
+}
+
+svg .axis text {
+    font-size: 15px !important;
+}
+
+svg .legend text {
+    font-size: 16px !important;
+}
+
+/* D3.js chart text elements */
+.d3-chart text {
+    font-size: 16px !important;
+}
+
+.d3-chart .axis text {
+    font-size: 15px !important;
+}
+
+.d3-chart .legend text {
+    font-size: 16px !important;
+}
+
+/* Chart container text elements */
+#comparison-chart text {
+    font-size: 16px !important;
+}
+
+#comparison-chart .axis text {
+    font-size: 15px !important;
+}
+
+/* Any chart wrapper text */
+.chart-container text,
+.chart-wrapper text,
+.fred-chart text {
+    font-size: 16px !important;
+    font-family: 'Source Sans Pro', sans-serif !important;
 }
