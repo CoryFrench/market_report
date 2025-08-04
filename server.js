@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 require('dotenv').config();
-const { testConnection, dbQueries } = require('./db');
+const { testConnection, dbQueries, pool } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -742,6 +742,112 @@ app.get('/api/counties', async (req, res) => {
   }
 });
 
+// Get parcel geometry data for development map
+app.get('/api/development-parcels/:developmentName', async (req, res) => {
+  try {
+    const developmentName = req.params.developmentName;
+    
+    if (!developmentName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Development name is required'
+      });
+    }
+
+    console.log('Fetching parcels for development:', developmentName);
+
+    // SQL query to get unique geometries in development (deduplicates condo buildings)
+    const query = `
+      WITH unique_geometries AS (
+        SELECT DISTINCT ON (p.geom)
+          p.gid,
+          p.parcelno,
+          ST_AsGeoJSON(ST_Transform(p.geom, 4326)) as geometry,
+          t.property_control_number,
+          t.total_market_value,
+          t.situs_address,
+          t.situs_address_city_name,
+          t.situs_address_zip_code,
+          t.development_name,
+          t.subdivision_name,
+          t.owner_name,
+          t.year_built,
+          t.square_foot_living_area,
+          t.number_of_bedrooms,
+          t.number_of_full_bathrooms,
+          t.number_of_half_bathrooms,
+          t.sales_date_1,
+          t.sales_price_1,
+          COUNT(*) OVER (PARTITION BY p.geom) as unit_count
+        FROM geodata.palm_beach_county_fl p
+        INNER JOIN tax.palm_beach_county_fl t 
+          ON p.parcelno = t.parcel_number
+        WHERE t.development_name = $1
+          AND p.geom IS NOT NULL
+        ORDER BY p.geom, t.property_control_number
+      )
+      SELECT * FROM unique_geometries
+      ORDER BY parcelno;
+    `;
+
+    const result = await pool.query(query, [developmentName]);
+    
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No parcels found for this development',
+        data: []
+      });
+    }
+
+    // Convert to GeoJSON format
+    const features = result.rows.map(row => ({
+      type: 'Feature',
+      geometry: JSON.parse(row.geometry),
+      properties: {
+        gid: row.gid,
+        parcelno: row.parcelno,
+        property_control_number: row.property_control_number,
+        unit_count: row.unit_count, // Number of units in this parcel
+        // Tax record data (showing one representative unit per parcel)
+        address: row.situs_address,
+        city: row.situs_address_city_name,
+        zip_code: row.situs_address_zip_code,
+        development_name: row.development_name,
+        subdivision_name: row.subdivision_name,
+        owner_name: row.owner_name,
+        year_built: row.year_built,
+        sqft_living: row.square_foot_living_area,
+        bedrooms: row.number_of_bedrooms,
+        full_baths: row.number_of_full_bathrooms,
+        half_baths: row.number_of_half_bathrooms,
+        market_value: row.total_market_value,
+        last_sale_date: row.sales_date_1,
+        last_sale_price: row.sales_price_1
+      }
+    }));
+
+    const geojson = {
+      type: 'FeatureCollection',
+      features: features
+    };
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      data: geojson
+    });
+
+  } catch (error) {
+    console.error('Error fetching development parcels:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch development parcels',
+      message: error.message 
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -790,6 +896,7 @@ app.listen(PORT, async () => {
   console.log(`   GET /api/reports/:reportId/area-comparison - Get area comparison for report`);
   console.log(`   PUT /api/reports/:reportId/area-comparison - Update area comparison for report`);
   console.log(`   GET /api/development-stats/:developmentName - Development market statistics`);
+  console.log(`   GET /api/development-parcels/:developmentName - Development parcel geometry for map`);
   console.log(`   GET /api/fred-data?seriesId=&startDate=&endDate= - FRED economic data`);
   console.log(`   GET /api/fred-series?level=COUNTY - FRED series options for Areas of Interest`);
   console.log(`   GET /api/counties?state=StateName - Counties by state for FRED comparison`);

@@ -6,6 +6,9 @@
     <title>Professional Area Analysis Report</title>
     <link rel="stylesheet" href="/styles.css">
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Leaflet CSS and JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -144,7 +147,7 @@
                                 
                                 <!-- Action Icons -->
                                 <div style="display: flex; gap: 15px; padding-top: 15px; border-top: 1px solid #e9ecef;">
-                                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+                                    <div id="mapButton" style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                                             <circle cx="12" cy="10" r="3"></circle>
@@ -1512,11 +1515,252 @@
             noticeContainer.style.display = 'block';
         }
         
+        // Map functionality
+        let map = null;
+        let currentDevelopmentName = null;
+        
+        // Initialize map button click handler
+        function initializeMapButton() {
+            const mapButton = document.getElementById('mapButton');
+            if (mapButton) {
+                mapButton.addEventListener('click', openDevelopmentMap);
+            }
+        }
+        
+        // Open development map in modal
+        async function openDevelopmentMap() {
+            const modal = document.getElementById('mapModal');
+            const loading = document.getElementById('mapLoading');
+            const error = document.getElementById('mapError');
+            const subtitle = document.getElementById('mapSubtitle');
+            
+            // Get development name from current report data
+            const reportData = getCurrentReportData();
+            if (!reportData || !reportData.development) {
+                showMapError('No development information available for this property.');
+                return;
+            }
+            
+            currentDevelopmentName = reportData.development.trim();
+            subtitle.textContent = `Showing parcels for ${currentDevelopmentName}`;
+            
+            // Show modal and loading state
+            modal.style.display = 'block';
+            loading.style.display = 'flex';
+            error.style.display = 'none';
+            
+            try {
+                // Fetch parcel data
+                const response = await fetch(`/api/development-parcels/${encodeURIComponent(currentDevelopmentName)}`);
+                const result = await response.json();
+                
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Failed to load parcel data');
+                }
+                
+                if (!result.data || !result.data.features || result.data.features.length === 0) {
+                    throw new Error('No parcels found for this development');
+                }
+                
+                // Initialize map
+                await initializeMap(result.data);
+                
+            } catch (error) {
+                console.error('Error loading development map:', error);
+                showMapError(error.message);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+        
+        // Initialize Leaflet map with parcel data
+        async function initializeMap(geojsonData) {
+            const mapContainer = document.getElementById('developmentMap');
+            
+            // Clear existing map
+            if (map) {
+                map.remove();
+                map = null;
+            }
+            
+            // Create new map
+            map = L.map('developmentMap', {
+                zoomControl: true,
+                scrollWheelZoom: true
+            });
+            
+            // Add tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Add parcel polygons
+            const parcelLayer = L.geoJSON(geojsonData, {
+                style: {
+                    color: '#3498db',
+                    weight: 2,
+                    fillColor: '#3498db',
+                    fillOpacity: 0.3
+                },
+                onEachFeature: function(feature, layer) {
+                    // Create popup content
+                    const props = feature.properties;
+                    let popupContent = `
+                        <div style="min-width: 200px;">
+                            <h4 style="margin: 0 0 10px; color: #2c3e50; font-size: 16px;">
+                                Parcel ${props.parcelno}
+                            </h4>
+                    `;
+                    
+                    if (props.address) {
+                        popupContent += `<p style="margin: 5px 0; font-weight: 500;">${props.address}</p>`;
+                    }
+                    
+                    if (props.list_price) {
+                        const formattedPrice = new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: 'USD',
+                            minimumFractionDigits: 0
+                        }).format(props.list_price);
+                        popupContent += `<p style="margin: 5px 0; color: #27ae60; font-weight: 600; font-size: 18px;">${formattedPrice}</p>`;
+                    }
+                    
+                    if (props.status) {
+                        const statusColor = getStatusColor(props.status);
+                        popupContent += `<p style="margin: 5px 0;"><strong>Status:</strong> <span style="color: ${statusColor};">${props.status}</span></p>`;
+                    }
+                    
+                    if (props.sqft_living) {
+                        popupContent += `<p style="margin: 5px 0;"><strong>Living Area:</strong> ${props.sqft_living.toLocaleString()} sq ft</p>`;
+                    }
+                    
+                    if (props.property_type) {
+                        popupContent += `<p style="margin: 5px 0;"><strong>Type:</strong> ${props.property_type}</p>`;
+                    }
+                    
+                    if (props.year_built) {
+                        popupContent += `<p style="margin: 5px 0;"><strong>Built:</strong> ${props.year_built}</p>`;
+                    }
+                    
+                    popupContent += '</div>';
+                    
+                    layer.bindPopup(popupContent);
+                    
+                    // Add hover effects
+                    layer.on('mouseover', function() {
+                        this.setStyle({
+                            weight: 3,
+                            fillOpacity: 0.5
+                        });
+                    });
+                    
+                    layer.on('mouseout', function() {
+                        this.setStyle({
+                            weight: 2,
+                            fillOpacity: 0.3
+                        });
+                    });
+                }
+            }).addTo(map);
+            
+            // Fit map to parcel bounds
+            map.fitBounds(parcelLayer.getBounds(), {
+                padding: [20, 20]
+            });
+        }
+        
+        // Get status color for styling
+        function getStatusColor(status) {
+            if (!status) return '#6c757d';
+            
+            const statusLower = status.toLowerCase();
+            if (statusLower.includes('active')) return '#e74c3c';
+            if (statusLower.includes('sold') || statusLower.includes('closed')) return '#27ae60';
+            if (statusLower.includes('pending') || statusLower.includes('contract')) return '#f39c12';
+            return '#6c757d';
+        }
+        
+        // Show map error
+        function showMapError(message) {
+            const modal = document.getElementById('mapModal');
+            const loading = document.getElementById('mapLoading');
+            const error = document.getElementById('mapError');
+            const errorMessage = document.getElementById('mapErrorMessage');
+            
+            modal.style.display = 'block';
+            loading.style.display = 'none';
+            error.style.display = 'flex';
+            errorMessage.textContent = message;
+        }
+        
+        // Get current report data
+        function getCurrentReportData() {
+            // This function should return the current report data
+            // For now, we'll try to extract it from the DOM or use a global variable
+            const developmentElement = document.querySelector('#propertyAddress');
+            if (developmentElement) {
+                // Try to extract development name from the styled address
+                const addressHtml = developmentElement.innerHTML;
+                const italicMatches = addressHtml.match(/<div[^>]*font-style:\s*italic[^>]*>([^<]+)<\/div>/g);
+                if (italicMatches && italicMatches.length > 0) {
+                    // Get the first italic line (development)
+                    const developmentMatch = italicMatches[0].match(/>([^<]+)</);
+                    if (developmentMatch) {
+                        return { development: developmentMatch[1].trim() };
+                    }
+                }
+            }
+            
+            // Fallback: return null if no development found
+            return null;
+        }
+        
+        // Close map modal
+        function closeMapModal() {
+            const modal = document.getElementById('mapModal');
+            modal.style.display = 'none';
+            
+            // Clean up map
+            if (map) {
+                map.remove();
+                map = null;
+            }
+        }
+        
+        // Initialize map modal close handler
+        function initializeMapModal() {
+            const closeButton = document.getElementById('closeMapModal');
+            if (closeButton) {
+                closeButton.addEventListener('click', closeMapModal);
+            }
+            
+            // Close modal when clicking outside
+            const modal = document.getElementById('mapModal');
+            if (modal) {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) {
+                        closeMapModal();
+                    }
+                });
+            }
+            
+            // Close modal with Escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && modal.style.display === 'block') {
+                    closeMapModal();
+                }
+            });
+        }
+        
         // Global function to update counties (called from inline onchange)
         window.updateCounties = updateCounties;
         
         // Load report on page load
         loadReport();
+        
+        // Initialize map functionality
+        initializeMapButton();
+        initializeMapModal();
         
         // Initialize FRED comparison after report loads
         function waitForElements() {
@@ -1530,5 +1774,117 @@
         }
         setTimeout(waitForElements, 1000);
     </script>
+
+    <!-- Map Modal -->
+    <div id="mapModal" style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 10000;
+        overflow: hidden;
+    ">
+        <div style="
+            position: relative;
+            width: 95%;
+            height: 95%;
+            margin: 2.5% auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+        ">
+            <!-- Modal Header -->
+            <div style="
+                padding: 20px 30px;
+                border-bottom: 1px solid #e9ecef;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                background: #f8f9fa;
+                border-radius: 12px 12px 0 0;
+            ">
+                <div>
+                    <h2 style="margin: 0; color: #2c3e50; font-size: 24px; font-weight: 600;">Development Parcels Map</h2>
+                    <p style="margin: 5px 0 0; color: #6c757d; font-size: 14px;" id="mapSubtitle">Loading development data...</p>
+                </div>
+                <button id="closeMapModal" style="
+                    background: none;
+                    border: none;
+                    font-size: 28px;
+                    color: #6c757d;
+                    cursor: pointer;
+                    padding: 0;
+                    width: 40px;
+                    height: 40px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 8px;
+                    transition: all 0.2s ease;
+                " onmouseover="this.style.background='#e9ecef'" onmouseout="this.style.background='none'">
+                    ×
+                </button>
+            </div>
+
+            <!-- Map Container -->
+            <div style="flex: 1; position: relative; overflow: hidden;">
+                <div id="developmentMap" style="width: 100%; height: 100%;"></div>
+                
+                <!-- Loading Overlay -->
+                <div id="mapLoading" style="
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(255, 255, 255, 0.9);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                ">
+                    <div style="text-align: center;">
+                        <div style="
+                            border: 4px solid #f3f3f3;
+                            border-top: 4px solid #3498db;
+                            border-radius: 50%;
+                            width: 50px;
+                            height: 50px;
+                            animation: spin 1s linear infinite;
+                            margin: 0 auto 20px;
+                        "></div>
+                        <p style="margin: 0; color: #2c3e50; font-size: 16px; font-weight: 500;">Loading development parcels...</p>
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div id="mapError" style="
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: white;
+                    display: none;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                ">
+                    <div style="text-align: center; max-width: 400px; padding: 40px;">
+                        <div style="color: #e74c3c; font-size: 48px; margin-bottom: 20px;">🗺️</div>
+                        <h3 style="margin: 0 0 15px; color: #2c3e50; font-size: 20px;">Unable to Load Map</h3>
+                        <p style="margin: 0; color: #6c757d; font-size: 14px;" id="mapErrorMessage">
+                            Could not load parcel data for this development.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
