@@ -274,7 +274,6 @@
                                     </div>
                                     <div id="comparison-chart-header" class="chart-header" style="display: none;">
                                         <h3>Comparative Market Analysis</h3>
-                                        <p>Professional economic indicator comparison across selected regions</p>
                                     </div>
                                     <div id="comparison-chart-container" style="position: relative; height: 500px; width: 100%;">
                                         <canvas id="comparison-chart" class="fred-chart"></canvas>
@@ -292,14 +291,6 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <div class="confidential">
-                    <div class="confidential-title">Confidential Information</div>
-                    <div class="confidential-text">
-                        This area analysis has been prepared exclusively for authorized personnel and contains confidential and proprietary information. 
-                        Distribution, reproduction, or disclosure to third parties is strictly prohibited without written consent.
                     </div>
                 </div>
             </div>
@@ -324,8 +315,8 @@
 
         <div class="footer">
             <div class="footer-content">
-                <p>© 2025 Professional Area Analysis Services. All rights reserved.</p>
-                <p>This report contains confidential and proprietary information intended solely for authorized personnel.</p>
+                <p>© 2025 Waterfront Properties. All rights reserved.</p>
+                <p>This report was compiled by Waterfront Properties and provided exclusively for the intended recipient.</p>
             </div>
         </div>
     </div>
@@ -933,14 +924,13 @@
                             <div style="margin-bottom: 8px;">
                                 <strong>Active Under Contract:</strong> <span style="color: #f39c12;">${stats.underContract}</span>
                             </div>
-                            <div style="margin-bottom: 8px;">
-                                <strong>Closed (&lt; 12 Mos.):</strong> <span style="color: #27ae60;">${stats.closedLast12Months}</span>
-                            </div>
+                            ${stats.pending > 0 ? `<div style="margin-bottom: 8px;"><strong>Pending:</strong> <span style="color: #8e44ad;">${stats.pending}</span></div>` : ''}
                             <div style="margin-bottom: 8px;">
                                 <strong>Closed (&lt; 3 Mos.):</strong> <span style="color: #27ae60;">${stats.closedLast3Months}</span>
                             </div>
-                            ${stats.closedOlder > 0 ? `<div style="margin-bottom: 8px;"><strong>Closed (Older):</strong> <span style="color: #95a5a6;">${stats.closedOlder}</span></div>` : ''}
-                            ${stats.pending > 0 ? `<div style="margin-bottom: 8px;"><strong>Pending:</strong> <span style="color: #8e44ad;">${stats.pending}</span></div>` : ''}
+                            <div style="margin-bottom: 8px;">
+                                <strong>Closed (&lt; 12 Mos.):</strong> <span style="color: #27ae60;">${stats.closedLast12Months}</span>
+                            </div>
                             <div style="margin-bottom: 8px;">
                                 <strong>Active %:</strong> <span style="color: #2c3e50;">${stats.activePercentage}%</span>
                             </div>
@@ -965,10 +955,10 @@
                             
                             <div style="margin-top: 15px;">
                                 <div style="margin-bottom: 6px;">
-                                    <strong>Months of Inventory (12mo):</strong> <span style="color: #8e44ad;">${stats.inventoryMonths.twelveMonth}</span>
+                                    <strong>Months of Inventory (3mo):</strong> <span style="color: #8e44ad;">${stats.inventoryMonths.threeMonth}</span>
                                 </div>
                                 <div style="margin-bottom: 6px;">
-                                    <strong>Months of Inventory (3mo):</strong> <span style="color: #8e44ad;">${stats.inventoryMonths.threeMonth}</span>
+                                    <strong>Months of Inventory (12mo):</strong> <span style="color: #8e44ad;">${stats.inventoryMonths.twelveMonth}</span>
                                 </div>
                             </div>
                             
