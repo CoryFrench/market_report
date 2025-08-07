@@ -326,6 +326,7 @@
                                         <select id="development-chart-type-select" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer; min-width: 150px;">
                                             <option value="sales">Sales Count</option>
                                             <option value="price">Average Price</option>
+                                            <option value="price_per_sqft">Price Per Square Foot</option>
                                         </select>
                                     </div>
                                     <div id="dev-comparison-chart-container" style="position: relative; height: 500px; width: 100%;">
@@ -3141,9 +3142,25 @@
                     processedData[dev] = {};
                 }
                 
+                // Calculate price per square foot if both price and sqft are available
+                const avgPrice = parseFloat(row.avg_price) || 0;
+                const avgSqft = parseFloat(row.avg_sqft) || 0;
+                const pricePerSqft = avgSqft > 0 ? avgPrice / avgSqft : 0;
+                
+                // Debug: Log data availability for first few rows
+                if (Object.keys(processedData).length <= 2) {
+                    console.log(`Data for ${dev} (${year}):`, {
+                        avg_price: avgPrice,
+                        avg_sqft: avgSqft,
+                        calculated_price_per_sqft: pricePerSqft,
+                        raw_row: row
+                    });
+                }
+                
                 processedData[dev][year] = {
                     sales_count: parseInt(row.sales_count) || 0,
-                    avg_price: parseFloat(row.avg_price) || 0
+                    avg_price: avgPrice,
+                    avg_price_per_sqft: pricePerSqft
                 };
             });
             
@@ -3152,6 +3169,22 @@
             // Store processed data globally
             window.developmentComparisonData = processedData;
             window.selectedDevelopments = developments;
+            
+            // Check if we have any price per sqft data available
+            let hasPricePerSqftData = false;
+            Object.values(processedData).forEach(devData => {
+                Object.values(devData).forEach(yearData => {
+                    if (yearData.avg_price_per_sqft > 0) {
+                        hasPricePerSqftData = true;
+                    }
+                });
+            });
+            
+            // Store data availability for UI decisions
+            window.hasPricePerSqftData = hasPricePerSqftData;
+            
+            // Update dropdown options based on data availability
+            updateChartTypeDropdown();
             
             // Display initial chart (sales)
             console.log('About to call renderDevelopmentChart');
@@ -3191,13 +3224,27 @@
             }
             
             // Determine data key and formatting
-            const dataKey = chartType === 'sales' ? 'sales_count' : 'avg_price';
-            const yAxisLabel = chartType === 'sales' ? 'Number of Sales' : 'Average Sale Price';
+            let dataKey, yAxisLabel;
+            if (chartType === 'sales') {
+                dataKey = 'sales_count';
+                yAxisLabel = 'Number of Sales';
+            } else if (chartType === 'price') {
+                dataKey = 'avg_price';
+                yAxisLabel = 'Average Sale Price';
+            } else if (chartType === 'price_per_sqft') {
+                dataKey = 'avg_price_per_sqft';
+                yAxisLabel = 'Average Price Per Square Foot';
+            }
             
             // Prepare datasets for Chart.js
             const datasets = developments.map((dev, index) => {
                 const developmentData = years.map(year => {
-                    return data[dev] && data[dev][year] ? data[dev][year][dataKey] : 0;
+                    const yearData = data[dev] && data[dev][year] ? data[dev][year][dataKey] : 0;
+                    // For price per sqft, only show data points where we have valid calculations
+                    if (chartType === 'price_per_sqft' && yearData === 0) {
+                        return null; // This will create gaps in the chart for missing data
+                    }
+                    return yearData;
                 });
                 
                 // Use distinct colors for each development
@@ -3303,9 +3350,14 @@
                             callbacks: {
                                 label: function(context) {
                                     const value = context.parsed.y;
-                                    const formattedValue = chartType === 'sales' ? 
-                                        value.toLocaleString() + ' sales' : 
-                                        '$' + value.toLocaleString();
+                                    let formattedValue;
+                                    if (chartType === 'sales') {
+                                        formattedValue = value.toLocaleString() + ' sales';
+                                    } else if (chartType === 'price') {
+                                        formattedValue = '$' + value.toLocaleString();
+                                    } else if (chartType === 'price_per_sqft') {
+                                        formattedValue = '$' + value.toFixed(0) + '/sqft';
+                                    }
                                     return `${context.dataset.label}: ${formattedValue}`;
                                 }
                             }
@@ -3338,8 +3390,10 @@
                                 callback: function(value) {
                                     if (chartType === 'sales') {
                                         return value.toLocaleString();
-                                    } else {
+                                    } else if (chartType === 'price') {
                                         return '$' + (value / 1000).toFixed(0) + 'K';
+                                    } else if (chartType === 'price_per_sqft') {
+                                        return '$' + value.toFixed(0);
                                     }
                                 }
                             }
@@ -3555,8 +3609,32 @@
             }
         }
 
+        // Update chart type dropdown based on data availability
+        function updateChartTypeDropdown() {
+            const chartTypeSelect = document.getElementById('development-chart-type-select');
+            if (!chartTypeSelect) return;
+            
+            const pricePerSqftOption = chartTypeSelect.querySelector('option[value="price_per_sqft"]');
+            if (pricePerSqftOption) {
+                if (window.hasPricePerSqftData) {
+                    pricePerSqftOption.disabled = false;
+                    pricePerSqftOption.style.color = '';
+                } else {
+                    pricePerSqftOption.disabled = true;
+                    pricePerSqftOption.style.color = '#999';
+                    pricePerSqftOption.textContent = 'Price Per Square Foot (No Data Available)';
+                }
+            }
+        }
+
         // Switch between chart types
         function switchDevelopmentChart(chartType) {
+            // If trying to switch to price_per_sqft but no data available, fall back to sales
+            if (chartType === 'price_per_sqft' && !window.hasPricePerSqftData) {
+                console.warn('Price per sqft data not available, falling back to sales chart');
+                chartType = 'sales';
+            }
+            
             currentDevelopmentChart = chartType;
             
             // Update dropdown selection
