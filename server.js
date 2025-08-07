@@ -174,23 +174,25 @@ app.get('/api/reports/:reportId/area-comparison', async (req, res) => {
   try {
     const { reportId: urlSlug } = req.params;
     
-    // Extract numeric report_id from URL slug (e.g., "thomson-4" -> "4")
+    // Validate URL slug and get report ID
     let reportId;
     if (/^\d+$/.test(urlSlug)) {
       // Old format: pure number
       reportId = urlSlug;
     } else {
-      // New format: lastname-id
-      const parts = urlSlug.split('-');
-      reportId = parts[parts.length - 1]; // Last part should be the ID
+      // New format: lastname-id - validate exact URL match
+      const expectedUrl = `/reports/${urlSlug}`;
+      const basicResult = await dbQueries.getReportBasic();
+      const matchingReport = basicResult.rows.find(report => report.report_url === expectedUrl);
       
-      // Validate that the last part is actually a number
-      if (!/^\d+$/.test(reportId)) {
-        return res.status(400).json({
+      if (!matchingReport) {
+        return res.status(404).json({
           success: false,
-          error: 'Invalid report identifier format'
+          error: 'Report not found'
         });
       }
+      
+      reportId = matchingReport.report_id;
     }
     
     const result = await dbQueries.getAreaComparison(reportId);
@@ -216,23 +218,25 @@ app.put('/api/reports/:reportId/area-comparison', async (req, res) => {
     const { reportId: urlSlug } = req.params;
     const { seriesId, countyIds } = req.body;
     
-    // Extract numeric report_id from URL slug (e.g., "thomson-4" -> "4")
+    // Validate URL slug and get report ID
     let reportId;
     if (/^\d+$/.test(urlSlug)) {
       // Old format: pure number
       reportId = urlSlug;
     } else {
-      // New format: lastname-id
-      const parts = urlSlug.split('-');
-      reportId = parts[parts.length - 1]; // Last part should be the ID
+      // New format: lastname-id - validate exact URL match
+      const expectedUrl = `/reports/${urlSlug}`;
+      const basicResult = await dbQueries.getReportBasic();
+      const matchingReport = basicResult.rows.find(report => report.report_url === expectedUrl);
       
-      // Validate that the last part is actually a number
-      if (!/^\d+$/.test(reportId)) {
-        return res.status(400).json({
+      if (!matchingReport) {
+        return res.status(404).json({
           success: false,
-          error: 'Invalid report identifier format'
+          error: 'Report not found'
         });
       }
+      
+      reportId = matchingReport.report_id;
     }
     
     // Validate required fields
@@ -875,7 +879,8 @@ app.get('/api/developments-comparison', async (req, res) => {
         EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) as sale_year,
         COUNT(*) as sales_count,
         AVG(sold_price::numeric) as avg_price,
-        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sold_price::numeric) as median_price
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sold_price::numeric) as median_price,
+        AVG(sqft_living::numeric) as avg_sqft
       FROM deduplicated_mls mls
       WHERE mls.row_num = 1
         AND status = 'Closed'
@@ -885,6 +890,11 @@ app.get('/api/developments-comparison', async (req, res) => {
         AND sold_price <> ''
         AND LENGTH(TRIM(sold_price)) > 0
         AND sold_price ~ '^[0-9]+(\.[0-9]+)?$'
+        AND sqft_living IS NOT NULL 
+        AND sqft_living <> ''
+        AND LENGTH(TRIM(sqft_living)) > 0
+        AND sqft_living ~ '^[0-9]+(\.[0-9]+)?$'
+        AND sqft_living::numeric > 0
         AND EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) >= EXTRACT(YEAR FROM NOW()) - 10
       GROUP BY wf_development, EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD'))
       ORDER BY development_name ASC, sale_year ASC;
