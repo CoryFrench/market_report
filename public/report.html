@@ -2867,12 +2867,6 @@
             selectorWrap.style.gap = '8px';
             selectorWrap.style.alignItems = 'center';
 
-            const label = document.createElement('span');
-            label.textContent = 'Color by:';
-            label.style.fontSize = '12px';
-            label.style.color = '#2c3e50';
-            label.style.fontWeight = '600';
-
             const select = document.createElement('select');
             select.id = 'colorModeSelect';
             select.style.fontSize = '12px';
@@ -2882,7 +2876,7 @@
             select.style.background = '#fff';
 
             const options = [
-                { value: 'none', label: 'Select coloring' },
+                { value: 'none', label: 'View Metric' },
                 { value: 'tax_sale_date', label: 'Tax Last Sale Date' },
                 { value: 'tax_sale_price', label: 'Tax Last Sale Price' },
                 { value: 'tax_market_value', label: 'Tax Market Value' },
@@ -2903,7 +2897,6 @@
                 updateParcelStyles();
             });
 
-            selectorWrap.appendChild(label);
             selectorWrap.appendChild(select);
             mapContainer.parentElement.appendChild(selectorWrap);
 
