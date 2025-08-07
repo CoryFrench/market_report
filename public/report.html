@@ -596,6 +596,45 @@
             document.getElementById('propertyDevelopment').style.display = 'none';
             document.getElementById('propertySubdivision').style.display = 'none';
             
+            // Enrich Home Stats via property lookup (address → parcel → tax fields)
+            (async () => {
+                try {
+                    const params = new URLSearchParams();
+                    if (data.address_line_1) params.set('address', data.address_line_1);
+                    if (data.home_city) params.set('city', data.home_city);
+                    if (data.zip_code) params.set('zip', data.zip_code);
+                    if (data.development) params.set('development', data.development);
+                    if (data.subdivision) params.set('subdivision', data.subdivision);
+                    const resp = await fetch(`/api/property-lookup?${params.toString()}`);
+                    if (resp.ok) {
+                        const result = await resp.json();
+                        if (result && result.success && Array.isArray(result.data) && result.data.length > 0) {
+                            const best = result.data[0];
+                            const container = document.getElementById('homeStatsContent');
+                            if (container) {
+                                const infoBlock = document.createElement('div');
+                                infoBlock.style.marginTop = '12px';
+                                infoBlock.innerHTML = `
+                                    <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 10px; margin-top: 8px;">
+                                        <div><span style=\"color:#7f8c8d\">Parcel ID:</span> <strong>${best.property_control_number || 'N/A'}</strong></div>
+                                        <div><span style=\"color:#7f8c8d\">Year Built:</span> <strong>${best.year_built || 'N/A'}</strong></div>
+                                        <div><span style=\"color:#7f8c8d\">Living Sq Ft:</span> <strong>${best.square_foot_living_area || 'N/A'}</strong></div>
+                                        <div><span style=\"color:#7f8c8d\">Bedrooms:</span> <strong>${best.number_of_bedrooms || 'N/A'}</strong></div>
+                                        <div><span style=\"color:#7f8c8d\">Full Baths:</span> <strong>${best.number_of_full_bathrooms || 'N/A'}</strong></div>
+                                        <div><span style=\"color:#7f8c8d\">Half Baths:</span> <strong>${best.number_of_half_bathrooms || 'N/A'}</strong></div>
+                                        <div><span style=\"color:#7f8c8d\">Market Value:</span> <strong>${best.total_market_value ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(best.total_market_value) : 'N/A'}</strong></div>
+                                    </div>
+                                `;
+                                const leftPanel = container.firstElementChild;
+                                if (leftPanel) leftPanel.appendChild(infoBlock);
+                            }
+                        }
+                    }
+                } catch (lookupErr) {
+                    console.warn('Property lookup failed:', lookupErr);
+                }
+            })();
+            
             // Load development stats if development name is available
             if (data.development && data.development.trim()) {
                 loadDevelopmentStats(data.development.trim());

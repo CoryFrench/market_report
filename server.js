@@ -802,6 +802,80 @@ app.get('/api/development-chart/:developmentName', async (req, res) => {
   }
 });
 
+// Property lookup by address to enrich Home Stats
+app.get('/api/property-lookup', async (req, res) => {
+  try {
+    const { address, city, zip, development, subdivision } = req.query;
+
+    if (!address || String(address).trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'address query param is required' });
+    }
+
+    // Build fuzzy pattern from address (replace spaces with wildcard for flexible matching)
+    const normalizedAddress = String(address).trim();
+    const likePattern = `%${normalizedAddress.replace(/\s+/g, '%')}%`;
+
+    // We will search tax records, optionally restricting by development via waterfrontdata.development_data
+    // Prefer exact-ish matches first using ILIKE on situs_address and optional city/zip filters
+    const params = [];
+    let whereClauses = ['t.situs_address ILIKE $1'];
+    params.push(likePattern);
+
+    if (city && String(city).trim().length > 0) {
+      params.push(`%${String(city).trim()}%`);
+      whereClauses.push(`t.situs_address_city_name ILIKE $${params.length}`);
+    }
+    if (zip && String(zip).trim().length > 0) {
+      params.push(String(zip).trim());
+      whereClauses.push(`t.situs_address_zip_code = $${params.length}`);
+    }
+
+    let joinClause = '';
+    if (development && String(development).trim().length > 0) {
+      // Restrict to parcels in this development if provided
+      joinClause = 'LEFT JOIN waterfrontdata.development_data dd ON dd.parcel_number = t.property_control_number';
+      params.push(String(development).trim());
+      whereClauses.push(`dd.development_name = $${params.length}`);
+    }
+
+    if (subdivision && String(subdivision).trim().length > 0) {
+      // Also try to match subdivision when available
+      params.push(String(subdivision).trim());
+      whereClauses.push(`t.subdivision_name = $${params.length}`);
+    }
+
+    const sql = `
+      SELECT 
+        t.property_control_number,
+        t.situs_address,
+        t.situs_address_city_name,
+        t.situs_address_zip_code,
+        t.year_built,
+        t.square_foot_living_area,
+        t.number_of_bedrooms,
+        t.number_of_full_bathrooms,
+        t.number_of_half_bathrooms,
+        t.total_market_value
+      FROM tax.palm_beach_county_fl t
+      ${joinClause}
+      WHERE ${whereClauses.join(' AND ')}
+      ORDER BY LENGTH(t.situs_address) ASC
+      LIMIT 5;
+    `;
+
+    const { rows } = await pool.query(sql, params);
+
+    if (!rows || rows.length === 0) {
+      return res.json({ success: true, count: 0, data: [] });
+    }
+
+    return res.json({ success: true, count: rows.length, data: rows });
+  } catch (err) {
+    console.error('Error in /api/property-lookup:', err);
+    return res.status(500).json({ success: false, error: 'Failed to lookup property by address', message: err.message });
+  }
+});
+
 // Get all distinct developments for comparison dropdowns
 app.get('/api/developments', async (req, res) => {
   try {
