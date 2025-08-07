@@ -2499,8 +2499,10 @@
             }).addTo(map);
             
             // Color mode state and helpers
-            let colorMode = 'tax_sale_date';
+            let colorMode = 'none';
             let valueThresholds = null; // used for price/value modes
+            let valueMin = null;
+            let valueMax = null;
             const COLOR_MAP = {
                 gray: '#6c757d',
                 yellow: '#FFD54F',
@@ -2592,7 +2594,21 @@
                 return COLOR_MAP.gray;
             }
 
+            function defaultLandUseStyle(props) {
+                const landUse = (props.land_use_description || '').toString();
+                const isCondo = landUse.toUpperCase().includes('CONDOMINIUM');
+                return {
+                    color: isCondo ? COLOR_MAP.purple : '#3498db',
+                    weight: 2,
+                    fillColor: isCondo ? COLOR_MAP.purple : '#3498db',
+                    fillOpacity: 0.3
+                };
+            }
+
             function computeStyleByMode(props) {
+                if (colorMode === 'none') {
+                    return defaultLandUseStyle(props);
+                }
                 let outline = '#333';
                 let fill = COLOR_MAP.blue;
                 switch (colorMode) {
@@ -2642,6 +2658,11 @@
                     </div>`;
                 }
 
+                if (colorMode === 'none') {
+                    legend.innerHTML = '';
+                    return;
+                }
+
                 if (colorMode === 'tax_sale_date') {
                     legend.innerHTML = `
                         <div style="font-weight:600;margin-bottom:6px;">Legend: Tax Last Sale Date</div>
@@ -2659,15 +2680,16 @@
                         ${swatch(COLOR_MAP.gray, 'Not sold since 2020-01-01 or no data')}
                     `;
                 } else if (colorMode === 'tax_sale_price' || colorMode === 'tax_market_value') {
-                    if (!valueThresholds) { legend.innerHTML = ''; return; }
+                    if (!valueThresholds || valueMin == null || valueMax == null) { legend.innerHTML = ''; return; }
                     const { q50, q75, q85, q95 } = valueThresholds;
+                    const range = (a, b) => `${currencyFormat(a)} - ${currencyFormat(b)}`;
                     legend.innerHTML = `
                         <div style="font-weight:600;margin-bottom:6px;">Legend: ${colorMode === 'tax_sale_price' ? 'Tax Last Sale Price' : 'Tax Market Value'}</div>
-                        ${swatch(COLOR_MAP.darkGreen, `Top 5% (≥ ${currencyFormat(q95)})`)}
-                        ${swatch(COLOR_MAP.lightGreen, `Top 15% (≥ ${currencyFormat(q85)})`)}
-                        ${swatch(COLOR_MAP.yellow, `Top 25% (≥ ${currencyFormat(q75)})`)}
-                        ${swatch(COLOR_MAP.orange, `Top 50% (≥ ${currencyFormat(q50)})`)}
-                        ${swatch(COLOR_MAP.red, 'Remaining')}
+                        ${swatch(COLOR_MAP.darkGreen, range(q95, valueMax))}
+                        ${swatch(COLOR_MAP.lightGreen, range(q85, q95))}
+                        ${swatch(COLOR_MAP.yellow, range(q75, q85))}
+                        ${swatch(COLOR_MAP.orange, range(q50, q75))}
+                        ${swatch(COLOR_MAP.red, range(valueMin, q50))}
                         ${swatch(COLOR_MAP.gray, 'No data')}
                     `;
                 } else if (colorMode === 'mls_status') {
@@ -2690,11 +2712,13 @@
                 if (colorMode === 'tax_sale_price') {
                     const vals = features.map(f => parseFloat(f.properties.last_sale_price)).filter(v => !isNaN(v));
                     valueThresholds = computeQuantileThresholds(vals);
+                    if (vals.length > 0) { valueMin = Math.min(...vals); valueMax = Math.max(...vals); } else { valueMin = valueMax = null; }
                 } else if (colorMode === 'tax_market_value') {
                     const vals = features.map(f => parseFloat(f.properties.market_value)).filter(v => !isNaN(v));
                     valueThresholds = computeQuantileThresholds(vals);
+                    if (vals.length > 0) { valueMin = Math.min(...vals); valueMax = Math.max(...vals); } else { valueMin = valueMax = null; }
                 } else {
-                    valueThresholds = null;
+                    valueThresholds = null; valueMin = valueMax = null;
                 }
             }
 
@@ -2860,6 +2884,7 @@
             select.style.background = '#fff';
 
             const options = [
+                { value: 'none', label: 'Select coloring' },
                 { value: 'tax_sale_date', label: 'Tax Last Sale Date' },
                 { value: 'tax_sale_price', label: 'Tax Last Sale Price' },
                 { value: 'tax_market_value', label: 'Tax Market Value' },
