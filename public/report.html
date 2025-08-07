@@ -2521,7 +2521,7 @@
                     let popupContent;
                     
                     if (isCondominium) {
-                        // Simplified popup for condominiums - just subdivision info
+                        // Simplified popup for condominiums - subdivision info (no MLS waterfrontage shown)
                         popupContent = `
                             <div style="min-width: 280px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.4;">
                                 <div style="margin-bottom: 8px; font-size: 16px; font-weight: 600; color: #8e44ad;">Condominium Building</div>
@@ -2592,7 +2592,8 @@
                                 <div style="margin-bottom: 8px;"><strong>Bathrooms:</strong> ${bathrooms}</div>
                                 <div style="margin-bottom: 8px;"><strong>Market Value:</strong> <span style="color: #27ae60; font-weight: 600;">${marketValue}</span></div>
                                 <div style="margin-bottom: 8px;"><strong>Last Sale Date:</strong> ${props.last_sale_date || 'N/A'}</div>
-                                <div style="margin-bottom: 0;"><strong>Last Sale Price:</strong> ${lastSalePrice}</div>
+                                <div style="margin-bottom: 8px;"><strong>Last Sale Price:</strong> ${lastSalePrice}</div>
+                                <div style="margin-bottom: 0;"><strong>Waterfrontage (MLS):</strong> ${props.waterfrontage || 'N/A'}</div>
                         `;
                         
                         // Add unit count info for multi-unit buildings

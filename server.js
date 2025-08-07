@@ -1022,8 +1022,20 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
     console.log('Fetching parcels for development:', developmentName);
 
     // SQL query to get unique geometries in development (deduplicates condo buildings)
+    // Additionally joins MLS data to include waterfrontage (matched on parcel/property control number)
     const query = `
-      WITH unique_geometries AS (
+      WITH deduplicated_mls AS (
+        SELECT 
+          mls.parcel_id,
+          mls.waterfrontage,
+          ROW_NUMBER() OVER (
+            PARTITION BY mls.parcel_id
+            ORDER BY COALESCE(mls.status_change_date, mls.listing_date) DESC NULLS LAST
+          ) AS row_num
+        FROM mls.vw_beaches_residential_developments mls
+        WHERE mls.wf_development = $1
+      ),
+      unique_geometries AS (
         SELECT DISTINCT ON (p.geom)
           p.gid,
           p.parcelno,
@@ -1044,10 +1056,14 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
           t.sales_date_1,
           t.sales_price_1,
           t.land_use_description,
+          COALESCE(mls.waterfrontage, NULL) AS waterfrontage,
           COUNT(*) OVER (PARTITION BY p.geom) as unit_count
         FROM geodata.palm_beach_county_fl p
         INNER JOIN tax.palm_beach_county_fl t 
           ON p.parcelno = t.parcel_number
+        LEFT JOIN deduplicated_mls mls
+          ON mls.parcel_id = t.property_control_number
+         AND mls.row_num = 1
         WHERE t.development_name = $1
           AND p.geom IS NOT NULL
         ORDER BY p.geom, t.property_control_number
@@ -1090,7 +1106,8 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
         market_value: row.total_market_value,
         last_sale_date: row.sales_date_1,
         last_sale_price: row.sales_price_1,
-        land_use_description: row.land_use_description
+        land_use_description: row.land_use_description,
+        waterfrontage: row.waterfrontage
       }
     }));
 
