@@ -2601,7 +2601,7 @@
                     color: isCondo ? COLOR_MAP.purple : '#3498db',
                     weight: 2,
                     fillColor: isCondo ? COLOR_MAP.purple : '#3498db',
-                    fillOpacity: 0.3
+                    fillOpacity: 0.6
                 };
             }
 
@@ -2630,7 +2630,7 @@
                     default:
                         break;
                 }
-                return { color: outline, weight: 2, fillColor: fill, fillOpacity: 0.4 };
+                return { color: outline, weight: 2, fillColor: fill, fillOpacity: 0.75 };
             }
 
             // Legend UI
@@ -2836,15 +2836,13 @@
                     layer.on('mouseover', function() {
                         this.setStyle({
                             weight: 3,
-                            fillOpacity: 0.6
+                            fillOpacity: 0.9
                         });
                     });
                     
                     layer.on('mouseout', function() {
-                        this.setStyle({
-                            weight: 2,
-                            fillOpacity: 0.4
-                        });
+                        // Restore style based on current mode
+                        this.setStyle(computeStyleByMode(this.feature.properties));
                     });
                 }
             }).addTo(map);
