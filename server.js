@@ -1028,6 +1028,9 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
         SELECT 
           mls.parcel_id,
           mls.waterfrontage,
+          mls.status,
+          mls.status_change_date,
+          mls.sold_date,
           ROW_NUMBER() OVER (
             PARTITION BY mls.parcel_id
             ORDER BY COALESCE(mls.status_change_date, mls.listing_date) DESC NULLS LAST
@@ -1057,6 +1060,9 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
           t.sales_price_1,
           t.land_use_description,
           COALESCE(mls.waterfrontage, NULL) AS waterfrontage,
+          mls.status AS mls_status,
+          mls.status_change_date AS mls_status_change_date,
+          mls.sold_date AS mls_sold_date,
           COUNT(*) OVER (PARTITION BY p.geom) as unit_count
         FROM geodata.palm_beach_county_fl p
         INNER JOIN tax.palm_beach_county_fl t 
@@ -1107,7 +1113,10 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
         last_sale_date: row.sales_date_1,
         last_sale_price: row.sales_price_1,
         land_use_description: row.land_use_description,
-        waterfrontage: row.waterfrontage
+        waterfrontage: row.waterfrontage,
+        mls_status: row.mls_status,
+        mls_status_change_date: row.mls_status_change_date,
+        mls_sold_date: row.mls_sold_date
       }
     }));
 

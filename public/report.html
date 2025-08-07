@@ -2498,19 +2498,219 @@
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
             
+            // Color mode state and helpers
+            let colorMode = 'tax_sale_date';
+            let valueThresholds = null; // used for price/value modes
+            const COLOR_MAP = {
+                gray: '#6c757d',
+                yellow: '#FFD54F',
+                green: '#2ECC71',
+                blue: '#3498DB',
+                red: '#E74C3C',
+                orange: '#F39C12',
+                darkGreen: '#006400',
+                lightGreen: '#90EE90',
+                purple: '#8E44AD'
+            };
+
+            function parseDateSafe(value) {
+                if (!value) return null;
+                // Handle yyyy-mm-dd or other strings
+                const d = new Date(value);
+                return isNaN(d.getTime()) ? null : d;
+            }
+
+            function monthsBetween(fromDate, toDate) {
+                const years = toDate.getFullYear() - fromDate.getFullYear();
+                const months = toDate.getMonth() - fromDate.getMonth();
+                const total = years * 12 + months + (toDate.getDate() >= fromDate.getDate() ? 0 : -1);
+                return total;
+            }
+
+            function currencyFormat(n) {
+                return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+            }
+
+            function computeQuantileThresholds(values) {
+                const nums = values.filter(v => typeof v === 'number' && !isNaN(v)).sort((a, b) => a - b);
+                if (nums.length === 0) return null;
+                function quantile(p) {
+                    const idx = Math.floor((nums.length - 1) * p);
+                    return nums[idx];
+                }
+                return {
+                    q50: quantile(0.50),
+                    q75: quantile(0.75),
+                    q85: quantile(0.85),
+                    q95: quantile(0.95)
+                };
+            }
+
+            function colorByTaxSaleDate(props) {
+                const now = new Date();
+                const d = parseDateSafe(props.last_sale_date);
+                if (!d) return COLOR_MAP.gray;
+                const m = monthsBetween(d, now);
+                if (m < 6) return COLOR_MAP.yellow;
+                if (m < 12) return COLOR_MAP.green;
+                if (m < 24) return COLOR_MAP.blue;
+                if (m < 60) return COLOR_MAP.red;
+                return COLOR_MAP.orange; // 5+ years
+            }
+
+            function colorBySoldSinceCovid(props) {
+                const d = parseDateSafe(props.last_sale_date);
+                if (!d) return COLOR_MAP.gray;
+                const covid = new Date('2020-01-01');
+                return d >= covid ? COLOR_MAP.green : COLOR_MAP.gray;
+            }
+
+            function colorByValue(value) {
+                if (value == null || isNaN(value) || !valueThresholds) return COLOR_MAP.gray;
+                const { q50, q75, q85, q95 } = valueThresholds;
+                if (value >= q95) return COLOR_MAP.darkGreen;   // top 5%
+                if (value >= q85) return COLOR_MAP.lightGreen;  // top 15%
+                if (value >= q75) return COLOR_MAP.yellow;      // top 25%
+                if (value >= q50) return COLOR_MAP.orange;      // top 50%
+                return COLOR_MAP.red;                           // remaining
+            }
+
+            function colorByMlsStatus(props) {
+                const status = (props.mls_status || '').toLowerCase();
+                if (!status) return COLOR_MAP.gray;
+                if (status === 'coming soon') return COLOR_MAP.purple;
+                if (status === 'active') return COLOR_MAP.green;
+                if (status === 'active under contract') return COLOR_MAP.orange;
+                if (status === 'pending') return COLOR_MAP.blue;
+                if (status === 'closed') {
+                    // last 6 months yellow, older red
+                    const sd = parseDateSafe(props.mls_sold_date);
+                    if (!sd) return COLOR_MAP.gray;
+                    const m = monthsBetween(sd, new Date());
+                    return m <= 6 ? COLOR_MAP.yellow : COLOR_MAP.red;
+                }
+                return COLOR_MAP.gray;
+            }
+
+            function computeStyleByMode(props) {
+                let outline = '#333';
+                let fill = COLOR_MAP.blue;
+                switch (colorMode) {
+                    case 'tax_sale_date':
+                        fill = colorByTaxSaleDate(props);
+                        break;
+                    case 'tax_sale_price':
+                        fill = colorByValue(parseFloat(props.last_sale_price));
+                        break;
+                    case 'tax_market_value':
+                        fill = colorByValue(parseFloat(props.market_value));
+                        break;
+                    case 'sold_since_covid':
+                        fill = colorBySoldSinceCovid(props);
+                        break;
+                    case 'mls_status':
+                        fill = colorByMlsStatus(props);
+                        break;
+                    default:
+                        break;
+                }
+                return { color: outline, weight: 2, fillColor: fill, fillOpacity: 0.4 };
+            }
+
+            // Legend UI
+            const legend = document.createElement('div');
+            legend.id = 'mapLegend';
+            legend.style.position = 'absolute';
+            legend.style.bottom = '16px';
+            legend.style.right = '16px';
+            legend.style.background = 'rgba(255,255,255,0.95)';
+            legend.style.border = '1px solid #dee2e6';
+            legend.style.borderRadius = '8px';
+            legend.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+            legend.style.padding = '12px 14px';
+            legend.style.minWidth = '220px';
+            legend.style.fontSize = '12px';
+            legend.style.zIndex = '1200';
+            legend.innerHTML = '';
+            mapContainer.parentElement.appendChild(legend);
+
+            function renderLegend() {
+                function swatch(color, label) {
+                    return `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                        <span style="display:inline-block;width:14px;height:14px;background:${color};border:1px solid #999;border-radius:3px;"></span>
+                        <span>${label}</span>
+                    </div>`;
+                }
+
+                if (colorMode === 'tax_sale_date') {
+                    legend.innerHTML = `
+                        <div style="font-weight:600;margin-bottom:6px;">Legend: Tax Last Sale Date</div>
+                        ${swatch(COLOR_MAP.yellow, 'Less than 6 months')}
+                        ${swatch(COLOR_MAP.green, '6 months to 1 year')}
+                        ${swatch(COLOR_MAP.blue, '1 to 2 years')}
+                        ${swatch(COLOR_MAP.red, '2 to 5 years')}
+                        ${swatch(COLOR_MAP.orange, 'More than 5 years')}
+                        ${swatch(COLOR_MAP.gray, 'No data')}
+                    `;
+                } else if (colorMode === 'sold_since_covid') {
+                    legend.innerHTML = `
+                        <div style="font-weight:600;margin-bottom:6px;">Legend: Sold Since Jan 1, 2020</div>
+                        ${swatch(COLOR_MAP.green, 'Sold since 2020-01-01')}
+                        ${swatch(COLOR_MAP.gray, 'Not sold since 2020-01-01 or no data')}
+                    `;
+                } else if (colorMode === 'tax_sale_price' || colorMode === 'tax_market_value') {
+                    if (!valueThresholds) { legend.innerHTML = ''; return; }
+                    const { q50, q75, q85, q95 } = valueThresholds;
+                    legend.innerHTML = `
+                        <div style="font-weight:600;margin-bottom:6px;">Legend: ${colorMode === 'tax_sale_price' ? 'Tax Last Sale Price' : 'Tax Market Value'}</div>
+                        ${swatch(COLOR_MAP.darkGreen, `Top 5% (≥ ${currencyFormat(q95)})`)}
+                        ${swatch(COLOR_MAP.lightGreen, `Top 15% (≥ ${currencyFormat(q85)})`)}
+                        ${swatch(COLOR_MAP.yellow, `Top 25% (≥ ${currencyFormat(q75)})`)}
+                        ${swatch(COLOR_MAP.orange, `Top 50% (≥ ${currencyFormat(q50)})`)}
+                        ${swatch(COLOR_MAP.red, 'Remaining')}
+                        ${swatch(COLOR_MAP.gray, 'No data')}
+                    `;
+                } else if (colorMode === 'mls_status') {
+                    legend.innerHTML = `
+                        <div style="font-weight:600;margin-bottom:6px;">Legend: MLS Status</div>
+                        ${swatch(COLOR_MAP.green, 'Active')}
+                        ${swatch(COLOR_MAP.orange, 'Active Under Contract')}
+                        ${swatch(COLOR_MAP.yellow, 'Closed (Last 6 months)')}
+                        ${swatch(COLOR_MAP.red, 'Closed (Older)')}
+                        ${swatch(COLOR_MAP.purple, 'Coming Soon')}
+                        ${swatch(COLOR_MAP.blue, 'Pending')}
+                        ${swatch(COLOR_MAP.gray, 'No Data')}
+                    `;
+                } else {
+                    legend.innerHTML = '';
+                }
+            }
+
+            function recomputeThresholdsIfNeeded(features) {
+                if (colorMode === 'tax_sale_price') {
+                    const vals = features.map(f => parseFloat(f.properties.last_sale_price)).filter(v => !isNaN(v));
+                    valueThresholds = computeQuantileThresholds(vals);
+                } else if (colorMode === 'tax_market_value') {
+                    const vals = features.map(f => parseFloat(f.properties.market_value)).filter(v => !isNaN(v));
+                    valueThresholds = computeQuantileThresholds(vals);
+                } else {
+                    valueThresholds = null;
+                }
+            }
+
+            function updateParcelStyles() {
+                parcelLayer.eachLayer(function(layer) {
+                    const props = layer.feature.properties;
+                    const style = computeStyleByMode(props);
+                    layer.setStyle(style);
+                });
+                renderLegend();
+            }
+
             // Add parcel polygons
             const parcelLayer = L.geoJSON(geojsonData, {
                 style: function(feature) {
-                    // Different colors based on land use
-                    const landUse = feature.properties.land_use_description || '';
-                    const isCondominium = landUse.toUpperCase().includes('CONDOMINIUM');
-                    
-                    return {
-                        color: isCondominium ? '#8e44ad' : '#3498db',
-                        weight: 2,
-                        fillColor: isCondominium ? '#8e44ad' : '#3498db',
-                        fillOpacity: 0.3
-                    };
+                    return computeStyleByMode(feature.properties);
                 },
                 onEachFeature: function(feature, layer) {
                     // Create popup content using tax record template
@@ -2612,14 +2812,14 @@
                     layer.on('mouseover', function() {
                         this.setStyle({
                             weight: 3,
-                            fillOpacity: 0.5
+                            fillOpacity: 0.6
                         });
                     });
                     
                     layer.on('mouseout', function() {
                         this.setStyle({
                             weight: 2,
-                            fillOpacity: 0.3
+                            fillOpacity: 0.4
                         });
                     });
                 }
@@ -2629,6 +2829,64 @@
             map.fitBounds(parcelLayer.getBounds(), {
                 padding: [20, 20]
             });
+
+            // Create color mode selector UI
+            const selectorWrap = document.createElement('div');
+            selectorWrap.style.position = 'absolute';
+            selectorWrap.style.top = '16px';
+            selectorWrap.style.right = '16px';
+            selectorWrap.style.background = 'rgba(255,255,255,0.95)';
+            selectorWrap.style.border = '1px solid #dee2e6';
+            selectorWrap.style.borderRadius = '8px';
+            selectorWrap.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+            selectorWrap.style.padding = '8px 12px';
+            selectorWrap.style.zIndex = '1200';
+            selectorWrap.style.display = 'flex';
+            selectorWrap.style.gap = '8px';
+            selectorWrap.style.alignItems = 'center';
+
+            const label = document.createElement('span');
+            label.textContent = 'Color by:';
+            label.style.fontSize = '12px';
+            label.style.color = '#2c3e50';
+            label.style.fontWeight = '600';
+
+            const select = document.createElement('select');
+            select.id = 'colorModeSelect';
+            select.style.fontSize = '12px';
+            select.style.padding = '6px 8px';
+            select.style.border = '1px solid #ced4da';
+            select.style.borderRadius = '6px';
+            select.style.background = '#fff';
+
+            const options = [
+                { value: 'tax_sale_date', label: 'Tax Last Sale Date' },
+                { value: 'tax_sale_price', label: 'Tax Last Sale Price' },
+                { value: 'tax_market_value', label: 'Tax Market Value' },
+                { value: 'sold_since_covid', label: 'Sold Since Covid (Jan 1 2020)' },
+                { value: 'mls_status', label: 'MLS Status' }
+            ];
+            options.forEach(opt => {
+                const o = document.createElement('option');
+                o.value = opt.value;
+                o.textContent = opt.label;
+                select.appendChild(o);
+            });
+            select.value = colorMode;
+
+            select.addEventListener('change', function() {
+                colorMode = this.value;
+                recomputeThresholdsIfNeeded(geojsonData.features);
+                updateParcelStyles();
+            });
+
+            selectorWrap.appendChild(label);
+            selectorWrap.appendChild(select);
+            mapContainer.parentElement.appendChild(selectorWrap);
+
+            // Initial thresholds + legend render
+            recomputeThresholdsIfNeeded(geojsonData.features);
+            renderLegend();
         }
         
         // Get status color for styling
