@@ -16,6 +16,110 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        
+        /* Mobile header fix - highest priority */
+        @media screen and (max-width: 768px) {
+            .container .letterhead .header-info {
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: space-around !important;
+                align-items: center !important;
+                gap: 15px !important;
+                padding: 0 !important;
+                width: 100% !important;
+            }
+            
+            .container .letterhead .header-info .header-item {
+                display: block !important;
+                text-align: center !important;
+                flex: 1 1 45% !important;
+                max-width: 45% !important;
+            }
+            
+            .container .letterhead .header-info .header-item:nth-child(3) {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                position: absolute !important;
+                left: -9999px !important;
+                width: 0 !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+            }
+        }
+        
+        @media screen and (max-width: 480px) {
+            .container .letterhead .header-info {
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: space-around !important;
+                align-items: center !important;
+                gap: 12px !important;
+                padding: 0 !important;
+                width: 100% !important;
+            }
+            
+            .container .letterhead .header-info .header-item {
+                display: block !important;
+                text-align: center !important;
+                flex: 1 1 45% !important;
+                max-width: 45% !important;
+            }
+            
+            .container .letterhead .header-info .header-item:nth-child(3) {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                position: absolute !important;
+                left: -9999px !important;
+                width: 0 !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+            }
+        }
+        
+        /* Development Chart Legend Clickable Styling */
+        #dev-comparison-chart + div .chartjs-legend li,
+        .chartjs-legend-item {
+            cursor: pointer !important;
+            transition: all 0.2s ease;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        #dev-comparison-chart + div .chartjs-legend li:hover,
+        .chartjs-legend-item:hover {
+            background-color: rgba(52, 152, 219, 0.1);
+            transform: translateY(-1px);
+        }
+        
+        /* Development Actions Popup */
+        #developmentActionsPopup {
+            position: fixed !important;
+            z-index: 9999 !important;
+            display: none !important;
+            background: white !important;
+            border: 1px solid #ddd !important;
+            border-radius: 8px !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+            padding: 12px !important;
+            min-width: 160px !important;
+            max-width: 200px !important;
+        }
+        
+        #developmentActionsPopup[style*="display: block"] {
+            display: block !important;
+        }
+        
+        #developmentActionsPopup button:hover {
+            background-color: #f8f9fa !important;
+            border-color: #adb5bd !important;
+            transform: translateY(-1px) !important;
+        }
     </style>
 </head>
 <body>
@@ -211,15 +315,18 @@
                 </div>                                <!-- Development Comparison Chart View -->
                                 <div class="chart-section" id="dev-chart-section" style="display: none;">
                                     <div class="chart-controls">
-                                        <button id="back-to-dev-controls-btn" class="back-to-controls-btn">← Back to Controls</button>
+                                        <button id="back-to-dev-controls-btn" class="back-to-controls-btn">← Change Neighbourhood</button>
                                     </div>
                                     <div id="dev-comparison-chart-header" class="chart-header" style="display: none;">
                                         <h3>Development Sales Comparison</h3>
                                         <p>Comparative analysis of sales volume and pricing across selected developments</p>
                                     </div>
-                                    <div id="development-chart-buttons" style="display: none; text-align: center; margin-bottom: 20px;">
-                                        <button id="development-sales-chart-btn" class="active" style="margin-right: 10px; padding: 8px 16px; border: 1px solid #ddd; background: #3498db; color: white; border-radius: 4px; cursor: pointer;">Sales Count</button>
-                                        <button id="development-price-chart-btn" style="padding: 8px 16px; border: 1px solid #ddd; background: #f8f9fa; color: #333; border-radius: 4px; cursor: pointer;">Average Price</button>
+                                    <div id="development-chart-controls" style="display: none; text-align: center; margin-bottom: 20px;">
+                                        <label for="development-chart-type-select" style="margin-right: 10px; font-weight: bold;">Chart Type:</label>
+                                        <select id="development-chart-type-select" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer; min-width: 150px;">
+                                            <option value="sales">Sales Count</option>
+                                            <option value="price">Average Price</option>
+                                        </select>
                                     </div>
                                     <div id="dev-comparison-chart-container" style="position: relative; height: 500px; width: 100%;">
                                         <canvas id="dev-comparison-chart" class="fred-chart"></canvas>
@@ -270,7 +377,13 @@
                                 
                                 <div class="chart-section" id="chart-section" style="display: none;">
                                     <div class="chart-controls">
-                                        <button id="back-to-controls-btn" class="back-to-controls-btn">← Back to Controls</button>
+                                        <button id="back-to-controls-btn" class="back-to-controls-btn">← Change County</button>
+                                        <div class="chart-indicator-control" style="margin-left: 20px; display: inline-flex; align-items: center; gap: 10px;">
+                                            <label for="chart-series-select" style="font-weight: bold; color: #333;">Indicator:</label>
+                                            <select id="chart-series-select" class="fred-select" style="min-width: 200px;">
+                                                <option value="">Select Indicator...</option>
+                                            </select>
+                                        </div>
                                     </div>
                                     <div id="comparison-chart-header" class="chart-header" style="display: none;">
                                         <h3>Comparative Market Analysis</h3>
@@ -310,6 +423,30 @@
                         <p style="color: #7f8c8d; font-size: 16px;">Loading sales chart data...</p>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Development Actions Popup -->
+        <div id="developmentActionsPopup" style="display: none; position: fixed; z-index: 9999; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 12px; min-width: 160px;">
+            <div style="font-size: 14px; font-weight: 600; color: #2c3e50; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #eee;" id="developmentPopupTitle">
+                Development Name
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button id="developmentPopupMapBtn" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #ffffff; border: 1px solid #dee2e6; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; font-size: 13px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                    <span style="color: #3498db; font-weight: 500;">View Map</span>
+                </button>
+                <button id="developmentPopupChartBtn" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #ffffff; border: 1px solid #dee2e6; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; font-size: 13px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                    <span style="color: #27ae60; font-weight: 500;">View Chart</span>
+                </button>
             </div>
         </div>
 
@@ -852,7 +989,36 @@
                     closeChartOverlay();
                 }
             });
+            
+            // Initialize development actions popup
+            initializeDevelopmentActionsPopup();
         });
+        
+        // Initialize development actions popup functionality
+        function initializeDevelopmentActionsPopup() {
+            const popup = document.getElementById('developmentActionsPopup');
+            
+            // Close popup when clicking outside
+            document.addEventListener('click', function(e) {
+                if (popup && popup.style.display !== 'none' && !popup.contains(e.target)) {
+                    // Check if the click was on the chart legend (which should open the popup)
+                    const isLegendClick = e.target.closest('.chartjs-legend') || 
+                                         e.target.closest('canvas') || 
+                                         e.target.tagName === 'CANVAS';
+                    
+                    if (!isLegendClick) {
+                        hideDevelopmentActionsPopup();
+                    }
+                }
+            });
+            
+            // Close popup with Escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && popup && popup.style.display !== 'none') {
+                    hideDevelopmentActionsPopup();
+                }
+            });
+        }
         
         // Function to load development statistics
         async function loadDevelopmentStats(developmentName) {
@@ -1523,6 +1689,7 @@
             document.getElementById('compare-btn').addEventListener('click', generateComparison);
             document.getElementById('reset-comparison-btn').addEventListener('click', resetToDefault);
             document.getElementById('back-to-controls-btn').addEventListener('click', showControlsView);
+            document.getElementById('chart-series-select').addEventListener('change', refreshChartWithNewIndicator);
         }
         
         // Show the controls view and hide the chart view
@@ -1535,6 +1702,9 @@
         function showChartView() {
             document.getElementById('controls-section').style.display = 'none';
             document.getElementById('chart-section').style.display = 'block';
+            
+            // Populate the chart view indicator selector
+            populateChartSeriesSelector();
         }
         
         // Add a new location selection dropdown
@@ -2104,6 +2274,150 @@
             noticeContainer.style.display = 'block';
         }
         
+        // Populate the chart view series selector with the same options as the main selector
+        function populateChartSeriesSelector() {
+            const mainSeriesSelect = document.getElementById('series-select');
+            const chartSeriesSelect = document.getElementById('chart-series-select');
+            
+            if (!mainSeriesSelect || !chartSeriesSelect) {
+                console.error('Series select elements not found');
+                return;
+            }
+            
+            // Clear existing options except the first placeholder
+            chartSeriesSelect.innerHTML = '<option value="">Select Indicator...</option>';
+            
+            // Copy options from main selector, skipping the first loading option
+            for (let i = 1; i < mainSeriesSelect.options.length; i++) {
+                const option = mainSeriesSelect.options[i];
+                const newOption = document.createElement('option');
+                newOption.value = option.value;
+                newOption.textContent = option.textContent;
+                
+                // Set selected if this matches the main selector's value
+                if (option.value === mainSeriesSelect.value) {
+                    newOption.selected = true;
+                }
+                
+                chartSeriesSelect.appendChild(newOption);
+            }
+        }
+        
+        // Handle indicator change in chart view - refresh the chart with new indicator
+        async function refreshChartWithNewIndicator() {
+            const chartSeriesSelect = document.getElementById('chart-series-select');
+            const selectedSeries = chartSeriesSelect.value;
+            
+            if (!selectedSeries || !seriesOptionsCache) {
+                return;
+            }
+            
+            // Also update the main series selector to keep them in sync
+            const mainSeriesSelect = document.getElementById('series-select');
+            if (mainSeriesSelect) {
+                mainSeriesSelect.value = selectedSeries;
+            }
+            
+            // Get current location selections (they should still be available from the previous generation)
+            const selections = [];
+            
+            for (let i = 1; i <= selectionCount; i++) {
+                const stateSelect = document.getElementById(`state-select-${i}`);
+                const countySelect = document.getElementById(`county-select-${i}`);
+                
+                if (stateSelect && countySelect && stateSelect.value && countySelect.value) {
+                    selections.push({
+                        state: stateSelect.value,
+                        county: countySelect.value,
+                        countyName: countySelect.options[countySelect.selectedIndex].text
+                    });
+                }
+            }
+            
+            if (selections.length === 0) {
+                console.error('No location selections found for chart refresh');
+                return;
+            }
+            
+            // Save the new comparison data
+            await saveComparisonData(selectedSeries, selections);
+            
+            // Show loading state
+            document.getElementById('chart-loading').style.display = 'flex';
+            document.getElementById('chart-error').style.display = 'none';
+            if (comparisonChartInstance) {
+                comparisonChartInstance.destroy();
+                comparisonChartInstance = null;
+            }
+            
+            try {
+                const seriesOption = seriesOptionsCache[selectedSeries];
+                const chartData = {};
+                const countyNames = {};
+                const unavailableLocations = [];
+                
+                // Fetch data for each selected location
+                for (const selection of selections) {
+                    // Apply leading zeros based on series configuration
+                    const countyCode = seriesOption.lead_zero ? 
+                        selection.county.padStart(5, '0') : 
+                        selection.county.replace(/^0+/, '');
+                    
+                    // Replace {COUNTY} placeholder with actual county code
+                    const seriesId = seriesOption.series.replace('{COUNTY}', countyCode);
+                    
+                    try {
+                        const fredData = await fetchFredData(seriesId);
+                        if (fredData && fredData.length > 0) {
+                            chartData[selection.county] = fredData.map(obs => ({
+                                date: new Date(obs.date),
+                                value: parseFloat(obs.value)
+                            })).filter(obs => !isNaN(obs.value));
+                            countyNames[selection.county] = selection.countyName;
+                        } else {
+                            unavailableLocations.push({
+                                name: selection.countyName,
+                                seriesId: seriesId
+                            });
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to fetch data for ${selection.countyName}:`, error);
+                        unavailableLocations.push({
+                            name: selection.countyName,
+                            seriesId: seriesId,
+                            error: error.message
+                        });
+                    }
+                }
+                
+                // Hide loading state
+                document.getElementById('chart-loading').style.display = 'none';
+                
+                if (Object.keys(chartData).length === 0) {
+                    document.getElementById('chart-error').style.display = 'flex';
+                    document.getElementById('comparison-chart-header').style.display = 'none';
+                    return;
+                }
+                
+                // Show chart header and create the comparison chart
+                document.getElementById('comparison-chart-header').style.display = 'block';
+                createSimpleComparisonChart(chartData, countyNames, seriesOption.display_name);
+                
+                // Display professional notification for unavailable data
+                if (unavailableLocations.length > 0) {
+                    displayDataAvailabilityNotice(unavailableLocations, seriesOption.display_name);
+                } else {
+                    // Hide the notice if all data is available
+                    document.getElementById('data-availability-notice').style.display = 'none';
+                }
+                
+            } catch (error) {
+                console.error('Error refreshing chart with new indicator:', error);
+                document.getElementById('chart-loading').style.display = 'none';
+                document.getElementById('chart-error').style.display = 'flex';
+            }
+        }
+        
         // Map functionality
         let map = null;
         let currentDevelopmentName = null;
@@ -2621,15 +2935,10 @@
                 backToDevControlsBtn.addEventListener('click', showDevelopmentControlsView);
             }
 
-            // Switch between chart types
-            const salesChartBtn = document.getElementById('development-sales-chart-btn');
-            const priceChartBtn = document.getElementById('development-price-chart-btn');
-            
-            if (salesChartBtn) {
-                salesChartBtn.addEventListener('click', () => switchDevelopmentChart('sales'));
-            }
-            if (priceChartBtn) {
-                priceChartBtn.addEventListener('click', () => switchDevelopmentChart('price'));
+            // Handle chart type dropdown changes
+            const chartTypeSelect = document.getElementById('development-chart-type-select');
+            if (chartTypeSelect) {
+                chartTypeSelect.addEventListener('change', (e) => switchDevelopmentChart(e.target.value));
             }
         }
 
@@ -2717,8 +3026,8 @@
             window.selectedDevelopments = null;
             
             // Hide chart elements
-            const chartButtons = document.getElementById('development-chart-buttons');
-            if (chartButtons) chartButtons.style.display = 'none';
+            const chartControls = document.getElementById('development-chart-controls');
+            if (chartControls) chartControls.style.display = 'none';
             
             const chartHeader = document.getElementById('dev-comparison-chart-header');
             if (chartHeader) chartHeader.style.display = 'none';
@@ -2786,10 +3095,10 @@
                 // Switch to chart view and show chart elements
                 showDevelopmentChartView();
                 
-                // Show chart buttons
-                const chartButtons = document.getElementById('development-chart-buttons');
-                if (chartButtons) {
-                    chartButtons.style.display = 'block';
+                // Show chart controls
+                const chartControls = document.getElementById('development-chart-controls');
+                if (chartControls) {
+                    chartControls.style.display = 'block';
                 }
                 
                 // Show chart header
@@ -2944,7 +3253,44 @@
                         },
                         legend: {
                             display: true,
-                            position: 'top'
+                            position: 'top',
+                            onClick: function(e, legendItem, legend) {
+                                console.log('Legend onClick triggered:', { e, legendItem, legend });
+                                
+                                // Prevent default legend click behavior (toggling dataset visibility)  
+                                if (e && e.stopPropagation) {
+                                    e.stopPropagation();
+                                }
+                                
+                                // Get the development name from legend item
+                                const developmentName = legendItem.text || legendItem.label || 'Unknown Development';
+                                console.log('Development name from legend:', developmentName);
+                                
+                                // Show the development actions popup
+                                showDevelopmentActionsPopupFromChart(e, developmentName, legend.chart.canvas);
+                                
+                                // Return false to prevent default Chart.js behavior
+                                return false;
+                            },
+                            labels: {
+                                generateLabels: function(chart) {
+                                    const original = Chart.defaults.plugins.legend.labels.generateLabels;
+                                    const labels = original.call(this, chart);
+                                    
+                                    // Make legend items look clickable
+                                    labels.forEach(label => {
+                                        label.text = '🔗 ' + label.text; // Add link icon
+                                    });
+                                    
+                                    return labels;
+                                },
+                                usePointStyle: true,
+                                padding: 20,
+                                font: {
+                                    size: 12,
+                                    weight: '500'
+                                }
+                            }
                         },
                         tooltip: {
                             mode: 'index',
@@ -3018,17 +3364,205 @@
             console.log('Chart.js chart created successfully');
         }
 
+        // Show the development actions popup from chart legend click
+        function showDevelopmentActionsPopupFromChart(event, developmentName, canvas) {
+            console.log('Chart legend clicked:', { event, developmentName, canvas });
+            
+            // Get the actual mouse/click coordinates relative to viewport (for fixed positioning)
+            const rect = canvas.getBoundingClientRect();
+            let x, y;
+            
+            // Try different ways to get coordinates depending on the event
+            if (event.native) {
+                // Chart.js provides native event - use client coordinates for fixed positioning
+                x = event.native.clientX || (rect.left + event.native.offsetX);
+                y = event.native.clientY || (rect.top + event.native.offsetY);
+            } else if (event.clientX && event.clientY) {
+                // Direct client coordinates (viewport relative)
+                x = event.clientX;
+                y = event.clientY;
+            } else if (event.pageX && event.pageY) {
+                // Convert page coordinates to client coordinates
+                x = event.pageX - window.pageXOffset;
+                y = event.pageY - window.pageYOffset;
+            } else {
+                // Fallback - center of canvas with offset (viewport relative)
+                x = rect.left + rect.width / 2;
+                y = rect.top + 50; // Near top of canvas
+            }
+            
+            console.log('Calculated popup position (viewport relative):', { x, y });
+            
+            // Show popup with calculated coordinates (using clientX/Y instead of pageX/Y)
+            showDevelopmentActionsPopup({ clientX: x + 10, clientY: y - 50 }, developmentName);
+        }
+        
+        // Show the development actions popup
+        function showDevelopmentActionsPopup(event, developmentName) {
+            console.log('showDevelopmentActionsPopup called:', { event, developmentName });
+            
+            // Remove the link emoji from the development name if it exists
+            const cleanDevelopmentName = developmentName.replace('🔗 ', '');
+            console.log('Clean development name:', cleanDevelopmentName);
+            
+            const popup = document.getElementById('developmentActionsPopup');
+            const title = document.getElementById('developmentPopupTitle');
+            const mapBtn = document.getElementById('developmentPopupMapBtn');
+            const chartBtn = document.getElementById('developmentPopupChartBtn');
+            
+            console.log('Popup elements found:', { popup: !!popup, title: !!title, mapBtn: !!mapBtn, chartBtn: !!chartBtn });
+            
+            if (!popup || !title || !mapBtn || !chartBtn) {
+                console.error('Missing popup elements');
+                return;
+            }
+            
+            // Set the development name
+            title.textContent = cleanDevelopmentName;
+            
+            // Position the popup near the mouse click (use clientX/Y for fixed positioning)
+            let x = (event.clientX || event.pageX || 200) + 10; // Default to 200 if no coordinates
+            let y = (event.clientY || event.pageY || 200) - 50; // Default to 200 if no coordinates
+            
+            // For debugging: always show at a visible location
+            if (x < 50 || y < 50) {
+                console.log('Using fallback position due to invalid coordinates');
+                x = 200;
+                y = 200;
+            }
+            
+            // Ensure popup stays within viewport boundaries
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const popupWidth = 180; // Approximate popup width
+            const popupHeight = 120; // Approximate popup height
+            
+            if (x + popupWidth > viewportWidth) {
+                x = viewportWidth - popupWidth - 10;
+            }
+            if (y < 0) {
+                y = 10;
+            }
+            if (y + popupHeight > viewportHeight) {
+                y = viewportHeight - popupHeight - 10;
+            }
+            
+            console.log('Final popup position:', { x, y });
+            
+            popup.style.left = x + 'px';
+            popup.style.top = y + 'px';
+            popup.style.display = 'block';
+            popup.style.position = 'fixed';
+            popup.style.zIndex = '9999';
+            
+            console.log('Popup should now be visible at:', popup.style.left, popup.style.top);
+            
+            // Debug: Check computed styles
+            const computedStyle = window.getComputedStyle(popup);
+            console.log('Popup computed styles:', {
+                display: computedStyle.display,
+                position: computedStyle.position,
+                zIndex: computedStyle.zIndex,
+                left: computedStyle.left,
+                top: computedStyle.top,
+                visibility: computedStyle.visibility,
+                opacity: computedStyle.opacity
+            });
+            
+            // Debug: Check if popup is actually in the DOM
+            console.log('Popup in DOM:', document.contains(popup));
+            console.log('Popup dimensions:', {
+                offsetWidth: popup.offsetWidth,
+                offsetHeight: popup.offsetHeight,
+                clientWidth: popup.clientWidth,
+                clientHeight: popup.clientHeight
+            });
+            
+            // Add event listeners for the buttons
+            mapBtn.onclick = function() {
+                hideDevelopmentActionsPopup();
+                openDevelopmentMapForName(cleanDevelopmentName);
+            };
+            
+            chartBtn.onclick = function() {
+                hideDevelopmentActionsPopup();
+                showChartOverlay(cleanDevelopmentName);
+            };
+            
+            // Add hover effects
+            [mapBtn, chartBtn].forEach(btn => {
+                btn.onmouseenter = function() {
+                    this.style.backgroundColor = '#f8f9fa';
+                    this.style.transform = 'translateY(-1px)';
+                };
+                
+                btn.onmouseleave = function() {
+                    this.style.backgroundColor = '#ffffff';
+                    this.style.transform = 'translateY(0)';
+                };
+            });
+        }
+        
+        // Hide the development actions popup
+        function hideDevelopmentActionsPopup() {
+            const popup = document.getElementById('developmentActionsPopup');
+            popup.style.display = 'none';
+        }
+        
+        // Open development map for a specific development name
+        async function openDevelopmentMapForName(developmentName) {
+            const modal = document.getElementById('mapModal');
+            const loading = document.getElementById('mapLoading');
+            const error = document.getElementById('mapError');
+            const subtitle = document.getElementById('mapSubtitle');
+            
+            if (!developmentName || !developmentName.trim()) {
+                showMapError('No development name provided.');
+                return;
+            }
+            
+            const cleanDevelopmentName = developmentName.trim();
+            subtitle.textContent = `Showing parcels for ${cleanDevelopmentName}`;
+            
+            // Show modal and loading state
+            modal.style.display = 'block';
+            loading.style.display = 'flex';
+            error.style.display = 'none';
+            
+            try {
+                // Fetch parcel data
+                const response = await fetch(`/api/development-parcels/${encodeURIComponent(cleanDevelopmentName)}`);
+                const result = await response.json();
+                
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Failed to load parcel data');
+                }
+                
+                if (!result.data || !result.data.features || result.data.features.length === 0) {
+                    throw new Error('No parcel data found for this development');
+                }
+                
+                // Hide loading
+                loading.style.display = 'none';
+                
+                // Initialize or update map with the new development
+                currentDevelopmentName = cleanDevelopmentName;
+                initializeMap(result.data);
+                
+            } catch (error) {
+                console.error('Error loading development map:', error);
+                showMapError(error.message || 'Unable to load map data for this development.');
+            }
+        }
+
         // Switch between chart types
         function switchDevelopmentChart(chartType) {
             currentDevelopmentChart = chartType;
             
-            // Update button states
-            const salesBtn = document.getElementById('development-sales-chart-btn');
-            const priceBtn = document.getElementById('development-price-chart-btn');
-            
-            if (salesBtn && priceBtn) {
-                salesBtn.classList.toggle('active', chartType === 'sales');
-                priceBtn.classList.toggle('active', chartType === 'price');
+            // Update dropdown selection
+            const chartTypeSelect = document.getElementById('development-chart-type-select');
+            if (chartTypeSelect && chartTypeSelect.value !== chartType) {
+                chartTypeSelect.value = chartType;
             }
             
             // Render the appropriate chart
