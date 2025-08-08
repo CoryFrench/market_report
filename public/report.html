@@ -159,7 +159,11 @@
                     <div class="header-label">Prepared for</div>
                     <div class="header-value" id="buyerName">Buyer Name</div>
                 </div>
-                <!-- ZIP header removed per requirements -->
+                <!-- Keep ZIP node in DOM for script compatibility but hide visually -->
+                <div class="header-item" id="zipHeaderItem" style="display:none; visibility:hidden;">
+                    <div class="header-label">Zip</div>
+                    <div class="header-value" id="zipCode">ZIP Code</div>
+                </div>
             </div>
         </div>
 
@@ -3083,7 +3087,7 @@
                 var headerLogo = document.getElementById('headerLogo');
                 if (headerLogo) {
                     var base = window.location.pathname.startsWith('/report/') ? '/report' : '';
-                    headerLogo.src = base + '/public/logo.png';
+                    headerLogo.src = base + '/logo.png';
                 }
             } catch (e) { /* noop */ }
         });
