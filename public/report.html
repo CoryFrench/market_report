@@ -153,7 +153,7 @@
                     <div class="header-value" id="agentName">Agent Name</div>
                 </div>
                 <div class="header-logo">
-                    <img id="headerLogo" src="/logo.png" alt="Logo" />
+                    <img id="headerLogo" src="" alt="Logo" />
                 </div>
                 <div class="header-item">
                     <div class="header-label">Prepared for</div>
@@ -3081,6 +3081,14 @@
         // Initialize map modal after DOM is fully loaded
         document.addEventListener('DOMContentLoaded', function() {
             initializeMapModal();
+            // Set header logo src relative to report app root
+            try {
+                var headerLogo = document.getElementById('headerLogo');
+                if (headerLogo) {
+                    var base = window.location.pathname.startsWith('/report/') ? '/report' : '';
+                    headerLogo.src = base + '/public/logo.png';
+                }
+            } catch (e) { /* noop */ }
         });
         
         // Also try initializing immediately in case DOMContentLoaded already fired
