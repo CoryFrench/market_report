@@ -160,16 +160,69 @@ const dbQueries = {
 
   // Get report by lastname-id URL format (e.g., "smith-1234")
   getReportByUrl: async (urlSlug) => {
-    // Extract report_id from the lastname-id format
-    const parts = urlSlug.split('-');
-    const reportId = parts[parts.length - 1]; // Last part should be the ID
+    // Query for report that matches the exact URL slug
+    const expectedUrl = `/reports/${urlSlug}`;
     
-    // Validate that the last part is actually a number
-    if (!/^\d+$/.test(reportId)) {
-      throw new Error('Invalid URL format');
-    }
+    const queryText = `
+      SELECT 
+        rb.report_id,
+        rb.created_at,
+        rb.last_updated,
+        rb.report_url,
+        rb.agent_name,
+        rb.first_name,
+        rb.last_name,
+        rhi.address_line_1,
+        rhi.address_line_2,
+        rhi.city as home_city,
+        rhi.state as home_state,
+        rhi.zip_code,
+        rhi.development,
+        rhi.subdivision,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'chart_id', rc.chart_id,
+              'chart_type', rc.chart_type,
+              'series_id', rc.series_id,
+              'stats_category', rc.stats_category,
+              'locations', rc.locations
+            )
+          ) FILTER (WHERE rc.chart_id IS NOT NULL AND rc.chart_type != 'fred'), 
+          '[]'::json
+        ) as charts,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'chart_id', rfc.chart_id,
+              'series_id', rfc.series_id
+            )
+          ) FILTER (WHERE rfc.chart_id IS NOT NULL), 
+          '[]'::json
+        ) as fred_charts,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'interest_id', ria.interest_id,
+              'city', ria.city,
+              'state', ria.state
+            )
+          ) FILTER (WHERE ria.interest_id IS NOT NULL), 
+          '[]'::json
+        ) as interest_areas
+      FROM customer.report_basic rb
+      LEFT JOIN customer.report_home_info rhi ON rb.report_id = rhi.report_id
+      LEFT JOIN customer.report_charts rc ON rb.report_id = rc.report_id AND rc.chart_type != 'fred'
+      LEFT JOIN customer.report_charts rfc ON rb.report_id = rfc.report_id AND rfc.chart_type = 'fred'
+      LEFT JOIN customer.report_interest_area ria ON rb.report_id = ria.report_id
+      WHERE rb.report_url = $1
+      GROUP BY rb.report_id, rb.created_at, rb.last_updated, rb.report_url, 
+               rb.agent_name, rb.first_name, rb.last_name,
+               rhi.address_line_1, rhi.address_line_2, rhi.city, rhi.state, 
+               rhi.zip_code, rhi.development, rhi.subdivision
+    `;
     
-    return await dbQueries.getCompleteReport(reportId);
+    return await query(queryText, [expectedUrl]);
   },
 
   // Create new report with basic info and home info
