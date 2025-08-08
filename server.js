@@ -357,16 +357,8 @@ app.get('/api/reports/complete/:urlSlug', async (req, res) => {
       });
     }
     
-    let result;
-    
-    // Check if it's a pure number (old format) or lastname-id format
-    if (/^\d+$/.test(urlSlug)) {
-      // Old format: pure number
-      result = await dbQueries.getCompleteReport(urlSlug);
-    } else {
-      // New format: lastname-id
-      result = await dbQueries.getReportByUrl(urlSlug);
-    }
+    // Enforce exact URL slug matching for security; do not allow numeric ID bypass
+    const result = await dbQueries.getReportByUrl(urlSlug);
     
     if (result.rowCount === 0) {
       return res.status(404).json({
@@ -401,23 +393,15 @@ app.get('/api/reports/:urlSlug/neighborhood-sales', async (req, res) => {
       });
     }
     
-    let reportId;
-    
-    // Check if it's a pure number (old format) or lastname-id format
-    if (/^\d+$/.test(urlSlug)) {
-      // Old format: pure number
-      reportId = urlSlug;
-    } else {
-      // New format: lastname-id - need to get the report_id first
-      const reportResult = await dbQueries.getReportByUrl(urlSlug);
-      if (reportResult.rowCount === 0) {
-        return res.status(404).json({
-          success: false,
-          error: 'Report not found'
-        });
-      }
-      reportId = reportResult.rows[0].report_id;
+    // Enforce exact slug matching; do not allow numeric fallback
+    const reportResult = await dbQueries.getReportByUrl(urlSlug);
+    if (reportResult.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Report not found'
+      });
     }
+    const reportId = reportResult.rows[0].report_id;
     
     const result = await dbQueries.getNeighborhoodSalesData(reportId);
     
