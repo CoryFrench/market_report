@@ -921,7 +921,7 @@ body {
 }
 
 /* Mobile header force override - most specific rules */
-.header-info .header-item:nth-child(3) {
+.header-info #zipHeaderItem {
     display: none !important;
 }
 
@@ -942,7 +942,7 @@ body {
         display: block !important;
     }
     
-    .letterhead .header-info .header-item:nth-child(3) {
+    .letterhead .header-info #zipHeaderItem {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
@@ -1046,7 +1046,7 @@ body {
         flex: 1 1 45% !important;
     }
     
-    .header-item:nth-child(3) {
+    #zipHeaderItem {
         display: none !important;
     }
     
@@ -1259,7 +1259,7 @@ body {
         flex: 1 1 45% !important;
     }
     
-    .header-item:nth-child(3) {
+    #zipHeaderItem {
         display: none !important;
     }
     
