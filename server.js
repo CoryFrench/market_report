@@ -864,22 +864,21 @@ app.get('/api/property-lookup', async (req, res) => {
 app.get('/api/developments', async (req, res) => {
   try {
     const developmentsQuery = `
-      SELECT DISTINCT wf_development as development_name
-      FROM mls.vw_beaches_residential_developments
-      WHERE wf_development IS NOT NULL 
-        AND wf_development != ''
-        AND LENGTH(TRIM(wf_development)) > 0
-      ORDER BY wf_development ASC;
+      SELECT DISTINCT development_name
+      FROM waterfrontdata.development_data
+      WHERE development_name IS NOT NULL 
+        AND development_name != ''
+        AND LENGTH(TRIM(development_name)) > 0
+      ORDER BY development_name ASC;
     `;
 
     try {
       const { query } = require('./db');
       const result = await query(developmentsQuery);
       
-      res.json({
-        success: true,
-        data: result.rows
-      });
+      // Normalize to { development_name }
+      const rows = result.rows.map(r => ({ development_name: r.development_name }));
+      res.json({ success: true, data: rows });
       
     } catch (dbError) {
       console.error('Database query error for developments:', dbError);
@@ -891,6 +890,41 @@ app.get('/api/developments', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to fetch developments',
+      message: error.message 
+    });
+  }
+});
+
+// Get all distinct zones for comparison dropdowns
+app.get('/api/zones', async (req, res) => {
+  try {
+    const zonesQuery = `
+      SELECT DISTINCT zone_name
+      FROM waterfrontdata.development_data
+      WHERE zone_name IS NOT NULL 
+        AND zone_name != ''
+        AND LENGTH(TRIM(zone_name)) > 0
+      ORDER BY zone_name ASC;
+    `;
+
+    try {
+      const { query } = require('./db');
+      const result = await query(zonesQuery);
+
+      // Normalize to { development_name }
+      const rows = result.rows.map(r => ({ development_name: r.zone_name }));
+      res.json({ success: true, data: rows });
+
+    } catch (dbError) {
+      console.error('Database query error for zones:', dbError);
+      throw new Error(`Failed to fetch zones: ${dbError.message}`);
+    }
+
+  } catch (error) {
+    console.error('Error fetching zones:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch zones',
       message: error.message 
     });
   }
@@ -980,6 +1014,109 @@ app.get('/api/developments-comparison', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to fetch developments comparison data',
+      message: error.message 
+    });
+  }
+});
+
+// Multi-zone comparison chart data
+app.get('/api/zones-comparison', async (req, res) => {
+  try {
+    const { zones } = req.query;
+
+    if (!zones) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Zone names are required' 
+      });
+    }
+
+    // Parse zone names (comma-separated)
+    const zoneList = zones.split(',').map(z => z.trim()).filter(z => z.length > 0);
+
+    if (zoneList.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'At least one zone name is required' 
+      });
+    }
+
+    // Query to get annual sales data for multiple zones via development_data join
+    const comparisonQuery = `  
+      WITH combined AS (
+        SELECT 
+          d.parcel_number,
+          d.zone_name,
+          m.listing_id,
+          m.status,
+          m.status_change_date,
+          m.listing_date,
+          m.sold_date,
+          m.sold_price,
+          m.sqft_living
+        FROM waterfrontdata.development_data d
+        JOIN mls.vw_beaches_residential_developments m
+          ON m.parcel_id = d.parcel_number
+        WHERE d.zone_name = ANY($1)
+      ),
+      deduplicated_mls AS (
+        SELECT 
+          c.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY c.listing_id
+            ORDER BY COALESCE(c.status_change_date, c.listing_date) DESC NULLS LAST,
+                     c.status DESC
+          ) AS row_num
+        FROM combined c
+      )
+      SELECT 
+        zone_name AS development_name,
+        EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) AS sale_year,
+        COUNT(*) AS sales_count,
+        AVG(sold_price::numeric) AS avg_price,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sold_price::numeric) AS median_price,
+        AVG(sqft_living::numeric) AS avg_sqft
+      FROM deduplicated_mls
+      WHERE row_num = 1
+        AND status = 'Closed'
+        AND sold_date IS NOT NULL 
+        AND sold_date <> ''
+        AND sold_price IS NOT NULL 
+        AND sold_price <> ''
+        AND LENGTH(TRIM(sold_price)) > 0
+        AND sold_price ~ '^[0-9]+(\.[0-9]+)?$'
+        AND sqft_living IS NOT NULL 
+        AND sqft_living <> ''
+        AND LENGTH(TRIM(sqft_living)) > 0
+        AND sqft_living ~ '^[0-9]+(\.[0-9]+)?$'
+        AND sqft_living::numeric > 0
+        AND EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) >= EXTRACT(YEAR FROM NOW()) - 10
+      GROUP BY zone_name, EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD'))
+      ORDER BY development_name ASC, sale_year ASC;
+    `;
+
+    try {
+      const { query } = require('./db');
+      const result = await query(comparisonQuery, [zoneList]);
+
+      res.json({
+        success: true,
+        data: {
+          zones: zoneList,
+          comparisonData: result.rows
+        }
+      });
+
+    } catch (dbError) {
+      console.error('Database query error for zones comparison:', dbError);
+      throw new Error(`Failed to fetch zones comparison data: ${dbError.message}`);
+    }
+
+  } catch (error) {
+    console.error('Error fetching zones comparison data:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch zones comparison data',
       message: error.message 
     });
   }

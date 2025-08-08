@@ -3061,16 +3061,27 @@
         }
         setTimeout(waitForElements, 1000);
 
-        // Development Comparison Functionality
+        // API base path (supports reverse-proxy /report prefix)
+        const API_BASE = window.location.pathname.startsWith('/report/') ? '/report/api' : '/api';
+
+        // Development/Zone Comparison Functionality
+        let selectionMode = 'development'; // 'development' | 'zone'
         let developmentSelectionCount = 1;
         let developmentsList = [];
+        let zonesList = [];
 
         // Initialize development comparison
         async function initializeDevelopmentComparison() {
             try {
                 await loadDevelopmentsList();
+                // Pre-create the toggle UI
+                createSelectionModeToggle();
+                // Build initial selection UI
                 populateInitialDevelopmentDropdowns();
-                autoSelectReportDevelopment();
+                // Only auto-select when in development mode
+                if (selectionMode === 'development') {
+                    autoSelectReportDevelopment();
+                }
                 setupDevelopmentComparisonEventHandlers();
             } catch (error) {
                 console.error('Error initializing development comparison:', error);
@@ -3080,7 +3091,7 @@
         // Load available developments
         async function loadDevelopmentsList() {
             try {
-                const response = await fetch('/api/developments');
+                const response = await fetch(`${API_BASE}/developments`);
                 if (!response.ok) {
                     throw new Error(`Failed to load developments: ${response.status}`);
                 }
@@ -3102,6 +3113,104 @@
             }
         }
 
+        // Load available zones
+        async function loadZonesList() {
+            try {
+                const response = await fetch(`${API_BASE}/zones`);
+                if (!response.ok) {
+                    throw new Error(`Failed to load zones: ${response.status}`);
+                }
+                const result = await response.json();
+
+                if (result && result.success && result.data) {
+                    zonesList = result.data;
+                } else if (Array.isArray(result)) {
+                    zonesList = result;
+                } else {
+                    zonesList = [];
+                }
+
+                console.log('Loaded zones:', zonesList ? zonesList.length : 0);
+            } catch (error) {
+                console.error('Error loading zones:', error);
+                zonesList = [];
+            }
+        }
+
+        // Create Development/Zone toggle UI
+        function createSelectionModeToggle() {
+            const controls = document.getElementById('dev-controls-section');
+            const container = document.getElementById('development-selections');
+            if (!controls && !container) return;
+
+            // Avoid duplicate creation
+            if (document.getElementById('selection-mode-toggle')) return;
+
+            const host = controls || container.parentElement;
+            const toggleWrap = document.createElement('div');
+            toggleWrap.id = 'selection-mode-toggle';
+            toggleWrap.style.display = 'flex';
+            toggleWrap.style.alignItems = 'center';
+            toggleWrap.style.gap = '10px';
+            toggleWrap.style.marginBottom = '12px';
+
+            const label = document.createElement('div');
+            label.textContent = 'Compare by:';
+            label.style.fontWeight = '600';
+
+            const btnGroup = document.createElement('div');
+            btnGroup.style.display = 'inline-flex';
+            btnGroup.style.border = '1px solid #ced4da';
+            btnGroup.style.borderRadius = '6px';
+            btnGroup.style.overflow = 'hidden';
+
+            function makeButton(text, mode) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = text;
+                btn.style.padding = '6px 10px';
+                btn.style.fontSize = '12px';
+                btn.style.border = 'none';
+                btn.style.cursor = 'pointer';
+                btn.style.background = (selectionMode === mode) ? '#0d6efd' : '#ffffff';
+                btn.style.color = (selectionMode === mode) ? '#ffffff' : '#333333';
+                btn.addEventListener('click', async () => {
+                    if (selectionMode === mode) return;
+                    selectionMode = mode;
+                    // Update visual state
+                    devBtn.style.background = (selectionMode === 'development') ? '#0d6efd' : '#ffffff';
+                    devBtn.style.color = (selectionMode === 'development') ? '#ffffff' : '#333333';
+                    zoneBtn.style.background = (selectionMode === 'zone') ? '#0d6efd' : '#ffffff';
+                    zoneBtn.style.color = (selectionMode === 'zone') ? '#ffffff' : '#333333';
+
+                    // Ensure data is loaded
+                    if (selectionMode === 'zone' && zonesList.length === 0) {
+                        await loadZonesList();
+                    }
+
+                    // Reset UI for current mode
+                    resetDevelopmentComparison();
+                });
+                return btn;
+            }
+
+            const devBtn = makeButton('Development', 'development');
+            const zoneBtn = makeButton('Zone', 'zone');
+
+            btnGroup.appendChild(devBtn);
+            btnGroup.appendChild(zoneBtn);
+
+            toggleWrap.appendChild(label);
+            toggleWrap.appendChild(btnGroup);
+
+            // Insert above the selections container
+            if (controls) {
+                controls.insertBefore(toggleWrap, controls.firstChild);
+            } else if (container && container.parentElement) {
+                container.parentElement.insertBefore(toggleWrap, container);
+            }
+        }
+
         // Populate initial development dropdowns
         function populateInitialDevelopmentDropdowns() {
             // Create the first development selection
@@ -3114,9 +3223,9 @@
                 selectionDiv.innerHTML = `
                     <div class="location-row">
                         <div class="location-field">
-                            <label for="development-select-1">Development 1</label>
+                            <label for="development-select-1">${selectionMode === 'development' ? 'Development' : 'Zone'} 1</label>
                             <select id="development-select-1" class="fred-select">
-                                <option value="">Select Development...</option>
+                                <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>
                             </select>
                         </div>
                     </div>
@@ -3137,18 +3246,19 @@
             if (!selectElement) return;
             
             // Clear existing options
-            selectElement.innerHTML = '<option value="">Select Development...</option>';
+            selectElement.innerHTML = `<option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>`;
             
             // Add development options
-            if (developmentsList && Array.isArray(developmentsList)) {
-                developmentsList.forEach(development => {
+            const list = selectionMode === 'development' ? developmentsList : zonesList;
+            if (list && Array.isArray(list)) {
+                list.forEach(development => {
                     const option = document.createElement('option');
                     option.value = development.development_name;
                     option.textContent = development.development_name;
                     selectElement.appendChild(option);
                 });
             } else {
-                console.warn('No developments available to populate dropdown');
+                console.warn('No options available to populate dropdown for mode:', selectionMode);
             }
         }
 
@@ -3269,9 +3379,9 @@
             selectionDiv.innerHTML = `
                 <div class="location-row">
                     <div class="location-field">
-                        <label for="development-select-${developmentSelectionCount}">Development ${developmentSelectionCount}</label>
+                        <label for="development-select-${developmentSelectionCount}">${selectionMode === 'development' ? 'Development' : 'Zone'} ${developmentSelectionCount}</label>
                         <select id="development-select-${developmentSelectionCount}" class="fred-select">
-                            <option value="">Select Development...</option>
+                            <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>
                         </select>
                     </div>
                     <button type="button" class="remove-location-btn" onclick="removeDevelopmentSelection(${developmentSelectionCount})" style="margin-left: 10px;">
@@ -3367,7 +3477,7 @@
             }
             
             if (!hasValidSelections) {
-                alert('Please select at least one development to compare');
+                alert(`Please select at least one ${selectionMode === 'development' ? 'development' : 'zone'} to compare`);
                 return;
             }
             
@@ -3382,8 +3492,11 @@
             
             try {
                 // Fetch comparison data - send as comma-separated string
-                const developmentsParam = selections.join(',');
-                const response = await fetch(`/api/developments-comparison?developments=${encodeURIComponent(developmentsParam)}`);
+                const param = selections.join(',');
+                const url = selectionMode === 'development'
+                    ? `${API_BASE}/developments-comparison?developments=${encodeURIComponent(param)}`
+                    : `${API_BASE}/zones-comparison?zones=${encodeURIComponent(param)}`;
+                const response = await fetch(url);
                 
                 if (!response.ok) {
                     throw new Error(`Failed to fetch comparison data: ${response.status}`);
@@ -3606,7 +3719,7 @@
                     plugins: {
                         title: {
                             display: true,
-                            text: `Development Trends - ${yAxisLabel}`,
+                            text: `${selectionMode === 'development' ? 'Development' : 'Zone'} Trends - ${yAxisLabel}`,
                             font: {
                                 size: 16,
                                 weight: 'bold'
@@ -3899,7 +4012,7 @@
             
             try {
                 // Fetch parcel data
-                const response = await fetch(`/api/development-parcels/${encodeURIComponent(cleanDevelopmentName)}`);
+                const response = await fetch(`${API_BASE}/development-parcels/${encodeURIComponent(cleanDevelopmentName)}`);
                 const result = await response.json();
                 
                 if (!response.ok || !result.success) {
