@@ -293,12 +293,12 @@
                         <!-- Development Comparison Interface -->
                         <div id="developmentComparisonContainer">
                             <div style="border-top: 1px solid #e9ecef; padding-top: 30px;">
-                                <h3 style="text-align: center; color: #2c3e50; margin-bottom: 20px;">Development Comparison Analysis</h3>
+                                <h3 id="dev-comp-title" style="text-align: center; color: #2c3e50; margin-bottom: 20px;">Development Comparison Analysis</h3>
                                 
                 <!-- Development Comparison Controls -->
                 <div class="comparison-controls" id="dev-controls-section">
                     <div class="locations-container">
-                        <h4>Development Comparison Analysis</h4>
+                        <h4 id="dev-controls-title">Development Comparison Analysis</h4>
                         <div id="development-selections">
                             <!-- Dynamic development selectors will be added here -->
                         </div>
@@ -318,8 +318,8 @@
                                         <button id="back-to-dev-controls-btn" class="back-to-controls-btn">← Change Neighbourhood</button>
                                     </div>
                                     <div id="dev-comparison-chart-header" class="chart-header" style="display: none;">
-                                        <h3>Development Sales Comparison</h3>
-                                        <p>Comparative analysis of sales volume and pricing across selected developments</p>
+                                        <h3 id="dev-chart-title">Development Sales Comparison</h3>
+                                        <p id="dev-chart-subtitle">Comparative analysis of sales volume and pricing across selected developments</p>
                                     </div>
                                     <div id="development-chart-controls" style="display: none; text-align: center; margin-bottom: 20px;">
                                         <label for="development-chart-type-select" style="margin-right: 10px; font-weight: bold;">Chart Type:</label>
@@ -333,7 +333,7 @@
                                         <canvas id="dev-comparison-chart" class="fred-chart"></canvas>
                                         <div id="dev-chart-loading" class="chart-loading-message" style="display: none;">
                                             <div class="loading-spinner-small"></div>
-                                            <p>Generating development comparison analysis...</p>
+                                            <p id="dev-chart-loading-text">Generating development comparison analysis...</p>
                                         </div>
                                         <div id="dev-chart-error" class="chart-error-message" style="display: none;">
                                             <p>Comparison temporarily unavailable. Please verify your selections and try again.</p>
@@ -1040,6 +1040,11 @@
             
             // Close popup when clicking outside
             document.addEventListener('click', function(e) {
+                if (__suppressNextDocumentClick) {
+                    // Skip one document click that originated from legend click
+                    __suppressNextDocumentClick = false;
+                    return;
+                }
                 if (popup && popup.style.display !== 'none' && !popup.contains(e.target)) {
                     // Check if the click was on the chart legend (which should open the popup)
                     const isLegendClick = e.target.closest('.chartjs-legend') || 
@@ -2556,8 +2561,18 @@
 
             function parseDateSafe(value) {
                 if (!value) return null;
-                // Handle yyyy-mm-dd or other strings
-                const d = new Date(value);
+                let v = String(value).trim();
+                if (!v) return null;
+                // Normalize common formats: YYYYMMDD, MM/DD/YYYY, YYYY-MM-DD
+                if (/^\d{8}$/.test(v)) {
+                    // Assume YYYYMMDD
+                    v = `${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}`;
+                } else if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(v)) {
+                    const [m, d, y] = v.split('/');
+                    const year = y.length === 2 ? `20${y}` : y;
+                    v = `${year}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+                }
+                const d = new Date(v);
                 return isNaN(d.getTime()) ? null : d;
             }
 
@@ -2607,12 +2622,14 @@
             }
 
             function colorByValue(value) {
-                if (value == null || isNaN(value) || !valueThresholds) return COLOR_MAP.gray;
+                if (value == null) return COLOR_MAP.gray;
+                const num = typeof value === 'number' ? value : parseFloat(String(value).replace(/[$,]/g, ''));
+                if (isNaN(num) || !valueThresholds) return COLOR_MAP.gray;
                 const { q50, q75, q85, q95 } = valueThresholds;
-                if (value >= q95) return COLOR_MAP.darkGreen;   // top 5%
-                if (value >= q85) return COLOR_MAP.lightGreen;  // top 15%
-                if (value >= q75) return COLOR_MAP.yellow;      // top 25%
-                if (value >= q50) return COLOR_MAP.orange;      // top 50%
+                if (num >= q95) return COLOR_MAP.darkGreen;   // top 5%
+                if (num >= q85) return COLOR_MAP.lightGreen;  // top 15%
+                if (num >= q75) return COLOR_MAP.yellow;      // top 25%
+                if (num >= q50) return COLOR_MAP.orange;      // top 50%
                 return COLOR_MAP.red;                           // remaining
             }
 
@@ -2749,11 +2766,11 @@
 
             function recomputeThresholdsIfNeeded(features) {
                 if (colorMode === 'tax_sale_price') {
-                    const vals = features.map(f => parseFloat(f.properties.last_sale_price)).filter(v => !isNaN(v));
+                    const vals = features.map(f => parseFloat(String(f.properties.last_sale_price || '').toString().replace(/[$,]/g, ''))).filter(v => !isNaN(v));
                     valueThresholds = computeQuantileThresholds(vals);
                     if (vals.length > 0) { valueMin = Math.min(...vals); valueMax = Math.max(...vals); } else { valueMin = valueMax = null; }
                 } else if (colorMode === 'tax_market_value') {
-                    const vals = features.map(f => parseFloat(f.properties.market_value)).filter(v => !isNaN(v));
+                    const vals = features.map(f => parseFloat(String(f.properties.market_value || '').toString().replace(/[$,]/g, ''))).filter(v => !isNaN(v));
                     valueThresholds = computeQuantileThresholds(vals);
                     if (vals.length > 0) { valueMin = Math.min(...vals); valueMax = Math.max(...vals); } else { valueMin = valueMax = null; }
                 } else {
@@ -3066,9 +3083,25 @@
 
         // Development/Zone Comparison Functionality
         let selectionMode = 'development'; // 'development' | 'zone'
+        // Track last mouse position as a reliable fallback for popup placement
+        (function trackLastMousePosition(){
+            try {
+                window.__lastMouse = { x: 0, y: 0 };
+                document.addEventListener('mousemove', function(e){
+                    if (e && typeof e.clientX === 'number' && typeof e.clientY === 'number') {
+                        window.__lastMouse.x = e.clientX;
+                        window.__lastMouse.y = e.clientY;
+                    }
+                }, { passive: true });
+            } catch (err) {
+                console.warn('Unable to attach mousemove listener for popup placement fallback:', err);
+            }
+        })();
+
         let developmentSelectionCount = 1;
         let developmentsList = [];
         let zonesList = [];
+        let __suppressNextDocumentClick = false;
 
         // Initialize development comparison
         async function initializeDevelopmentComparison() {
@@ -3190,6 +3223,9 @@
 
                     // Reset UI for current mode
                     resetDevelopmentComparison();
+
+                    // Update any static labels/titles to match mode
+                    updateDevZoneStaticLabels();
                 });
                 return btn;
             }
@@ -3209,6 +3245,33 @@
             } else if (container && container.parentElement) {
                 container.parentElement.insertBefore(toggleWrap, container);
             }
+        }
+
+        // Update static labels and button text between Development and Zone
+        function updateDevZoneStaticLabels() {
+            const noun = (selectionMode === 'development') ? 'Development' : 'Zone';
+            const nounPlural = (selectionMode === 'development') ? 'developments' : 'zones';
+
+            const compTitle = document.getElementById('dev-comp-title');
+            if (compTitle) compTitle.textContent = `${noun} Comparison Analysis`;
+
+            const controlsTitle = document.getElementById('dev-controls-title');
+            if (controlsTitle) controlsTitle.textContent = `${noun} Comparison Analysis`;
+
+            const addBtn = document.getElementById('add-development-btn');
+            if (addBtn) addBtn.textContent = `Add ${noun}`;
+
+            const removeBtn = document.getElementById('remove-development-btn');
+            if (removeBtn) removeBtn.textContent = `Remove ${noun}`;
+
+            const chartHeaderTitle = document.getElementById('dev-chart-title');
+            if (chartHeaderTitle) chartHeaderTitle.textContent = `${noun} Sales Comparison`;
+
+            const chartHeaderSubtitle = document.getElementById('dev-chart-subtitle');
+            if (chartHeaderSubtitle) chartHeaderSubtitle.textContent = `Comparative analysis of sales volume and pricing across selected ${nounPlural}`;
+
+            const loadingText = document.getElementById('dev-chart-loading-text');
+            if (loadingText) loadingText.textContent = `Generating ${noun.toLowerCase()} comparison analysis...`;
         }
 
         // Populate initial development dropdowns
@@ -3251,10 +3314,12 @@
             // Add development options
             const list = selectionMode === 'development' ? developmentsList : zonesList;
             if (list && Array.isArray(list)) {
-                list.forEach(development => {
+                list.forEach(item => {
+                    const name = item.development_name || item.zone_name || item.name || item.Development || item.Zone;
+                    if (!name) return;
                     const option = document.createElement('option');
-                    option.value = development.development_name;
-                    option.textContent = development.development_name;
+                    option.value = name;
+                    option.textContent = name;
                     selectElement.appendChild(option);
                 });
             } else {
@@ -3439,6 +3504,9 @@
             // Recreate the first selection
             populateInitialDevelopmentDropdowns();
             updateDevelopmentButtons();
+
+            // Also update static labels to current mode
+            updateDevZoneStaticLabels();
             
             // Clear any existing chart and hide chart view
             if (window.developmentChart) {
@@ -3562,16 +3630,16 @@
             const processedData = {};
             
             data.forEach(row => {
-                const dev = row.development_name;
-                const year = row.sale_year; // Use sale_year field from API response
+                const dev = row.development_name || row.zone_name || row.name;
+                const year = row.sale_year || row.year; // Support both field names
                 
                 if (!processedData[dev]) {
                     processedData[dev] = {};
                 }
                 
                 // Calculate price per square foot if both price and sqft are available
-                const avgPrice = parseFloat(row.avg_price) || 0;
-                const avgSqft = parseFloat(row.avg_sqft) || 0;
+                const avgPrice = parseFloat(row.avg_price ?? row.average_price) || 0;
+                const avgSqft = parseFloat(row.avg_sqft ?? row.average_sqft) || 0;
                 const pricePerSqft = avgSqft > 0 ? avgPrice / avgSqft : 0;
                 
                 // Debug: Log data availability for first few rows
@@ -3730,20 +3798,17 @@
                             position: 'top',
                             onClick: function(e, legendItem, legend) {
                                 console.log('Legend onClick triggered:', { e, legendItem, legend });
-                                
-                                // Prevent default legend click behavior (toggling dataset visibility)  
+                                // Suppress the next document click to avoid immediate close
+                                __suppressNextDocumentClick = true;
+                                // Prevent default legend click behavior (toggling dataset visibility)
                                 if (e && e.stopPropagation) {
                                     e.stopPropagation();
                                 }
-                                
-                                // Get the development name from legend item
-                                const developmentName = legendItem.text || legendItem.label || 'Unknown Development';
-                                console.log('Development name from legend:', developmentName);
-                                
-                                // Show the development actions popup
-                                showDevelopmentActionsPopupFromChart(e, developmentName, legend.chart.canvas);
-                                
-                                // Return false to prevent default Chart.js behavior
+                                // Get the series name and strip icon if present
+                                let seriesName = legendItem.text || legendItem.label || 'Unknown';
+                                seriesName = String(seriesName).replace(/^🔗\s*/, '');
+                                // Always show popup. The popup will adapt to mode (development vs zone)
+                                showDevelopmentActionsPopupFromChart(e, seriesName, legend.chart.canvas);
                                 return false;
                             },
                             labels: {
@@ -3854,22 +3919,28 @@
             let x, y;
             
             // Try different ways to get coordinates depending on the event
-            if (event.native) {
+            if (event && event.native) {
                 // Chart.js provides native event - use client coordinates for fixed positioning
-                x = event.native.clientX || (rect.left + event.native.offsetX);
-                y = event.native.clientY || (rect.top + event.native.offsetY);
-            } else if (event.clientX && event.clientY) {
+                x = (typeof event.native.clientX === 'number') ? event.native.clientX : (rect.left + (event.native.offsetX || rect.width / 2));
+                y = (typeof event.native.clientY === 'number') ? event.native.clientY : (rect.top + (event.native.offsetY || 50));
+            } else if (event && typeof event.clientX === 'number' && typeof event.clientY === 'number') {
                 // Direct client coordinates (viewport relative)
                 x = event.clientX;
                 y = event.clientY;
-            } else if (event.pageX && event.pageY) {
+            } else if (event && typeof event.pageX === 'number' && typeof event.pageY === 'number') {
                 // Convert page coordinates to client coordinates
                 x = event.pageX - window.pageXOffset;
                 y = event.pageY - window.pageYOffset;
             } else {
                 // Fallback - center of canvas with offset (viewport relative)
-                x = rect.left + rect.width / 2;
-                y = rect.top + 50; // Near top of canvas
+                // If we have a tracked last mouse position, prefer that
+                if (window.__lastMouse && typeof window.__lastMouse.x === 'number' && typeof window.__lastMouse.y === 'number') {
+                    x = window.__lastMouse.x;
+                    y = window.__lastMouse.y;
+                } else {
+                    x = rect.left + rect.width / 2;
+                    y = rect.top + 50; // Near top of canvas
+                }
             }
             
             console.log('Calculated popup position (viewport relative):', { x, y });
@@ -3883,7 +3954,7 @@
             console.log('showDevelopmentActionsPopup called:', { event, developmentName });
             
             // Remove the link emoji from the development name if it exists
-            const cleanDevelopmentName = developmentName.replace('🔗 ', '');
+            const cleanDevelopmentName = String(developmentName || '').replace(/^🔗\s*/, '').trim();
             console.log('Clean development name:', cleanDevelopmentName);
             
             const popup = document.getElementById('developmentActionsPopup');
@@ -3900,10 +3971,17 @@
             
             // Set the development name
             title.textContent = cleanDevelopmentName;
+
+            // Always show Map button (works for Development and Zone)
+            try {
+                mapBtn.style.display = 'flex';
+            } catch (err) {
+                console.warn('Error adjusting Map button visibility:', err);
+            }
             
             // Position the popup near the mouse click (use clientX/Y for fixed positioning)
-            let x = (event.clientX || event.pageX || 200) + 10; // Default to 200 if no coordinates
-            let y = (event.clientY || event.pageY || 200) - 50; // Default to 200 if no coordinates
+            let x = (typeof event.clientX === 'number' ? event.clientX : (typeof event.pageX === 'number' ? (event.pageX - window.pageXOffset) : (window.__lastMouse ? window.__lastMouse.x : 200))) + 10; // Default to 200 if no coordinates
+            let y = (typeof event.clientY === 'number' ? event.clientY : (typeof event.pageY === 'number' ? (event.pageY - window.pageYOffset) : (window.__lastMouse ? window.__lastMouse.y : 200))) - 50; // Default to 200 if no coordinates
             
             // For debugging: always show at a visible location
             if (x < 50 || y < 50) {
@@ -3930,8 +4008,8 @@
             
             console.log('Final popup position:', { x, y });
             
-            popup.style.left = x + 'px';
-            popup.style.top = y + 'px';
+            popup.style.left = Math.round(x) + 'px';
+            popup.style.top = Math.round(y) + 'px';
             popup.style.display = 'block';
             popup.style.position = 'fixed';
             popup.style.zIndex = '9999';
@@ -3996,6 +4074,9 @@
             const loading = document.getElementById('mapLoading');
             const error = document.getElementById('mapError');
             const subtitle = document.getElementById('mapSubtitle');
+            const title = document.getElementById('mapTitle');
+            const loadingText = document.getElementById('mapLoadingText');
+            const errorContext = document.getElementById('mapErrorContext');
             
             if (!developmentName || !developmentName.trim()) {
                 showMapError('No development name provided.');
@@ -4003,7 +4084,11 @@
             }
             
             const cleanDevelopmentName = developmentName.trim();
+            const inZoneMode = (typeof selectionMode !== 'undefined' && selectionMode === 'zone');
+            title.textContent = inZoneMode ? 'Zone Parcels Map' : 'Development Parcels Map';
             subtitle.textContent = `Showing parcels for ${cleanDevelopmentName}`;
+            loadingText.textContent = inZoneMode ? 'Loading zone parcels...' : 'Loading development parcels...';
+            errorContext.textContent = inZoneMode ? 'Could not load parcel data for this zone.' : 'Could not load parcel data for this development.';
             
             // Show modal and loading state
             modal.style.display = 'block';
@@ -4012,7 +4097,10 @@
             
             try {
                 // Fetch parcel data
-                const response = await fetch(`${API_BASE}/development-parcels/${encodeURIComponent(cleanDevelopmentName)}`);
+                const url = inZoneMode
+                    ? `${API_BASE}/zone-parcels/${encodeURIComponent(cleanDevelopmentName)}`
+                    : `${API_BASE}/development-parcels/${encodeURIComponent(cleanDevelopmentName)}`;
+                const response = await fetch(url);
                 const result = await response.json();
                 
                 if (!response.ok || !result.success) {
@@ -4020,7 +4108,7 @@
                 }
                 
                 if (!result.data || !result.data.features || result.data.features.length === 0) {
-                    throw new Error('No parcel data found for this development');
+                    throw new Error(inZoneMode ? 'No parcel data found for this zone' : 'No parcel data found for this development');
                 }
                 
                 // Hide loading
@@ -4126,7 +4214,7 @@
                 border-radius: 12px 12px 0 0;
             ">
                 <div>
-                    <h2 style="margin: 0; color: #2c3e50; font-size: 24px; font-weight: 600;">Development Parcels Map</h2>
+                    <h2 id="mapTitle" style="margin: 0; color: #2c3e50; font-size: 24px; font-weight: 600;">Development Parcels Map</h2>
                     <p style="margin: 5px 0 0; color: #6c757d; font-size: 14px;" id="mapSubtitle">Loading development data...</p>
                 </div>
                 <button id="closeMapModal" style="
@@ -4175,7 +4263,7 @@
                             animation: spin 1s linear infinite;
                             margin: 0 auto 20px;
                         "></div>
-                        <p style="margin: 0; color: #2c3e50; font-size: 16px; font-weight: 500;">Loading development parcels...</p>
+                        <p id="mapLoadingText" style="margin: 0; color: #2c3e50; font-size: 16px; font-weight: 500;">Loading development parcels...</p>
                     </div>
                 </div>
 
@@ -4196,7 +4284,7 @@
                         <div style="color: #e74c3c; font-size: 48px; margin-bottom: 20px;">🗺️</div>
                         <h3 style="margin: 0 0 15px; color: #2c3e50; font-size: 20px;">Unable to Load Map</h3>
                         <p style="margin: 0; color: #6c757d; font-size: 14px;" id="mapErrorMessage">
-                            Could not load parcel data for this development.
+                            <span id="mapErrorContext">Could not load parcel data for this development.</span>
                         </p>
                     </div>
                 </div>

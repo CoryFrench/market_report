@@ -1336,6 +1336,144 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
   }
 });
 
+// Get parcel geometry data for zone map
+app.get('/api/zone-parcels/:zoneName', async (req, res) => {
+  try {
+    const zoneName = req.params.zoneName;
+
+    if (!zoneName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Zone name is required'
+      });
+    }
+
+    console.log('Fetching parcels for zone:', zoneName);
+
+    // Query parcels linked to the requested zone via development_data table, including tax sale data and MLS status
+    const query = `
+      WITH zone_parcels AS (
+        SELECT DISTINCT d.parcel_number
+        FROM waterfrontdata.development_data d
+        WHERE d.zone_name = $1
+      ),
+      combined AS (
+        SELECT 
+          p.gid,
+          p.parcelno,
+          p.geom,
+          t.property_control_number,
+          t.situs_address,
+          t.situs_address_city_name,
+          t.situs_address_zip_code,
+          t.development_name,
+          t.subdivision_name,
+          t.total_market_value,
+          t.sales_date_1,
+          t.sales_price_1,
+          t.land_use_description,
+          t.year_built,
+          t.square_foot_living_area,
+          t.number_of_bedrooms,
+          t.number_of_full_bathrooms,
+          t.number_of_half_bathrooms,
+          m.listing_id,
+          m.status AS mls_status,
+          m.status_change_date AS mls_status_change_date,
+          m.sold_date AS mls_sold_date
+        FROM geodata.palm_beach_county_fl p
+        JOIN zone_parcels zp ON zp.parcel_number = p.parcelno
+        LEFT JOIN tax.palm_beach_county_fl t ON t.parcel_number = p.parcelno
+        LEFT JOIN mls.vw_beaches_residential_developments m
+          ON m.parcel_id = t.property_control_number
+      ),
+      deduplicated AS (
+        SELECT 
+          c.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY c.parcelno
+            ORDER BY COALESCE(c.mls_status_change_date, c.mls_sold_date) DESC NULLS LAST
+          ) AS row_num
+        FROM combined c
+      )
+      SELECT 
+        gid,
+        parcelno,
+        ST_AsGeoJSON(ST_Transform(geom, 4326)) as geometry,
+        property_control_number,
+        situs_address,
+        situs_address_city_name,
+        situs_address_zip_code,
+        development_name,
+        subdivision_name,
+        total_market_value,
+        sales_date_1,
+        sales_price_1,
+        land_use_description,
+        year_built,
+        square_foot_living_area,
+        number_of_bedrooms,
+        number_of_full_bathrooms,
+        number_of_half_bathrooms,
+        mls_status,
+        mls_status_change_date,
+        mls_sold_date
+      FROM deduplicated
+      WHERE geom IS NOT NULL AND row_num = 1
+      ORDER BY parcelno;
+    `;
+
+    const result = await pool.query(query, [zoneName]);
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No parcels found for this zone',
+        data: []
+      });
+    }
+
+    const features = result.rows.map(row => ({
+      type: 'Feature',
+      geometry: JSON.parse(row.geometry),
+      properties: {
+        gid: row.gid,
+        parcelno: row.parcelno,
+        property_control_number: row.property_control_number,
+        address: row.situs_address,
+        city: row.situs_address_city_name,
+        zip_code: row.situs_address_zip_code,
+        development_name: row.development_name,
+        subdivision_name: row.subdivision_name,
+        last_sale_date: row.sales_date_1,
+        last_sale_price: row.sales_price_1,
+        land_use_description: row.land_use_description,
+        market_value: row.total_market_value,
+        year_built: row.year_built,
+        sqft_living: row.square_foot_living_area,
+        bedrooms: row.number_of_bedrooms,
+        full_baths: row.number_of_full_bathrooms,
+        half_baths: row.number_of_half_bathrooms,
+        mls_status: row.mls_status,
+        mls_status_change_date: row.mls_status_change_date,
+        mls_sold_date: row.mls_sold_date
+      }
+    }));
+
+    const geojson = { type: 'FeatureCollection', features };
+
+    res.json({ success: true, count: result.rows.length, data: geojson });
+
+  } catch (error) {
+    console.error('Error fetching zone parcels:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch zone parcels',
+      message: error.message
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -1385,6 +1523,7 @@ app.listen(PORT, async () => {
   console.log(`   PUT /api/reports/:reportId/area-comparison - Update area comparison for report`);
   console.log(`   GET /api/development-stats/:developmentName - Development market statistics`);
   console.log(`   GET /api/development-parcels/:developmentName - Development parcel geometry for map`);
+  console.log(`   GET /api/zone-parcels/:zoneName - Zone parcel geometry for map`);
   console.log(`   GET /api/fred-data?seriesId=&startDate=&endDate= - FRED economic data`);
   console.log(`   GET /api/fred-series?level=COUNTY - FRED series options for Areas of Interest`);
   console.log(`   GET /api/counties?state=StateName - Counties by state for FRED comparison`);
