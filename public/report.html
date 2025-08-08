@@ -36,7 +36,8 @@
                 max-width: 45% !important;
             }
             
-            .container .letterhead .header-info .header-item:nth-child(3) {
+            /* Hide ZIP block on mobile */
+            #zipHeaderItem {
                 display: none !important;
                 visibility: hidden !important;
                 opacity: 0 !important;
@@ -68,7 +69,8 @@
                 max-width: 45% !important;
             }
             
-            .container .letterhead .header-info .header-item:nth-child(3) {
+            /* Hide ZIP block on small mobile */
+            #zipHeaderItem {
                 display: none !important;
                 visibility: hidden !important;
                 opacity: 0 !important;
@@ -80,6 +82,26 @@
                 padding: 0 !important;
                 overflow: hidden !important;
             }
+        }
+
+        /* Desktop/tablet header layout */
+        .container .letterhead .header-info {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr auto;
+            align-items: center;
+            gap: 16px;
+            padding: 8px 0;
+        }
+        .container .letterhead .header-info .header-item {
+            text-align: center;
+        }
+        .container .letterhead .header-info .header-logo {
+            text-align: center;
+        }
+        #headerLogo {
+            max-height: 60px;
+            width: auto;
+            display: inline-block;
         }
         
         /* Development Chart Legend Clickable Styling */
@@ -130,11 +152,14 @@
                     <div class="header-label">Prepared by</div>
                     <div class="header-value" id="agentName">Agent Name</div>
                 </div>
+                <div class="header-logo">
+                    <img id="headerLogo" src="/logo.png" alt="Logo" />
+                </div>
                 <div class="header-item">
                     <div class="header-label">Prepared for</div>
                     <div class="header-value" id="buyerName">Buyer Name</div>
                 </div>
-                <div class="header-item">
+                <div class="header-item" id="zipHeaderItem">
                     <div class="header-label">Zip</div>
                     <div class="header-value" id="zipCode">ZIP Code</div>
                 </div>
