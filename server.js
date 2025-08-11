@@ -795,59 +795,118 @@ app.get('/api/property-lookup', async (req, res) => {
       return res.status(400).json({ success: false, error: 'address query param is required' });
     }
 
-    // Build fuzzy pattern from address (replace spaces with wildcard for flexible matching)
-    const normalizedAddress = String(address).trim();
+    // Build normalized strings and helpful tokens for ranking
+    const normalizedAddress = String(address).trim().replace(/\s+/g, ' ');
     const likePattern = `%${normalizedAddress.replace(/\s+/g, '%')}%`;
 
+    // Extract house number prefix (e.g., "123 ") for anchored match
+    const houseNumberMatch = normalizedAddress.match(/^\s*(\d+)\b/);
+    const houseNumber = houseNumberMatch ? houseNumberMatch[1] : null;
+    const housePrefix = houseNumber ? `${houseNumber} %` : null;
+
+    // Derive a base street phrase (remove leading number and cut off at unit designators)
+    const afterNumber = normalizedAddress.replace(/^\s*\d+\s*/, '');
+    const streetUntilUnit = afterNumber.split(/\b(?:APT|APARTMENT|UNIT|STE|SUITE|#)\b/i)[0] || '';
+    const streetTokens = streetUntilUnit.trim().split(/\s+/).filter(t => t.length > 2);
+    const baseStreet = streetTokens.length > 0 ? streetTokens.slice(0, Math.min(2, streetTokens.length)).join(' ') : null;
+    const streetLike = baseStreet ? `%${baseStreet}%` : null;
+
     // We will search tax records, optionally restricting by development via waterfrontdata.development_data
-    // Prefer exact-ish matches first using ILIKE on situs_address and optional city/zip filters
-    const params = [];
-    let whereClauses = ['t.situs_address ILIKE $1'];
-    params.push(likePattern);
+    // Build WHERE with placeholders offset after scoring params to keep numbering correct
+    const whereClauses = [];
+    const whereParams = [];
+    const baseIndex = 7; // scoring params occupy $1..$7
+    const makePlaceholder = () => `$${baseIndex + whereParams.length + 1}`;
+
+    // Address pattern
+    whereClauses.push(`t.situs_address ILIKE ${makePlaceholder()}::text`);
+    whereParams.push(likePattern);
 
     if (city && String(city).trim().length > 0) {
-      params.push(`%${String(city).trim()}%`);
-      whereClauses.push(`t.situs_address_city_name ILIKE $${params.length}`);
+      whereClauses.push(`t.situs_address_city_name ILIKE ${makePlaceholder()}::text`);
+      whereParams.push(`%${String(city).trim()}%`);
     }
     if (zip && String(zip).trim().length > 0) {
-      params.push(String(zip).trim());
-      whereClauses.push(`t.situs_address_zip_code = $${params.length}`);
+      whereClauses.push(`t.situs_address_zip_code = ${makePlaceholder()}::text`);
+      whereParams.push(String(zip).trim());
     }
 
     let joinClause = '';
+    let ddScoreClause = '';
     if (development && String(development).trim().length > 0) {
       // Restrict to parcels in this development if provided
       joinClause = 'LEFT JOIN waterfrontdata.development_data dd ON dd.parcel_number = t.property_control_number';
-      params.push(String(development).trim());
-      whereClauses.push(`dd.development_name = $${params.length}`);
+      whereClauses.push(`dd.development_name = ${makePlaceholder()}::text`);
+      whereParams.push(String(development).trim());
+      // Only include dd score term when the join is present (uses scoring param $7)
+      ddScoreClause = ` + (CASE WHEN COALESCE($7::text, '') <> '' AND dd.development_name = $7::text THEN 5 ELSE 0 END)`;
     }
 
     if (subdivision && String(subdivision).trim().length > 0) {
       // Also try to match subdivision when available
-      params.push(String(subdivision).trim());
-      whereClauses.push(`t.subdivision_name = $${params.length}`);
+      whereClauses.push(`t.subdivision_name = ${makePlaceholder()}::text`);
+      whereParams.push(String(subdivision).trim());
     }
 
+    // Build ranking-aware query. We pass potential match parameters in fixed positions for CASE scoring.
+    // Parameter order:
+    //  1: exact normalizedAddress
+    //  2: housePrefix (e.g., '123 %')
+    //  3: streetLike (e.g., '%OCEAN BLVD%')
+    //  4: zip (exact)
+    //  5: city (ILIKE)
+    //  6: subdivision (exact)
+    //  7: development (exact; only used if join present)
+    //  8+: dynamic filters built earlier (likePattern first, then optional city/zip filters, then dev/subdivision if not already positioned)
+
+    // Prepare fixed scoring params
+    const scoringParams = [
+      String(normalizedAddress || ''),
+      housePrefix ? String(housePrefix) : '',
+      streetLike ? String(streetLike) : '',
+      (zip && String(zip).trim().length > 0) ? String(zip).trim() : '',
+      (city && String(city).trim().length > 0) ? `%${String(city).trim()}%` : '',
+      (subdivision && String(subdivision).trim().length > 0) ? String(subdivision).trim() : '',
+      (development && String(development).trim().length > 0) ? String(development).trim() : ''
+    ];
+
+    // Compose the full param list: scoring params first (1..7), then WHERE params ($8..)
+    const fullParams = [...scoringParams, ...whereParams];
+
     const sql = `
-      SELECT 
-        t.property_control_number,
-        t.situs_address,
-        t.situs_address_city_name,
-        t.situs_address_zip_code,
-        t.year_built,
-        t.square_foot_living_area,
-        t.number_of_bedrooms,
-        t.number_of_full_bathrooms,
-        t.number_of_half_bathrooms,
-        t.total_market_value
-      FROM tax.palm_beach_county_fl t
-      ${joinClause}
-      WHERE ${whereClauses.join(' AND ')}
-      ORDER BY LENGTH(t.situs_address) ASC
+      WITH candidates AS (
+        SELECT 
+          t.property_control_number,
+          t.situs_address,
+          t.situs_address_city_name,
+          t.situs_address_zip_code,
+          t.year_built,
+          t.square_foot_living_area,
+          t.number_of_bedrooms,
+          t.number_of_full_bathrooms,
+          t.number_of_half_bathrooms,
+          t.total_market_value,
+          (
+            (CASE WHEN t.situs_address = $1::text THEN 100 ELSE 0 END)
+          + (CASE WHEN COALESCE($2::text, '') <> '' AND t.situs_address ILIKE $2::text THEN 50 ELSE 0 END)
+          + (CASE WHEN COALESCE($3::text, '') <> '' AND t.situs_address ILIKE $3::text THEN 30 ELSE 0 END)
+          + (CASE WHEN COALESCE($4::text, '') <> '' AND t.situs_address_zip_code = $4::text THEN 20 ELSE 0 END)
+          + (CASE WHEN COALESCE($5::text, '') <> '' AND t.situs_address_city_name ILIKE $5::text THEN 10 ELSE 0 END)
+          + (CASE WHEN COALESCE($6::text, '') <> '' AND t.subdivision_name = $6::text THEN 5 ELSE 0 END)
+          ${ddScoreClause}
+          ) AS match_score
+        FROM tax.palm_beach_county_fl t
+        ${joinClause}
+        WHERE ${whereClauses.join(' AND ')}
+      )
+      SELECT *
+      FROM candidates
+      ORDER BY match_score DESC, LENGTH(situs_address) ASC
       LIMIT 5;
     `;
 
-    const { rows } = await pool.query(sql, params);
+    const { query } = require('./db');
+    const { rows } = await query(sql, fullParams);
 
     if (!rows || rows.length === 0) {
       return res.json({ success: true, count: 0, data: [] });

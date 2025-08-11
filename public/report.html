@@ -11,6 +11,11 @@
     <!-- Leaflet CSS and JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Define API_BASE early so all subsequent scripts can use it
+        window.API_BASE = window.location.pathname.startsWith('/report/') ? '/report/api' : '/api';
+        const API_BASE = window.API_BASE;
+    </script>
     <style>
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -511,7 +516,7 @@
             
             try {
                 console.log('Loading report with slug:', urlSlug);
-                const response = await fetch(`/api/reports/complete/${urlSlug}`);
+                const response = await fetch(`${API_BASE}/reports/complete/${urlSlug}`);
                 const result = await response.json();
 
                 console.log('API Response:', { status: response.status, result });
@@ -631,7 +636,7 @@
                     if (data.zip_code) params.set('zip', data.zip_code);
                     if (data.development) params.set('development', data.development);
                     if (data.subdivision) params.set('subdivision', data.subdivision);
-                    const resp = await fetch(`/api/property-lookup?${params.toString()}`);
+                    const resp = await fetch(`${API_BASE}/property-lookup?${params.toString()}`);
                     if (resp.ok) {
                         const result = await resp.json();
                         if (result && result.success && Array.isArray(result.data) && result.data.length > 0) {
@@ -718,7 +723,7 @@
             
             try {
                 // Fetch chart data
-                const response = await fetch(`/api/development-chart/${encodeURIComponent(developmentName)}`);
+                const response = await fetch(`${API_BASE}/development-chart/${encodeURIComponent(developmentName)}`);
                 const result = await response.json();
                 
                 if (response.ok && result.success) {
@@ -1109,7 +1114,7 @@
                     `;
                 }
                 
-                const response = await fetch(`/api/development-stats/${encodeURIComponent(developmentName)}`);
+                const response = await fetch(`${API_BASE}/development-stats/${encodeURIComponent(developmentName)}`);
                 const result = await response.json();
                 
                 if (response.ok && result.success) {
@@ -1259,7 +1264,7 @@
             
             try {
                 // Load saved FRED charts from database
-                const response = await fetch(`/api/reports/${reportId}/fred-charts`);
+                const response = await fetch(`${API_BASE}/reports/${reportId}/fred-charts`);
                 const result = await response.json();
                 
                 if (response.ok && result.success && result.data.length > 0) {
@@ -1314,7 +1319,7 @@
                 const leftSeriesId = document.getElementById('leftChartSelect').value;
                 const rightSeriesId = document.getElementById('rightChartSelect').value;
                 
-                const response = await fetch(`/api/reports/${reportId}/fred-charts`, {
+                const response = await fetch(`${API_BASE}/reports/${reportId}/fred-charts`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
@@ -1349,7 +1354,7 @@
         // Function to load individual FRED chart
         async function loadFredChart(seriesId, containerId, startDate, endDate, title, color) {
             try {
-                const response = await fetch(`/api/fred-data?seriesId=${seriesId}&startDate=${startDate}&endDate=${endDate}`);
+                const response = await fetch(`${API_BASE}/fred-data?seriesId=${seriesId}&startDate=${startDate}&endDate=${endDate}`);
                 const data = await response.json();
                 
                 if (data.observations && data.observations.length > 0) {
@@ -1645,7 +1650,7 @@
         async function loadSavedComparison() {
             try {
                 console.log('Loading saved comparison for report:', urlSlug);
-                const response = await fetch(`/api/reports/${urlSlug}/area-comparison`);
+                const response = await fetch(`${API_BASE}/reports/${urlSlug}/area-comparison`);
                 const result = await response.json();
                 
                 if (response.ok && result.success && result.data) {
@@ -1710,7 +1715,7 @@
                 // We need to find which state this county belongs to
                 // We'll try each state until we find the county
                 for (const state of availableStates) {
-                    const response = await fetch(`/api/counties?state=${encodeURIComponent(state)}`);
+                    const response = await fetch(`${API_BASE}/counties?state=${encodeURIComponent(state)}`);
                     const result = await response.json();
                     
                     if (response.ok && result.success) {
@@ -1886,7 +1891,7 @@
             }
             
             try {
-                const response = await fetch(`/api/counties?state=${encodeURIComponent(stateSelect.value)}`);
+                const response = await fetch(`${API_BASE}/counties?state=${encodeURIComponent(stateSelect.value)}`);
                 const result = await response.json();
                 
                 if (!response.ok || !result.success) {
@@ -1962,7 +1967,7 @@
         async function clearSavedComparison() {
             try {
                 // Save empty data to effectively clear the comparison
-                const response = await fetch(`/api/reports/${urlSlug}/area-comparison`, {
+                const response = await fetch(`${API_BASE}/reports/${urlSlug}/area-comparison`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
@@ -2099,7 +2104,7 @@
                 // Extract county IDs from selections
                 const countyIds = selections.map(selection => selection.county);
                 
-                const response = await fetch(`/api/reports/${urlSlug}/area-comparison`, {
+                const response = await fetch(`${API_BASE}/reports/${urlSlug}/area-comparison`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
@@ -2128,7 +2133,7 @@
             const startDate = new Date(new Date().setFullYear(new Date().getFullYear() - 5))
                 .toISOString().split('T')[0];
             
-            const response = await fetch(`/api/fred-data?seriesId=${seriesId}&startDate=${startDate}&endDate=${endDate}`);
+            const response = await fetch(`${API_BASE}/fred-data?seriesId=${seriesId}&startDate=${startDate}&endDate=${endDate}`);
             const data = await response.json();
             
             if (!response.ok) {
@@ -2525,7 +2530,7 @@
             
             try {
                 // Fetch parcel data
-                const response = await fetch(`/api/development-parcels/${encodeURIComponent(currentDevelopmentName)}`);
+                const response = await fetch(`${API_BASE}/development-parcels/${encodeURIComponent(currentDevelopmentName)}`);
                 const result = await response.json();
                 
                 if (!response.ok || !result.success) {
@@ -3113,7 +3118,8 @@
         setTimeout(waitForElements, 1000);
 
         // API base path (supports reverse-proxy /report prefix)
-        const API_BASE = window.location.pathname.startsWith('/report/') ? '/report/api' : '/api';
+        // Already defined at top; reuse to avoid redeclaration
+        // const API_BASE = window.location.pathname.startsWith('/report/') ? '/report/api' : '/api';
 
         // Development/Zone Comparison Functionality
         let selectionMode = 'development'; // 'development' | 'zone'
