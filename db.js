@@ -82,7 +82,7 @@ const dbQueries = {
         const chartId = existing.rows[0].chart_id;
         await client.query(`
           UPDATE customer.report_charts
-          SET series_id = $1, stats_category = $2, locations = $3
+          SET series_id = $1, stats_category = $2, locations = $3::text[]
           WHERE chart_id = $4
         `, [chartType || null, mode || null, names, chartId]);
       } else {
@@ -94,7 +94,7 @@ const dbQueries = {
 
         await client.query(`
           INSERT INTO customer.report_charts (chart_id, report_id, chart_type, series_id, stats_category, locations)
-          VALUES ($1, $2, 'neighbourhood_comparison', $3, $4, $5)
+          VALUES ($1, $2, 'neighbourhood_comparison', $3, $4, $5::text[])
         `, [nextChartId, reportId, chartType || null, mode || null, names]);
       }
 

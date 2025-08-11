@@ -301,19 +301,6 @@ app.put('/api/reports/:reportId/neighborhood-comparison', async (req, res) => {
       ? names.map(n => String(n))
       : [];
 
-    // Convert to PostgreSQL text[] literal to avoid driver array typing issues
-    const toPgTextArray = (arr) => {
-      const escaped = arr.map((val) => {
-        const s = String(val)
-          .replace(/\\/g, "\\\\")  // escape backslashes
-          .replace(/"/g, '\\"')       // escape quotes
-          .replace(/\{/g, "(")         // avoid curly braces
-          .replace(/\}/g, ")");
-        return `"${s}"`;
-      });
-      return `{${escaped.join(',')}}`;
-    };
-    const namesArrayLiteral = toPgTextArray(normalizedNames);
 
     // Validate inputs
     if (!mode || !['development', 'zone'].includes(String(mode))) {
@@ -337,10 +324,13 @@ app.put('/api/reports/:reportId/neighborhood-comparison', async (req, res) => {
       reportId = matchingReport.report_id;
     }
 
-    await dbQueries.upsertNeighborhoodComparison(reportId, mode, namesArrayLiteral, chartType || null);
+    await dbQueries.upsertNeighborhoodComparison(reportId, mode, normalizedNames, chartType || null);
     res.json({ success: true, message: 'Neighbourhood comparison updated successfully' });
   } catch (error) {
-    console.error('Error updating neighbourhood comparison:', error);
+    console.error('Error updating neighbourhood comparison:', {
+      message: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ success: false, error: 'Failed to update neighbourhood comparison', message: error.message });
   }
 });
