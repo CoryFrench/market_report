@@ -726,19 +726,7 @@
                                     if (addressBlock) addressBlock.style.display = 'none';
                                 }
                             }
-                            // If we restored selections, auto-generate the chart using the saved chart type
-                            try {
-                                if (payload.series_id) {
-                                    // Map stored series_id to our UI chart type if possible
-                                    const type = String(payload.series_id);
-                                    if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
-                                        switchDevelopmentChart(type);
-                                    }
-                                }
-                                await generateDevelopmentComparison();
-                            } catch (autoErr) {
-                                console.warn('Failed to auto-generate neighborhood chart from saved selection:', autoErr);
-                            }
+                            // Neighborhood chart auto-restore happens during initializeDevelopmentComparison()
                         }
                     }
                 } catch (lookupErr) {
@@ -3266,6 +3254,19 @@
                                 }
                             });
                             updateDevelopmentButtons();
+
+                            // Restore chart type if stored and auto-generate chart
+                            try {
+                                if (payload.series_id) {
+                                    const type = String(payload.series_id);
+                                    if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
+                                        switchDevelopmentChart(type);
+                                    }
+                                }
+                                await generateDevelopmentComparison();
+                            } catch (autoErr) {
+                                console.warn('Failed to auto-generate neighborhood chart from saved selection:', autoErr);
+                            }
                         }
                     }
                 } catch (loadSavedErr) {
