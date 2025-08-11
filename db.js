@@ -82,9 +82,9 @@ const dbQueries = {
         const chartId = existing.rows[0].chart_id;
         await client.query(`
           UPDATE customer.report_charts
-          SET series_id = $1, stats_category = $2, locations = $3::text[]
+          SET series_id = $1, stats_category = $2, locations = $3
           WHERE chart_id = $4
-        `, [chartType || null, mode || null, names || [], chartId]);
+        `, [chartType || null, mode || null, names, chartId]);
       } else {
         const maxChartIdResult = await client.query(`
           SELECT COALESCE(MAX(chart_id), 0) as max_chart_id
@@ -94,8 +94,8 @@ const dbQueries = {
 
         await client.query(`
           INSERT INTO customer.report_charts (chart_id, report_id, chart_type, series_id, stats_category, locations)
-          VALUES ($1, $2, 'neighbourhood_comparison', $3, $4, $5::text[])
-        `, [nextChartId, reportId, chartType || null, mode || null, names || []]);
+          VALUES ($1, $2, 'neighbourhood_comparison', $3, $4, $5)
+        `, [nextChartId, reportId, chartType || null, mode || null, names]);
       }
 
       await client.query('COMMIT');
