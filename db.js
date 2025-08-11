@@ -488,6 +488,41 @@ const dbQueries = {
     
     return await query(queryText, [reportId]);
   }
+  ,
+
+  // Neighbourhood comparison persistence
+  upsertNeighbourhoodComparison: async (reportId, seriesId, names) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const existing = await client.query(
+        `SELECT chart_id FROM customer.report_charts WHERE report_id = $1 AND chart_type = 'neighbourhood_comparison'`,
+        [reportId]
+      );
+      if (existing.rowCount > 0) {
+        const chartId = existing.rows[0].chart_id;
+        await client.query(
+          `UPDATE customer.report_charts SET series_id = $1, stats_category = NULL, locations = $2::text[] WHERE chart_id = $3`,
+          [seriesId || null, names || [], chartId]
+        );
+      } else {
+        const maxChartIdResult = await client.query(`SELECT COALESCE(MAX(chart_id), 0) as max_chart_id FROM customer.report_charts`);
+        const nextChartId = maxChartIdResult.rows[0].max_chart_id + 1;
+        await client.query(
+          `INSERT INTO customer.report_charts (chart_id, report_id, chart_type, series_id, stats_category, locations)
+           VALUES ($1, $2, 'neighbourhood_comparison', $3, NULL, $4::text[])`,
+          [nextChartId, reportId, seriesId || null, names || []]
+        );
+      }
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 };
 
 // Graceful shutdown

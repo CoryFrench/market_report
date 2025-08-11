@@ -263,6 +263,31 @@ app.put('/api/reports/:reportId/area-comparison', async (req, res) => {
   }
 });
 
+// Minimal save API for neighbourhood comparison
+app.put('/api/reports/:reportId/neighbourhood-comparison', async (req, res) => {
+  try {
+    const { reportId: urlSlug } = req.params;
+    const { seriesId, names } = req.body;
+    if (!Array.isArray(names) || names.length === 0) {
+      return res.status(400).json({ success: false, error: 'names (array) required' });
+    }
+    let reportId;
+    if (/^\d+$/.test(urlSlug)) {
+      reportId = urlSlug;
+    } else {
+      const expectedUrl = `/reports/${urlSlug}`;
+      const basicResult = await dbQueries.getReportBasic();
+      const matchingReport = basicResult.rows.find(r => r.report_url === expectedUrl);
+      if (!matchingReport) return res.status(404).json({ success: false, error: 'Report not found' });
+      reportId = matchingReport.report_id;
+    }
+    await dbQueries.upsertNeighbourhoodComparison(reportId, seriesId || null, names.map(String));
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving neighbourhood comparison:', error);
+    res.status(500).json({ success: false, error: 'Failed to save neighbourhood comparison', message: error.message });
+  }
+});
 // Get all report home info
 app.get('/api/reports/home-info', async (req, res) => {
   try {
