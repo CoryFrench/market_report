@@ -263,6 +263,68 @@ app.put('/api/reports/:reportId/area-comparison', async (req, res) => {
   }
 });
 
+// Get neighborhood comparison (development/zone) for a specific report
+app.get('/api/reports/:reportId/neighborhood-comparison', async (req, res) => {
+  try {
+    const { reportId: urlSlug } = req.params;
+
+    // Resolve reportId from slug or numeric id
+    let reportId;
+    if (/^\d+$/.test(urlSlug)) {
+      reportId = urlSlug;
+    } else {
+      const expectedUrl = `/reports/${urlSlug}`;
+      const basicResult = await dbQueries.getReportBasic();
+      const matchingReport = basicResult.rows.find(r => r.report_url === expectedUrl);
+      if (!matchingReport) {
+        return res.status(404).json({ success: false, error: 'Report not found' });
+      }
+      reportId = matchingReport.report_id;
+    }
+
+    const result = await dbQueries.getNeighborhoodComparison(reportId);
+    res.json({ success: true, data: result.rows[0] || null });
+  } catch (error) {
+    console.error('Error fetching neighborhood comparison:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch neighborhood comparison', message: error.message });
+  }
+});
+
+// Update neighborhood comparison for a specific report
+app.put('/api/reports/:reportId/neighborhood-comparison', async (req, res) => {
+  try {
+    const { reportId: urlSlug } = req.params;
+    const { mode, names, chartType } = req.body;
+
+    // Validate inputs
+    if (!mode || !['development', 'zone'].includes(String(mode))) {
+      return res.status(400).json({ success: false, error: 'mode must be development or zone' });
+    }
+    if (!Array.isArray(names) || names.length === 0) {
+      return res.status(400).json({ success: false, error: 'names must be a non-empty array' });
+    }
+
+    // Resolve reportId from slug or numeric id
+    let reportId;
+    if (/^\d+$/.test(urlSlug)) {
+      reportId = urlSlug;
+    } else {
+      const expectedUrl = `/reports/${urlSlug}`;
+      const basicResult = await dbQueries.getReportBasic();
+      const matchingReport = basicResult.rows.find(r => r.report_url === expectedUrl);
+      if (!matchingReport) {
+        return res.status(404).json({ success: false, error: 'Report not found' });
+      }
+      reportId = matchingReport.report_id;
+    }
+
+    await dbQueries.upsertNeighborhoodComparison(reportId, mode, names, chartType || null);
+    res.json({ success: true, message: 'Neighborhood comparison updated successfully' });
+  } catch (error) {
+    console.error('Error updating neighborhood comparison:', error);
+    res.status(500).json({ success: false, error: 'Failed to update neighborhood comparison', message: error.message });
+  }
+});
 // Get all report home info
 app.get('/api/reports/home-info', async (req, res) => {
   try {

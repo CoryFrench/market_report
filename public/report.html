@@ -3223,6 +3223,41 @@
                     autoSelectReportDevelopment();
                 }
                 setupDevelopmentComparisonEventHandlers();
+                // Load saved neighborhood comparison selection if exists
+                try {
+                    const resp = await fetch(`${API_BASE}/reports/${urlSlug}/neighborhood-comparison`);
+                    if (resp.ok) {
+                        const saved = await resp.json();
+                        const payload = saved && saved.data ? saved.data : null;
+                        if (payload && Array.isArray(payload.locations) && payload.locations.length > 0) {
+                            // Switch mode if needed
+                            if (payload.stats_category === 'zone') {
+                                selectionMode = 'zone';
+                                updateDevZoneStaticLabels();
+                                if (zonesList.length === 0) await loadZonesList();
+                            }
+                            // Rebuild number of selects
+                            developmentSelectionCount = payload.locations.length;
+                            const container = document.getElementById('development-selections');
+                            if (container) container.innerHTML = '';
+                            populateInitialDevelopmentDropdowns();
+                            for (let i = 2; i <= developmentSelectionCount; i++) addDevelopmentSelection();
+                            // Populate values
+                            const list = selectionMode === 'development' ? developmentsList : zonesList;
+                            payload.locations.forEach((name, idx) => {
+                                const selectEl = document.getElementById(`development-select-${idx + 1}`);
+                                if (selectEl) {
+                                    populateDevelopmentDropdown(selectEl);
+                                    const match = (list || []).find(item => (item.development_name || item.zone_name || item.name) === name);
+                                    selectEl.value = match ? (match.development_name || match.zone_name || match.name) : name;
+                                }
+                            });
+                            updateDevelopmentButtons();
+                        }
+                    }
+                } catch (loadSavedErr) {
+                    console.warn('No saved neighborhood comparison found or failed to load:', loadSavedErr);
+                }
             } catch (error) {
                 console.error('Error initializing development comparison:', error);
             }
@@ -3694,6 +3729,21 @@
                 
                 // Process and display the data
                 displayDevelopmentComparisonChart(data, selections);
+
+                // Persist neighborhood selection for this report
+                try {
+                    await fetch(`${API_BASE}/reports/${urlSlug}/neighborhood-comparison`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            mode: selectionMode === 'development' ? 'development' : 'zone',
+                            names: selections,
+                            chartType: currentDevelopmentChart || 'sales'
+                        })
+                    });
+                } catch (persistErr) {
+                    console.warn('Failed to persist neighborhood comparison selection:', persistErr);
+                }
                 
                 // Switch to chart view and show chart elements
                 showDevelopmentChartView();

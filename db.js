@@ -55,6 +55,59 @@ const dbQueries = {
     return await query(baseQuery);
   },
 
+  // Get neighborhood comparison (developments/zones) for a specific report
+  getNeighborhoodComparison: async (reportId) => {
+    const queryText = `
+      SELECT report_id, chart_id, series_id, stats_category, locations
+      FROM customer.report_charts
+      WHERE report_id = $1 AND chart_type = 'neighborhood_comparison'
+      LIMIT 1
+    `;
+    return await query(queryText, [reportId]);
+  },
+
+  // Upsert neighborhood comparison for a report
+  upsertNeighborhoodComparison: async (reportId, mode, names, chartType) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const existing = await client.query(`
+        SELECT chart_id
+        FROM customer.report_charts
+        WHERE report_id = $1 AND chart_type = 'neighborhood_comparison'
+      `, [reportId]);
+
+      if (existing.rowCount > 0) {
+        const chartId = existing.rows[0].chart_id;
+        await client.query(`
+          UPDATE customer.report_charts
+          SET series_id = $1, stats_category = $2, locations = $3
+          WHERE chart_id = $4
+        `, [chartType || null, mode || null, names || [], chartId]);
+      } else {
+        const maxChartIdResult = await client.query(`
+          SELECT COALESCE(MAX(chart_id), 0) as max_chart_id
+          FROM customer.report_charts
+        `);
+        const nextChartId = maxChartIdResult.rows[0].max_chart_id + 1;
+
+        await client.query(`
+          INSERT INTO customer.report_charts (chart_id, report_id, chart_type, series_id, stats_category, locations)
+          VALUES ($1, $2, 'neighborhood_comparison', $3, $4, $5)
+        `, [nextChartId, reportId, chartType || null, mode || null, names || []]);
+      }
+
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
   // Get report charts data
   getReportCharts: async (reportId = null) => {
     const baseQuery = `
