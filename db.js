@@ -399,7 +399,7 @@ const dbQueries = {
     const queryText = `
       SELECT report_id, chart_id, series_id, locations
       FROM customer.report_charts
-      WHERE report_id = $1 AND chart_type = 'area_comparison'
+      WHERE report_id = $1 AND chart_type = 'county_comparison'
       LIMIT 1
     `;
     return await query(queryText, [reportId]);
@@ -416,7 +416,7 @@ const dbQueries = {
       const existingComparison = await client.query(`
         SELECT chart_id
         FROM customer.report_charts 
-        WHERE report_id = $1 AND chart_type = 'area_comparison'
+        WHERE report_id = $1 AND chart_type = 'county_comparison'
       `, [reportId]);
 
       if (existingComparison.rowCount > 0) {
@@ -441,7 +441,7 @@ const dbQueries = {
         // Insert new comparison
         await client.query(`
           INSERT INTO customer.report_charts (chart_id, report_id, chart_type, series_id, stats_category, locations)
-          VALUES ($1, $2, 'area_comparison', $3, null, $4)
+          VALUES ($1, $2, 'county_comparison', $3, null, $4)
         `, [nextChartId, reportId, seriesId, countyIds]);
       }
 

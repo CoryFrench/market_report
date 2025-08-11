@@ -169,7 +169,7 @@ app.put('/api/reports/:reportId/fred-charts', async (req, res) => {
   }
 });
 
-// Get area comparison for a specific report
+// Get county comparison for a specific report
 app.get('/api/reports/:reportId/area-comparison', async (req, res) => {
   try {
     const { reportId: urlSlug } = req.params;
@@ -212,7 +212,7 @@ app.get('/api/reports/:reportId/area-comparison', async (req, res) => {
   }
 });
 
-// Update area comparison for a specific report
+// Update county comparison for a specific report
 app.put('/api/reports/:reportId/area-comparison', async (req, res) => {
   try {
     const { reportId: urlSlug } = req.params;
