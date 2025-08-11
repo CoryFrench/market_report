@@ -3255,18 +3255,27 @@
                             });
                             updateDevelopmentButtons();
 
-                            // Restore chart type if stored and auto-generate chart
-                            try {
-                                if (payload.series_id) {
-                                    const type = String(payload.series_id);
-                                    if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
-                                        switchDevelopmentChart(type);
-                                    }
+                            // Restore chart type if stored and auto-generate chart safely after first paint
+                            const schedule = (fn) => {
+                                if ('requestIdleCallback' in window) {
+                                    window.requestIdleCallback(() => fn(), { timeout: 2000 });
+                                } else {
+                                    setTimeout(fn, 0);
                                 }
-                                await generateDevelopmentComparison();
-                            } catch (autoErr) {
-                                console.warn('Failed to auto-generate neighborhood chart from saved selection:', autoErr);
-                            }
+                            };
+                            schedule(async () => {
+                                try {
+                                    if (payload.series_id) {
+                                        const type = String(payload.series_id);
+                                        if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
+                                            switchDevelopmentChart(type);
+                                        }
+                                    }
+                                    await generateDevelopmentComparison();
+                                } catch (autoErr) {
+                                    console.warn('Failed to auto-generate neighborhood chart from saved selection:', autoErr);
+                                }
+                            });
                         }
                     }
                 } catch (loadSavedErr) {
