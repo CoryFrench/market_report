@@ -263,7 +263,7 @@ app.put('/api/reports/:reportId/area-comparison', async (req, res) => {
   }
 });
 
-// Get neighborhood comparison (development/zone) for a specific report
+// Get neighbourhood comparison (development/zone) for a specific report
 app.get('/api/reports/:reportId/neighborhood-comparison', async (req, res) => {
   try {
     const { reportId: urlSlug } = req.params;
@@ -290,17 +290,22 @@ app.get('/api/reports/:reportId/neighborhood-comparison', async (req, res) => {
   }
 });
 
-// Update neighborhood comparison for a specific report
+// Update neighbourhood comparison for a specific report
 app.put('/api/reports/:reportId/neighborhood-comparison', async (req, res) => {
   try {
     const { reportId: urlSlug } = req.params;
     const { mode, names, chartType } = req.body;
 
+    // Normalize names to array of strings
+    const normalizedNames = Array.isArray(names)
+      ? names.map(n => String(n))
+      : [];
+
     // Validate inputs
     if (!mode || !['development', 'zone'].includes(String(mode))) {
       return res.status(400).json({ success: false, error: 'mode must be development or zone' });
     }
-    if (!Array.isArray(names) || names.length === 0) {
+    if (!Array.isArray(normalizedNames) || normalizedNames.length === 0) {
       return res.status(400).json({ success: false, error: 'names must be a non-empty array' });
     }
 
@@ -318,11 +323,11 @@ app.put('/api/reports/:reportId/neighborhood-comparison', async (req, res) => {
       reportId = matchingReport.report_id;
     }
 
-    await dbQueries.upsertNeighborhoodComparison(reportId, mode, names, chartType || null);
-    res.json({ success: true, message: 'Neighborhood comparison updated successfully' });
+    await dbQueries.upsertNeighborhoodComparison(reportId, mode, normalizedNames, chartType || null);
+    res.json({ success: true, message: 'Neighbourhood comparison updated successfully' });
   } catch (error) {
-    console.error('Error updating neighborhood comparison:', error);
-    res.status(500).json({ success: false, error: 'Failed to update neighborhood comparison', message: error.message });
+    console.error('Error updating neighbourhood comparison:', error);
+    res.status(500).json({ success: false, error: 'Failed to update neighbourhood comparison', message: error.message });
   }
 });
 // Get all report home info
