@@ -3255,27 +3255,17 @@
                             });
                             updateDevelopmentButtons();
 
-                            // Restore chart type if stored and auto-generate chart safely after first paint
-                            const schedule = (fn) => {
-                                if ('requestIdleCallback' in window) {
-                                    window.requestIdleCallback(() => fn(), { timeout: 2000 });
-                                } else {
-                                    setTimeout(fn, 0);
-                                }
-                            };
-                            schedule(async () => {
-                                try {
-                                    if (payload.series_id) {
-                                        const type = String(payload.series_id);
-                                        if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
-                                            switchDevelopmentChart(type);
-                                        }
+                            // Restore chart type if stored; user can click Generate when ready
+                            try {
+                                if (payload.series_id) {
+                                    const type = String(payload.series_id);
+                                    if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
+                                        switchDevelopmentChart(type);
                                     }
-                                    await generateDevelopmentComparison();
-                                } catch (autoErr) {
-                                    console.warn('Failed to auto-generate neighborhood chart from saved selection:', autoErr);
                                 }
-                            });
+                            } catch (autoErr) {
+                                console.warn('Failed to restore neighborhood chart type:', autoErr);
+                            }
                         }
                     }
                 } catch (loadSavedErr) {
@@ -4356,7 +4346,13 @@
 
         // Initialize development comparison when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(initializeDevelopmentComparison, 1500);
+            // Initialize after first paint; avoid blocking during load
+            const start = () => setTimeout(initializeDevelopmentComparison, 0);
+            if ('requestIdleCallback' in window) {
+                window.requestIdleCallback(start, { timeout: 1000 });
+            } else {
+                start();
+            }
         });
     </script>
 
