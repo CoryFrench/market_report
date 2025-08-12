@@ -711,7 +711,8 @@
 
                                 const formatCurrency0 = (value) => {
                                     if (value === null || value === undefined) return 'N/A';
-                                    const num = Number(String(value).replace(/[^0-9.-]/g, ''));
+                                    const cleaned = String(value).replace(/[^0-9.\-]/g, '');
+                                    const num = Number(cleaned);
                                     return Number.isFinite(num)
                                         ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num)
                                         : 'N/A';
@@ -3295,6 +3296,7 @@
 
         // Initialize development comparison
         async function initializeDevelopmentComparison() {
+            const t0 = performance.now();
             try {
                 // 1) Try direct-render from saved neighbourhood comparison first (no dropdown population)
                 try {
@@ -3341,9 +3343,13 @@
                 }
 
                 // 2) Prepare controls lazily for edits
-                await loadDevelopmentsList();
+                // Load lists without blocking the main thread
+                loadDevelopmentsList().then(() => {
+                    try { populateInitialDevelopmentDropdowns(); } catch {}
+                });
+                // Zones are loaded on demand when toggled
                 createSelectionModeToggle();
-                populateInitialDevelopmentDropdowns();
+                // Initial dropdown will be populated when developments list resolves above
                 if (selectionMode === 'development') {
                     setTimeout(() => { try { autoSelectReportDevelopment(); } catch {} }, 0);
                 }
@@ -3351,6 +3357,8 @@
             } catch (error) {
                 console.error('Error initializing development comparison:', error);
             }
+            const t1 = performance.now();
+            console.log('initializeDevelopmentComparison ms:', Math.round(t1 - t0));
         }
 
         // Load available developments
@@ -3528,35 +3536,89 @@
                 
                 container.appendChild(selectionDiv);
                 
-                // Populate the dropdown
+                // Populate the dropdown only if list is ready; otherwise defer
                 const developmentSelect = document.getElementById('development-select-1');
                 if (developmentSelect) {
-                    populateDevelopmentDropdown(developmentSelect);
+                    if (developmentsList && developmentsList.length > 0) {
+                        populateDevelopmentDropdown(developmentSelect);
+                    } else {
+                        // Defer population until list is loaded
+                        let retries = 0;
+                        const waitAndPopulate = () => {
+                            if (developmentsList && developmentsList.length > 0) {
+                                populateDevelopmentDropdown(developmentSelect);
+                            } else if (retries < 50) { // ~5s total
+                                retries += 1;
+                                setTimeout(waitAndPopulate, 100);
+                            }
+                        };
+                        setTimeout(waitAndPopulate, 100);
+                    }
                 }
             }
         }
 
-        // Populate a single development dropdown
+        // Populate a single development dropdown (chunked to avoid blocking the UI)
         function populateDevelopmentDropdown(selectElement) {
-            if (!selectElement) return;
-            
-            // Clear existing options
-            selectElement.innerHTML = `<option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>`;
-            
-            // Add development options
-            const list = selectionMode === 'development' ? developmentsList : zonesList;
-            if (list && Array.isArray(list)) {
-                list.forEach(item => {
-                    const name = item.development_name || item.zone_name || item.name || item.Development || item.Zone;
-                    if (!name) return;
-                    const option = document.createElement('option');
-                    option.value = name;
-                    option.textContent = name;
-                    selectElement.appendChild(option);
-                });
-            } else {
-                console.warn('No options available to populate dropdown for mode:', selectionMode);
+            const t0 = performance.now();
+            if (selectElement.__populating) {
+                // Skip if a population cycle is already in progress for this select
+                console.log('populateDevelopmentDropdown skipped: already populating');
+                return;
             }
+            selectElement.__populating = true;
+            if (!selectElement) return;
+
+            // Clear existing options and add placeholder
+            selectElement.innerHTML = `<option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>`;
+
+            const list = selectionMode === 'development' ? developmentsList : zonesList;
+            if (!list || !Array.isArray(list) || list.length === 0) {
+                console.warn('No options available to populate dropdown for mode:', selectionMode);
+                return;
+            }
+
+            const CHUNK_SIZE = 100; // smaller chunks for smoother rendering
+            let index = 0;
+
+            function addChunk() {
+                const frag = document.createDocumentFragment();
+                const upper = Math.min(index + CHUNK_SIZE, list.length);
+                for (let i = index; i < upper; i++) {
+                    const item = list[i];
+                    const name = item && (item.development_name || item.zone_name || item.name || item.Development || item.Zone);
+                    if (!name) continue;
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    frag.appendChild(opt);
+                }
+                selectElement.appendChild(frag);
+                index = upper;
+
+                if (index < list.length) {
+                    // Yield to the browser to keep UI responsive
+                    requestAnimationFrame(addChunk);
+                } else {
+                    const t1 = performance.now();
+                    console.log('populateDevelopmentDropdown options:', list.length, 'ms:', Math.round(t1 - t0));
+                    // Finalize: apply any preselect value if provided
+                    const desired = selectElement.dataset && selectElement.dataset.preselect ? String(selectElement.dataset.preselect) : '';
+                    if (desired) {
+                        for (let j = 0; j < selectElement.options.length; j++) {
+                            if (selectElement.options[j].value === desired) {
+                                selectElement.selectedIndex = j;
+                                break;
+                            }
+                        }
+                    }
+                    // Mark as done to prevent re-entry
+                    selectElement.__populating = false;
+                }
+            }
+
+            // Kick off chunked population
+            addChunk();
         }
 
         // Auto-select the development from the report's property address
@@ -3689,12 +3751,72 @@
             
             container.appendChild(selectionDiv);
             
-            // Populate the new dropdown
+            // Populate the new dropdown without blocking; defer if list not ready
             const newSelect = document.getElementById(`development-select-${developmentSelectionCount}`);
-            populateDevelopmentDropdown(newSelect);
+            if (newSelect) {
+                if (developmentsList && developmentsList.length > 0) {
+                    setTimeout(() => populateDevelopmentDropdown(newSelect), 0);
+                } else {
+                    let retries = 0;
+                    const waitAndPopulateNew = () => {
+                        if (developmentsList && developmentsList.length > 0) {
+                            populateDevelopmentDropdown(newSelect);
+                        } else if (retries < 50) {
+                            retries += 1;
+                            setTimeout(waitAndPopulateNew, 100);
+                        }
+                    };
+                    setTimeout(waitAndPopulateNew, 100);
+                }
+            }
             
             // Update button visibility
             updateDevelopmentButtons();
+        }
+
+        // Render a development selection at a specific index WITHOUT incrementing global count
+        function renderDevelopmentSelectionAt(index, preselectName) {
+            const container = document.getElementById('development-selections');
+            if (!container) return;
+
+            // If already exists, skip
+            if (document.getElementById(`development-selection-${index}`)) return;
+
+            const selectionDiv = document.createElement('div');
+            selectionDiv.className = 'location-selection';
+            selectionDiv.id = `development-selection-${index}`;
+
+            selectionDiv.innerHTML = `
+                <div class="location-row">
+                    <div class="location-field">
+                        <label for="development-select-${index}">${selectionMode === 'development' ? 'Development' : 'Zone'} ${index}</label>
+                        <select id="development-select-${index}" class="fred-select">
+                            <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>
+                        </select>
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(selectionDiv);
+
+            const selectEl = document.getElementById(`development-select-${index}`);
+            if (selectEl) {
+                if (preselectName) selectEl.dataset.preselect = String(preselectName);
+                if (developmentsList && developmentsList.length > 0) {
+                    setTimeout(() => populateDevelopmentDropdown(selectEl), 0);
+                } else {
+                    let retries = 0;
+                    const waitAndPopulate = () => {
+                        if (developmentsList && developmentsList.length > 0) {
+                            populateDevelopmentDropdown(selectEl);
+                        } else if (retries < 50) {
+                            retries += 1;
+                            setTimeout(waitAndPopulate, 100);
+                        }
+                    };
+                    setTimeout(waitAndPopulate, 100);
+                }
+            }
         }
 
         // Remove development selection
@@ -4467,6 +4589,7 @@
 
         // Show the development controls view and hide the chart view
         function showDevelopmentControlsView() {
+            const t0 = performance.now();
             document.getElementById('dev-controls-section').style.display = 'block';
             document.getElementById('dev-chart-section').style.display = 'none';
 
@@ -4477,28 +4600,28 @@
                 if (list.length > 0) {
                     const container = document.getElementById('development-selections');
                     if (container) container.innerHTML = '';
-                    // Recreate the exact number of selects
-                    developmentSelectionCount = list.length;
-                    // First one
-                    populateInitialDevelopmentDropdowns();
-                    // Additional ones
-                    for (let i = 2; i <= developmentSelectionCount; i++) {
-                        addDevelopmentSelection();
-                    }
-                    // Preselect values (using chunked population auto-select via data-preselect)
-                    list.forEach((name, idx) => {
-                        const selectEl = document.getElementById(`development-select-${idx + 1}`);
-                        if (selectEl) {
-                            selectEl.dataset.preselect = String(name);
-                            // Ensure options are populated (chunked)
-                            populateDevelopmentDropdown(selectEl);
+                    // Recreate exactly list.length selects without altering the counter during creation
+                    const targetCount = list.length;
+                    let i = 1;
+                    function addNext() {
+                        if (i <= targetCount) {
+                            const pre = list[i - 1];
+                            renderDevelopmentSelectionAt(i, pre);
+                            i += 1;
+                            requestAnimationFrame(addNext);
+                        } else {
+                            developmentSelectionCount = targetCount;
+                            updateDevelopmentButtons();
                         }
-                    });
+                    }
+                    requestAnimationFrame(addNext);
                     updateDevelopmentButtons();
                 }
             } catch (e) {
                 console.warn('Failed to restore development selections on back:', e);
             }
+            const t1 = performance.now();
+            console.log('showDevelopmentControlsView render ms:', Math.round(t1 - t0));
         }
         
         // Show the development chart view and hide the controls view  
