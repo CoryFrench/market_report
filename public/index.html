@@ -61,12 +61,16 @@
 
                 <div class="form-group">
                     <label for="development">Development</label>
-                    <input type="text" id="development" name="development" placeholder="Development name (optional)">
+                    <select id="development" name="development">
+                        <option value="">Select a development (optional)</option>
+                    </select>
                 </div>
 
                 <div class="form-group">
                     <label for="subdivision">Subdivision</label>
-                    <input type="text" id="subdivision" name="subdivision" placeholder="Subdivision name (optional)">
+                    <select id="subdivision" name="subdivision" disabled>
+                        <option value="">Select a subdivision (optional)</option>
+                    </select>
                 </div>
 
                 <button type="submit" class="form-submit" id="submitBtn">
@@ -90,10 +94,81 @@
     </div></body>
 
     <script>
+        const underReport = window.location.pathname.startsWith('/report');
+        const API_BASE = underReport ? '/report/api' : '/api';
+        const PUBLIC_BASE = underReport ? '/report' : '';
+
         const form = document.getElementById('reportForm');
         const submitBtn = document.getElementById('submitBtn');
         const loading = document.getElementById('loading');
         const messageDiv = document.getElementById('message');
+        const developmentSelect = document.getElementById('development');
+        const subdivisionSelect = document.getElementById('subdivision');
+
+        async function loadDevelopments() {
+            try {
+                const resp = await fetch(`${API_BASE}/developments`);
+                if (!resp.ok) throw new Error(`Failed to load developments (${resp.status})`);
+                const json = await resp.json();
+                const developments = (json && json.data) ? json.data : [];
+                // Clear and populate
+                developmentSelect.innerHTML = '<option value="">Select a development (optional)</option>';
+                for (const row of developments) {
+                    const name = row.development_name;
+                    if (!name) continue;
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    developmentSelect.appendChild(opt);
+                }
+            } catch (err) {
+                console.error('Error loading developments:', err);
+            }
+        }
+
+        async function loadSubdivisions(developmentName) {
+            try {
+                subdivisionSelect.disabled = true;
+                subdivisionSelect.innerHTML = '<option value="">Loading subdivisions...</option>';
+                const resp = await fetch(`${API_BASE}/subdivisions?development=${encodeURIComponent(developmentName)}`);
+                if (!resp.ok) throw new Error(`Failed to load subdivisions (${resp.status})`);
+                // Ensure JSON, otherwise surface body as error
+                const contentType = resp.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    const text = await resp.text();
+                    throw new Error(`Unexpected response (not JSON): ${text.slice(0, 120)}...`);
+                }
+                const json = await resp.json();
+                const subdivisions = (json && json.data) ? json.data : [];
+                subdivisionSelect.innerHTML = '<option value="">Select a subdivision (optional)</option>';
+                for (const row of subdivisions) {
+                    const name = row.subdivision_name;
+                    if (!name) continue;
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    subdivisionSelect.appendChild(opt);
+                }
+                subdivisionSelect.disabled = false;
+            } catch (err) {
+                console.error('Error loading subdivisions:', err);
+                subdivisionSelect.innerHTML = '<option value="">Select a subdivision (optional)</option>';
+                subdivisionSelect.disabled = true;
+            }
+        }
+
+        developmentSelect.addEventListener('change', (e) => {
+            const dev = e.target.value;
+            if (!dev) {
+                subdivisionSelect.innerHTML = '<option value="">Select a subdivision (optional)</option>';
+                subdivisionSelect.disabled = true;
+                return;
+            }
+            loadSubdivisions(dev);
+        });
+
+        // Initial load
+        loadDevelopments();
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -105,21 +180,26 @@
 
             // Get form data
             const formData = new FormData(form);
+            const getOrNull = (v) => {
+                if (v === null || v === undefined) return null;
+                const t = String(v).trim();
+                return t.length === 0 ? null : t;
+            };
             const data = {
-                agentName: formData.get('agentName').trim(),
-                firstName: formData.get('firstName').trim(),
-                lastName: formData.get('lastName').trim(),
-                addressLine1: formData.get('addressLine1').trim(),
-                addressLine2: formData.get('addressLine2') ? formData.get('addressLine2').trim() : null,
-                city: formData.get('city').trim(),
-                state: formData.get('state').trim(),
-                zipCode: formData.get('zipCode').trim(),
-                development: formData.get('development') ? formData.get('development').trim() : null,
-                subdivision: formData.get('subdivision') ? formData.get('subdivision').trim() : null
+                agentName: String(formData.get('agentName') || '').trim(),
+                firstName: String(formData.get('firstName') || '').trim(),
+                lastName: String(formData.get('lastName') || '').trim(),
+                addressLine1: String(formData.get('addressLine1') || '').trim(),
+                addressLine2: getOrNull(formData.get('addressLine2')),
+                city: String(formData.get('city') || '').trim(),
+                state: String(formData.get('state') || '').trim(),
+                zipCode: String(formData.get('zipCode') || '').trim(),
+                development: getOrNull(formData.get('development')),
+                subdivision: getOrNull(formData.get('subdivision'))
             };
 
             try {
-                const response = await fetch('/api/reports/create', {
+                const response = await fetch(`${API_BASE}/reports/create`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -134,10 +214,13 @@
                         <div class="form-message success">
                             Area analysis created successfully!<br>
                             <strong>Report ID:</strong> ${result.reportId}<br>
-                            <a href="/report/reports/${result.reportId}" target="_blank">View Analysis</a>
+                            <a href="${PUBLIC_BASE}${result.reportUrl}" target="_blank">View Analysis</a>
                         </div>
                     `;
                     form.reset();
+                    // Reset dependent selects
+                    subdivisionSelect.innerHTML = '<option value="">Select a subdivision (optional)</option>';
+                    subdivisionSelect.disabled = true;
                 } else {
                     throw new Error(result.error || 'Failed to create report');
                 }

@@ -1057,6 +1057,39 @@ app.get('/api/developments', async (req, res) => {
   }
 });
 
+// Get subdivisions for a given development (cascading dropdown)
+app.get('/api/subdivisions', async (req, res) => {
+  try {
+    const { development } = req.query;
+    if (!development || String(development).trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'development query parameter is required' });
+    }
+
+    const subdivisionsQuery = `
+      SELECT DISTINCT subdivision_name
+      FROM tax.palm_beach_county_fl
+      WHERE development_name = $1
+        AND subdivision_name IS NOT NULL
+        AND subdivision_name <> ''
+        AND LENGTH(TRIM(subdivision_name)) > 0
+      ORDER BY subdivision_name ASC;
+    `;
+
+    try {
+      const { query } = require('./db');
+      const result = await query(subdivisionsQuery, [String(development).trim()]);
+      const rows = result.rows.map(r => ({ subdivision_name: r.subdivision_name }));
+      res.json({ success: true, data: rows });
+    } catch (dbError) {
+      console.error('Database query error for subdivisions:', dbError);
+      throw new Error(`Failed to fetch subdivisions: ${dbError.message}`);
+    }
+  } catch (error) {
+    console.error('Error fetching subdivisions:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch subdivisions', message: error.message });
+  }
+});
+
 // Get all distinct zones for comparison dropdowns
 app.get('/api/zones', async (req, res) => {
   try {

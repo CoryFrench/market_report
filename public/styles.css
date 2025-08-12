@@ -361,7 +361,8 @@ body {
     letter-spacing: 0.5px;
 }
 
-.form-group input[type="text"] {
+.form-group input[type="text"],
+.form-group select {
     width: 100%;
     padding: 15px 20px;
     background: white;
@@ -374,19 +375,29 @@ body {
     font-family: 'Source Sans Pro', sans-serif;
 }
 
-.form-group input[type="text"]::placeholder {
+.form-group input[type="text"]::placeholder,
+.form-group select::placeholder {
     color: #a0aec0;
 }
 
-.form-group input[type="text"]:focus {
+.form-group input[type="text"]:focus,
+.form-group select:focus {
     outline: none;
     border-color: #c6a96a;
     box-shadow: 0 0 0 3px rgba(198, 169, 106, 0.1);
     transform: translateY(-1px);
 }
 
-.form-group input[type="text"]:invalid {
+.form-group input[type="text"]:invalid,
+.form-group select:invalid {
     border-color: #e53e3e;
+}
+
+/* Disabled state for subdivision select until development is selected */
+.form-group select:disabled {
+    background: #f8fafc;
+    color: #a0aec0;
+    cursor: not-allowed;
 }
 
 .form-submit {
