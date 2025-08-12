@@ -3504,7 +3504,7 @@
             }
 
             const devBtn = makeButton('Development', 'development');
-            const zoneBtn = makeButton('Zone', 'zone');
+            const zoneBtn = makeButton('Waterfront Zone', 'zone');
 
             btnGroup.appendChild(devBtn);
             btnGroup.appendChild(zoneBtn);
@@ -3520,10 +3520,10 @@
             }
         }
 
-        // Update static labels and button text between Development and Zone
+        // Update static labels and button text between Development and Waterfront Zone
         function updateDevZoneStaticLabels() {
-            const noun = (selectionMode === 'development') ? 'Development' : 'Zone';
-            const nounPlural = (selectionMode === 'development') ? 'developments' : 'zones';
+            const noun = (selectionMode === 'development') ? 'Development' : 'Waterfront Zone';
+            const nounPlural = (selectionMode === 'development') ? 'developments' : 'waterfront zones';
 
             const compTitle = document.getElementById('dev-comp-title');
             if (compTitle) compTitle.textContent = `${noun} Comparison Analysis`;
@@ -3559,9 +3559,9 @@
                 selectionDiv.innerHTML = `
                     <div class="location-row">
                         <div class="location-field">
-                            <label for="development-select-1">${selectionMode === 'development' ? 'Development' : 'Zone'} 1</label>
+                            <label for="development-select-1">${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'} 1</label>
                             <select id="development-select-1" class="fred-select">
-                                <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>
+                                <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'}...</option>
                             </select>
                         </div>
                     </div>
@@ -3607,7 +3607,7 @@
             if (!selectElement) return;
 
             // Clear existing options and add placeholder
-            selectElement.innerHTML = `<option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>`;
+            selectElement.innerHTML = `<option value="">Select ${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'}...</option>`;
 
             let list;
             if (selectionMode === 'development') {
@@ -3779,9 +3779,9 @@
             selectionDiv.innerHTML = `
                 <div class="location-row">
                     <div class="location-field">
-                        <label for="development-select-${developmentSelectionCount}">${selectionMode === 'development' ? 'Development' : 'Zone'} ${developmentSelectionCount}</label>
+                        <label for="development-select-${developmentSelectionCount}">${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'} ${developmentSelectionCount}</label>
                         <select id="development-select-${developmentSelectionCount}" class="fred-select">
-                            <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>
+                            <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'}...</option>
                         </select>
                     </div>
                     <button type="button" class="remove-location-btn" onclick="removeDevelopmentSelection(${developmentSelectionCount})" style="margin-left: 10px;">
@@ -3830,9 +3830,9 @@
             selectionDiv.innerHTML = `
                 <div class="location-row">
                     <div class="location-field">
-                        <label for="development-select-${index}">${selectionMode === 'development' ? 'Development' : 'Zone'} ${index}</label>
+                        <label for="development-select-${index}">${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'} ${index}</label>
                         <select id="development-select-${index}" class="fred-select">
-                            <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>
+                            <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'}...</option>
                         </select>
                     </div>
                 </div>
@@ -4332,7 +4332,7 @@
                     plugins: {
                         title: {
                             display: true,
-                            text: `${selectionMode === 'development' ? 'Development' : 'Zone'} Trends - ${yAxisLabel}`,
+                            text: `${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'} Trends - ${yAxisLabel}`,
                             font: {
                                 size: 16,
                                 weight: 'bold'
@@ -4595,11 +4595,13 @@
             }
             
             const cleanDevelopmentName = developmentName.trim();
-            const inZoneMode = (typeHint === 'zone') || (typeof selectionMode !== 'undefined' && selectionMode === 'zone');
-            title.textContent = inZoneMode ? 'Zone Parcels Map' : 'Development Parcels Map';
+            const inZoneMode = (typeof typeHint === 'string')
+                ? (typeHint === 'zone')
+                : (typeof selectionMode !== 'undefined' && selectionMode === 'zone');
+            title.textContent = inZoneMode ? 'Waterfront Zone Parcels Map' : 'Development Parcels Map';
             subtitle.textContent = `Showing parcels for ${cleanDevelopmentName}`;
-            loadingText.textContent = inZoneMode ? 'Loading zone parcels...' : 'Loading development parcels...';
-            errorContext.textContent = inZoneMode ? 'Could not load parcel data for this zone.' : 'Could not load parcel data for this development.';
+            loadingText.textContent = inZoneMode ? 'Loading waterfront zone parcels...' : 'Loading development parcels...';
+            errorContext.textContent = inZoneMode ? 'Could not load parcel data for this waterfront zone.' : 'Could not load parcel data for this development.';
             
             // Show modal and loading state
             modal.style.display = 'block';
