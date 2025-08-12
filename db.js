@@ -528,8 +528,8 @@ const dbQueries = {
   }
   ,
 
-  // Neighbourhood comparison persistence (new table)
-  upsertNeighbourhoodComparison: async (reportId, seriesId, names) => {
+  // Neighbourhood comparison persistence (supports mixed types)
+  upsertNeighbourhoodComparison: async (reportId, seriesId, items) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -546,12 +546,23 @@ const dbQueries = {
         chartId = maxChartIdResult.rows[0].max_chart_id + 1;
       }
 
-      // Insert one row per location; default type 'development' (UI can be extended to pass type later)
-      for (const name of names || []) {
+      // Normalize items: accept array of strings (assume development) or objects { name, type }
+      const normalized = Array.isArray(items) ? items : [];
+      for (const raw of normalized) {
+        let name, type;
+        if (typeof raw === 'string') {
+          name = raw;
+          type = 'development';
+        } else if (raw && typeof raw === 'object') {
+          name = raw.name || raw.location || raw.development || raw.zone;
+          type = (raw.type || raw.location_type || '').toLowerCase();
+          if (type !== 'development' && type !== 'zone') type = 'development';
+        }
+        if (!name || String(name).trim().length === 0) continue;
         await client.query(
           `INSERT INTO customer.report_charts_neighborhood (report_id, chart_id, series, location, location_type)
            VALUES ($1, $2, $3, $4, $5)`,
-          [reportId, chartId, seriesId || 'sales', String(name), 'development']
+          [reportId, chartId, seriesId || 'sales', String(name).trim(), type]
         );
       }
       await client.query('COMMIT');
@@ -568,10 +579,13 @@ const dbQueries = {
   // Fetch neighbourhood comparison (new table)
   getNeighbourhoodComparison: async (reportId) => {
     const queryText = `
-      SELECT $1::bigint as report_id,
-             COALESCE(MIN(chart_id), 1) AS chart_id,
-             COALESCE(MAX(series), 'sales') AS series_id,
-             array_agg(location ORDER BY location) AS locations
+      SELECT
+        $1::bigint as report_id,
+        COALESCE(MIN(chart_id), 1) AS chart_id,
+        COALESCE(MAX(series), 'sales') AS series_id,
+        json_agg(jsonb_build_object('name', location, 'type', location_type) ORDER BY location_type, location) AS items,
+        array_agg(location ORDER BY location) FILTER (WHERE location_type = 'development') AS development_names,
+        array_agg(location ORDER BY location) FILTER (WHERE location_type = 'zone') AS zone_names
       FROM customer.report_charts_neighborhood
       WHERE report_id = $1
       GROUP BY report_id

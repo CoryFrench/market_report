@@ -267,9 +267,10 @@ app.put('/api/reports/:reportId/area-comparison', async (req, res) => {
 app.put('/api/reports/:reportId/neighbourhood-comparison', async (req, res) => {
   try {
     const { reportId: urlSlug } = req.params;
-    const { seriesId, names } = req.body;
-    if (!Array.isArray(names) || names.length === 0) {
-      return res.status(400).json({ success: false, error: 'names (array) required' });
+    const { seriesId, names, items } = req.body;
+    const payload = Array.isArray(items) ? items : (Array.isArray(names) ? names : []);
+    if (!Array.isArray(payload) || payload.length === 0) {
+      return res.status(400).json({ success: false, error: 'names (array) or items (array) required' });
     }
     let reportId;
     if (/^\d+$/.test(urlSlug)) {
@@ -281,7 +282,7 @@ app.put('/api/reports/:reportId/neighbourhood-comparison', async (req, res) => {
       if (!matchingReport) return res.status(404).json({ success: false, error: 'Report not found' });
       reportId = matchingReport.report_id;
     }
-    await dbQueries.upsertNeighbourhoodComparison(reportId, seriesId || null, names.map(String));
+    await dbQueries.upsertNeighbourhoodComparison(reportId, seriesId || null, payload);
     res.json({ success: true });
   } catch (error) {
     console.error('Error saving neighbourhood comparison:', error);
@@ -1020,8 +1021,8 @@ app.get('/api/zones', async (req, res) => {
       const { query } = require('./db');
       const result = await query(zonesQuery);
 
-      // Normalize to { development_name }
-      const rows = result.rows.map(r => ({ development_name: r.zone_name }));
+      // Normalize to { zone_name }
+      const rows = result.rows.map(r => ({ zone_name: r.zone_name }));
       res.json({ success: true, data: rows });
 
     } catch (dbError) {

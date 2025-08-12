@@ -3237,6 +3237,9 @@
 
         // Development/Zone Comparison Functionality
         let selectionMode = 'development'; // 'development' | 'zone'
+        // Maintain independent selections for developments and zones
+        window.selectedDevelopments = window.selectedDevelopments || [];
+        window.selectedZones = window.selectedZones || [];
         // Track last mouse position as a reliable fallback for popup placement
         (function trackLastMousePosition(){
             try {
@@ -3303,34 +3306,52 @@
                     const slugEl = document.getElementById('reportContent');
                     const slug = (typeof urlSlug !== 'undefined') ? urlSlug : (window.location.pathname.split('/').pop());
                     let rendered = false;
-                try {
-                    const resp = await fetch(`${API_BASE}/reports/${slug}/neighbourhood-comparison`);
+                    try {
+                        const resp = await fetch(`${API_BASE}/reports/${slug}/neighbourhood-comparison`);
                         if (resp.ok) {
                             const saved = await resp.json();
                             const payload = saved && saved.data ? saved.data : null;
-                            if (payload && Array.isArray(payload.locations) && payload.locations.length > 0) {
-                                const selections = payload.locations;
-                                const url = `${API_BASE}/developments-comparison?developments=${encodeURIComponent(selections.join(','))}`;
-                                const response = await fetch(url);
-                                if (response.ok) {
-                                    const result = await response.json();
-                                    const data = (result && result.data && result.data.comparisonData) ? result.data.comparisonData : (result.data || []);
-                                    displayDevelopmentComparisonChart(data, selections);
-                                    showDevelopmentChartView();
-                                    const chartControls = document.getElementById('development-chart-controls');
-                                    if (chartControls) chartControls.style.display = 'block';
-                                    const chartHeader = document.getElementById('dev-comparison-chart-header');
-                                    if (chartHeader) chartHeader.style.display = 'block';
-                                    if (payload.series_id) {
-                                        const type = String(payload.series_id);
-                                        if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
-                                            switchDevelopmentChart(type);
-                                        }
-                                    }
-                                    rendered = true;
-                                }
+                            // Prefer explicit development/zone arrays from API to avoid misclassification
+                            const devs = Array.isArray(payload?.development_names) ? payload.development_names : [];
+                            const zonesSaved = Array.isArray(payload?.zone_names) ? payload.zone_names : [];
+                            window.selectedDevelopments = devs;
+                            window.selectedZones = zonesSaved;
+
+                            // Fetch both data sets in parallel and merge
+                            const reqs = [];
+                            if (devs.length > 0) {
+                                reqs.push(fetch(`${API_BASE}/developments-comparison?developments=${encodeURIComponent(devs.join(','))}`));
                             }
-                        } else if (resp.status === 404) {
+                            if (zonesSaved.length > 0) {
+                                reqs.push(fetch(`${API_BASE}/zones-comparison?zones=${encodeURIComponent(zonesSaved.join(','))}`));
+                            }
+                            const resps = await Promise.all(reqs);
+                            const jsons = await Promise.all(resps.map(r => r.ok ? r.json() : Promise.resolve(null)));
+                            let mergedData = [];
+                            jsons.forEach(j => {
+                                if (!j || !j.success) return;
+                                if (Array.isArray(j.data)) mergedData.push(...j.data);
+                                else if (Array.isArray(j.data?.comparisonData)) mergedData.push(...j.data.comparisonData);
+                            });
+
+                            const selections = [...devs, ...zonesSaved];
+                            if (mergedData.length > 0) {
+                                displayDevelopmentComparisonChart(mergedData, selections);
+                                showDevelopmentChartView();
+                                const chartControls = document.getElementById('development-chart-controls');
+                                if (chartControls) chartControls.style.display = 'block';
+                                const chartHeader = document.getElementById('dev-comparison-chart-header');
+                                if (chartHeader) chartHeader.style.display = 'block';
+                                if (payload.series_id) {
+                                    const type = String(payload.series_id);
+                                    if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
+                                        switchDevelopmentChart(type);
+                                    }
+                                }
+                                rendered = true;
+                            }
+                        }
+                        else if (resp.status === 404) {
                             // Fallback to complete endpoint
                             rendered = await tryRenderFromComplete(slug);
                         }
@@ -3361,7 +3382,7 @@
             console.log('initializeDevelopmentComparison ms:', Math.round(t1 - t0));
         }
 
-        // Load available developments
+        // Load available developments (full list, once)
         async function loadDevelopmentsList() {
             try {
                 const response = await fetch(`${API_BASE}/developments`);
@@ -3371,10 +3392,14 @@
                 const result = await response.json();
                 
                 // Handle different response structures
-                if (result && result.success && result.data) {
-                    developmentsList = result.data;
+                if (result && result.success && Array.isArray(result.data)) {
+                    developmentsList = result.data.map(r => {
+                        const name = r.development_name || r.name || r.Development;
+                        return { development_name: String(name || '').trim() };
+                    }).filter(r => r.development_name.length > 0);
                 } else if (Array.isArray(result)) {
-                    developmentsList = result;
+                    developmentsList = result.map(v => ({ development_name: String(v || '').trim() }))
+                                              .filter(r => r.development_name.length > 0);
                 } else {
                     developmentsList = [];
                 }
@@ -3386,7 +3411,7 @@
             }
         }
 
-        // Load available zones
+        // Load available zones (full list, once)
         async function loadZonesList() {
             try {
                 const response = await fetch(`${API_BASE}/zones`);
@@ -3395,10 +3420,14 @@
                 }
                 const result = await response.json();
 
-                if (result && result.success && result.data) {
-                    zonesList = result.data;
+                if (result && result.success && Array.isArray(result.data)) {
+                    zonesList = result.data.map(r => {
+                        const name = r.zone_name || r.name || r.Zone;
+                        return { zone_name: String(name || '').trim() };
+                    }).filter(r => r.zone_name.length > 0);
                 } else if (Array.isArray(result)) {
-                    zonesList = result;
+                    zonesList = result.map(v => ({ zone_name: String(v || '').trim() }))
+                                      .filter(r => r.zone_name.length > 0);
                 } else {
                     zonesList = [];
                 }
@@ -3461,8 +3490,8 @@
                         await loadZonesList();
                     }
 
-                    // Reset UI for current mode
-                    resetDevelopmentComparison();
+                    // Rebuild UI for current mode without discarding other mode's selections
+                    rebuildSelectionsUIForCurrentMode();
 
                     // Update any static labels/titles to match mode
                     updateDevZoneStaticLabels();
@@ -3537,17 +3566,21 @@
                 container.appendChild(selectionDiv);
                 
                 // Populate the dropdown only if list is ready; otherwise defer
-                const developmentSelect = document.getElementById('development-select-1');
-                if (developmentSelect) {
-                    if (developmentsList && developmentsList.length > 0) {
-                        populateDevelopmentDropdown(developmentSelect);
+                const selectEl = document.getElementById('development-select-1');
+                if (selectEl) {
+                    const ready = (selectionMode === 'development') ? ((developmentsList||[]).length > 0)
+                                                                  : ((zonesList||[]).length > 0);
+                    const ensure = () => populateDevelopmentDropdown(selectEl);
+                    if (ready) {
+                        ensure();
                     } else {
-                        // Defer population until list is loaded
                         let retries = 0;
                         const waitAndPopulate = () => {
-                            if (developmentsList && developmentsList.length > 0) {
-                                populateDevelopmentDropdown(developmentSelect);
-                            } else if (retries < 50) { // ~5s total
+                            const nowReady = (selectionMode === 'development') ? ((developmentsList||[]).length > 0)
+                                                                              : ((zonesList||[]).length > 0);
+                            if (nowReady) {
+                                ensure();
+                            } else if (retries < 50) {
                                 retries += 1;
                                 setTimeout(waitAndPopulate, 100);
                             }
@@ -3572,7 +3605,12 @@
             // Clear existing options and add placeholder
             selectElement.innerHTML = `<option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>`;
 
-            const list = selectionMode === 'development' ? developmentsList : zonesList;
+            let list;
+            if (selectionMode === 'development') {
+                list = (developmentsList || []).map(r => r.development_name);
+            } else {
+                list = (zonesList || []).map(r => r.zone_name);
+            }
             if (!list || !Array.isArray(list) || list.length === 0) {
                 console.warn('No options available to populate dropdown for mode:', selectionMode);
                 return;
@@ -3585,8 +3623,7 @@
                 const frag = document.createDocumentFragment();
                 const upper = Math.min(index + CHUNK_SIZE, list.length);
                 for (let i = index; i < upper; i++) {
-                    const item = list[i];
-                    const name = item && (item.development_name || item.zone_name || item.name || item.Development || item.Zone);
+                    const name = list[i];
                     if (!name) continue;
                     const opt = document.createElement('option');
                     opt.value = name;
@@ -3802,13 +3839,19 @@
             const selectEl = document.getElementById(`development-select-${index}`);
             if (selectEl) {
                 if (preselectName) selectEl.dataset.preselect = String(preselectName);
-                if (developmentsList && developmentsList.length > 0) {
-                    setTimeout(() => populateDevelopmentDropdown(selectEl), 0);
+                // Populate list based on current mode; use zones list for zone mode
+                const ready = (selectionMode === 'development') ? (developmentsList && developmentsList.length > 0)
+                                                               : (zonesList && zonesList.length > 0);
+                const ensurePopulate = () => populateDevelopmentDropdown(selectEl);
+                if (ready) {
+                    setTimeout(ensurePopulate, 0);
                 } else {
                     let retries = 0;
                     const waitAndPopulate = () => {
-                        if (developmentsList && developmentsList.length > 0) {
-                            populateDevelopmentDropdown(selectEl);
+                        const nowReady = (selectionMode === 'development') ? (developmentsList && developmentsList.length > 0)
+                                                                          : (zonesList && zonesList.length > 0);
+                        if (nowReady) {
+                            ensurePopulate();
                         } else if (retries < 50) {
                             retries += 1;
                             setTimeout(waitAndPopulate, 100);
@@ -3843,6 +3886,29 @@
             if (removeBtn) {
                 removeBtn.style.display = currentSelections <= 1 ? 'none' : 'inline-block';
             }
+        }
+
+        // Rebuild the selections UI to reflect the current mode using persisted lists
+        function rebuildSelectionsUIForCurrentMode() {
+            const container = document.getElementById('development-selections');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const list = (selectionMode === 'development') ? (window.selectedDevelopments || []) : (window.selectedZones || []);
+            const targetCount = Math.max(1, list.length);
+            let i = 1;
+            function addNext() {
+                if (i <= targetCount) {
+                    const pre = list[i - 1] || '';
+                    renderDevelopmentSelectionAt(i, pre);
+                    i += 1;
+                    requestAnimationFrame(addNext);
+                } else {
+                    developmentSelectionCount = targetCount;
+                    updateDevelopmentButtons();
+                }
+            }
+            requestAnimationFrame(addNext);
         }
 
         // Reset development comparison to default
@@ -3885,7 +3951,7 @@
 
         // Generate development comparison
         async function generateDevelopmentComparison() {
-            // Collect all selected developments
+            // Collect current-mode selections
             const selections = [];
             let hasValidSelections = false;
             
@@ -3913,34 +3979,43 @@
             if (chartContainer) chartContainer.innerHTML = '';
             
             try {
-                // Fetch comparison data - send as comma-separated string
-                const param = selections.join(',');
-                const url = selectionMode === 'development'
-                    ? `${API_BASE}/developments-comparison?developments=${encodeURIComponent(param)}`
-                    : `${API_BASE}/zones-comparison?zones=${encodeURIComponent(param)}`;
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch comparison data: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                console.log('Development comparison data:', result);
-                
-                // Extract the actual data array from the response
-                let data;
-                if (result.success && result.data && result.data.comparisonData) {
-                    data = result.data.comparisonData;
-                } else if (result.success && result.data) {
-                    data = result.data;
-                } else if (Array.isArray(result)) {
-                    data = result;
+                // Persist current selection into its list
+                if (selectionMode === 'development') {
+                    window.selectedDevelopments = selections.slice();
                 } else {
-                    data = [];
+                    window.selectedZones = selections.slice();
                 }
-                
-                // Process and display the data
-                displayDevelopmentComparisonChart(data, selections);
+                // Ensure a name that exists in zones is not duplicated in developments and vice versa
+                if (Array.isArray(window.selectedDevelopments) && Array.isArray(window.selectedZones)) {
+                    const zoneSet = new Set(window.selectedZones);
+                    window.selectedDevelopments = window.selectedDevelopments.filter(n => !zoneSet.has(n));
+                }
+
+                // Combine both sets to render a single chart (distinct lists)
+                const devs = Array.isArray(window.selectedDevelopments) ? window.selectedDevelopments.slice() : [];
+                const zones = Array.isArray(window.selectedZones) ? window.selectedZones.slice() : [];
+
+                // Fetch both groups in parallel
+                const requests = [];
+                if (devs.length > 0) {
+                    requests.push(fetch(`${API_BASE}/developments-comparison?developments=${encodeURIComponent(devs.join(','))}`));
+                }
+                if (zones.length > 0) {
+                    requests.push(fetch(`${API_BASE}/zones-comparison?zones=${encodeURIComponent(zones.join(','))}`));
+                }
+                const responses = await Promise.all(requests);
+                const jsons = await Promise.all(responses.map(r => r.ok ? r.json() : Promise.resolve(null)));
+                let merged = [];
+                jsons.forEach(j => {
+                    if (!j || !j.success) return;
+                    if (Array.isArray(j.data)) merged.push(...j.data);
+                    else if (Array.isArray(j.data?.comparisonData)) merged.push(...j.data.comparisonData);
+                });
+
+                // Display merged data; order legend as devs then zones
+                const devSet = new Set(devs);
+                const orderedSelections = [...devs, ...zones.filter(n => !devSet.has(n))];
+                displayDevelopmentComparisonChart(merged, orderedSelections);
                 
                 // Switch to chart view and show chart elements
                 showDevelopmentChartView();
@@ -3957,14 +4032,18 @@
                     chartHeader.style.display = 'block';
                 }
 
-                // Non-blocking save to DB (neighbourhood)
+                // Non-blocking save to DB (neighbourhood) — persist mixed items (developments + zones)
                 try {
                     const slug = (typeof urlSlug !== 'undefined') ? urlSlug : (window.location.pathname.split('/').pop());
                     const seriesIdToSave = (typeof currentDevelopmentChart === 'string' && currentDevelopmentChart) ? currentDevelopmentChart : 'sales';
+                    const items = [
+                        ...devs.map(name => ({ name, type: 'development' })),
+                        ...zones.map(name => ({ name, type: 'zone' }))
+                    ];
                     await fetch(`${API_BASE}/reports/${slug}/neighbourhood-comparison`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ seriesId: seriesIdToSave, names: selections })
+                        body: JSON.stringify({ seriesId: seriesIdToSave, items })
                     });
                 } catch (persistErr) {
                     console.warn('Neighbourhood save failed:', persistErr);
@@ -4028,9 +4107,10 @@
             
             console.log('Processed data:', processedData);
             
-            // Store processed data globally
+            // Store processed data globally (do not mutate persisted selections here)
             window.developmentComparisonData = processedData;
-            window.selectedDevelopments = developments;
+            // Track the exact entities (developments and/or zones) used for this chart render
+            try { window.comparisonEntities = Array.isArray(developments) ? developments.slice() : []; } catch {}
             
             // Check if we have any price per sqft data available
             let hasPricePerSqftData = false;
@@ -4159,8 +4239,10 @@
             }
             
             const data = window.developmentComparisonData;
-            const developments = window.selectedDevelopments;
-            console.log('About to process chart with data:', data, 'developments:', developments);
+            const developments = Array.isArray(window.comparisonEntities) && window.comparisonEntities.length > 0
+                ? window.comparisonEntities
+                : (Array.isArray(window.selectedDevelopments) ? window.selectedDevelopments : []);
+            console.log('About to process chart with data:', data, 'entities:', developments);
             
             // Get all years across all developments
             const allYears = new Set();
