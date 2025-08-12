@@ -288,6 +288,31 @@ app.put('/api/reports/:reportId/neighbourhood-comparison', async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to save neighbourhood comparison', message: error.message });
   }
 });
+
+// Fetch neighbourhood comparison for a report (new table)
+app.get('/api/reports/:reportId/neighbourhood-comparison', async (req, res) => {
+  try {
+    const { reportId: urlSlug } = req.params;
+    let reportId;
+    if (/^\d+$/.test(urlSlug)) {
+      reportId = urlSlug;
+    } else {
+      const expectedUrl = `/reports/${urlSlug}`;
+      const basicResult = await dbQueries.getReportBasic();
+      const matchingReport = basicResult.rows.find(r => r.report_url === expectedUrl);
+      if (!matchingReport) return res.status(404).json({ success: false, error: 'Report not found' });
+      reportId = matchingReport.report_id;
+    }
+    const result = await dbQueries.getNeighbourhoodComparison(reportId);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'No neighbourhood comparison' });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error fetching neighbourhood comparison:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch neighbourhood comparison', message: error.message });
+  }
+});
 // Get all report home info
 app.get('/api/reports/home-info', async (req, res) => {
   try {

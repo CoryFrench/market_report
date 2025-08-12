@@ -147,6 +147,51 @@
             border-color: #adb5bd !important;
             transform: translateY(-1px) !important;
         }
+
+        /* Custom Development HTML Legend */
+        #devLegend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin: 6px 0 12px 0;
+        }
+        #devLegend .legend-item {
+            background: #ffffff;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 6px 10px;
+            min-width: 150px;
+            text-align: center;
+        }
+        #devLegend .legend-name {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+            cursor: pointer;
+        }
+        #devLegend .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        #devLegend .legend-actions {
+            margin-top: 2px;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        #devLegend .legend-actions a {
+            color: #3498db;
+            text-decoration: none;
+            margin: 0 4px;
+            cursor: pointer;
+        }
+        #devLegend .legend-actions a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -361,6 +406,7 @@
                                         </select>
                                     </div>
                                     <div id="dev-comparison-chart-container" style="position: relative; height: 500px; width: 100%;">
+                                        <div id="devLegend"></div>
                                         <canvas id="dev-comparison-chart" class="fred-chart"></canvas>
                                         <div id="dev-chart-loading" class="chart-loading-message" style="display: none;">
                                             <div class="loading-spinner-small"></div>
@@ -3255,8 +3301,8 @@
                     const slugEl = document.getElementById('reportContent');
                     const slug = (typeof urlSlug !== 'undefined') ? urlSlug : (window.location.pathname.split('/').pop());
                     let rendered = false;
-                    try {
-                        const resp = await fetch(`${API_BASE}/reports/${slug}/neighbourhood-comparison?neigh=1`);
+                try {
+                    const resp = await fetch(`${API_BASE}/reports/${slug}/neighbourhood-comparison`);
                         if (resp.ok) {
                             const saved = await resp.json();
                             const payload = saved && saved.data ? saved.data : null;
@@ -3888,6 +3934,96 @@
         // Global Chart.js instance
         let developmentChart = null;
 
+        // Render custom two-line HTML legend with ( Map | Stats ) per series
+        function renderDevelopmentHtmlLegend() {
+            try {
+                const legendContainer = document.getElementById('devLegend');
+                if (!legendContainer || !developmentChart) return;
+
+                // Clear any existing items
+                legendContainer.innerHTML = '';
+
+                const datasets = developmentChart.data && developmentChart.data.datasets
+                    ? developmentChart.data.datasets
+                    : [];
+
+                datasets.forEach((dataset, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'legend-item';
+
+                    // Row 1: dot + name (click toggles visibility)
+                    const nameRow = document.createElement('div');
+                    nameRow.className = 'legend-name';
+
+                    const dot = document.createElement('span');
+                    dot.className = 'legend-dot';
+                    dot.style.backgroundColor = dataset.borderColor || '#3498db';
+
+                    const nameText = document.createElement('span');
+                    nameText.textContent = dataset.label || `Series ${index + 1}`;
+
+                    nameRow.appendChild(dot);
+                    nameRow.appendChild(nameText);
+
+                    nameRow.addEventListener('click', () => {
+                        const currentlyVisible = developmentChart.isDatasetVisible(index);
+                        developmentChart.setDatasetVisibility(index, !currentlyVisible);
+                        developmentChart.update();
+                        renderDevelopmentHtmlLegend();
+                    });
+
+                    // Apply hidden styling
+                    if (!developmentChart.isDatasetVisible(index)) {
+                        nameRow.style.opacity = '0.5';
+                        nameRow.style.textDecoration = 'line-through';
+                    }
+
+                    // Row 2: ( Map | Stats ) actions
+                    const actionsRow = document.createElement('div');
+                    actionsRow.className = 'legend-actions';
+
+                    const openParen = document.createTextNode('( ');
+                    const pipeText = document.createTextNode(' | ');
+                    const closeParen = document.createTextNode(' )');
+
+                    const mapLink = document.createElement('a');
+                    mapLink.href = '#';
+                    mapLink.textContent = 'Map';
+                    mapLink.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const label = dataset.label || '';
+                        if (label) {
+                            openDevelopmentMapForName(label);
+                        }
+                    });
+
+                    const statsLink = document.createElement('a');
+                    statsLink.href = '#';
+                    statsLink.textContent = 'Stats';
+                    statsLink.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const label = dataset.label || '';
+                        if (label) {
+                            showChartOverlay(label);
+                        }
+                    });
+
+                    actionsRow.appendChild(openParen);
+                    actionsRow.appendChild(mapLink);
+                    actionsRow.appendChild(pipeText);
+                    actionsRow.appendChild(statsLink);
+                    actionsRow.appendChild(closeParen);
+
+                    item.appendChild(nameRow);
+                    item.appendChild(actionsRow);
+
+                    legendContainer.appendChild(item);
+                });
+            } catch (legendErr) {
+                console.warn('Failed to render custom development legend:', legendErr);
+            }
+        }
+
         // Render development chart based on type using Chart.js
         function renderDevelopmentChart(chartType) {
             console.log('renderDevelopmentChart called with chartType:', chartType);
@@ -3992,44 +4128,7 @@
                                 weight: 'bold'
                             }
                         },
-                        legend: {
-                            display: true,
-                            position: 'top',
-                            onClick: function(e, legendItem, legend) {
-                                console.log('Legend onClick triggered:', { e, legendItem, legend });
-                                // Suppress the next document click to avoid immediate close
-                                __suppressNextDocumentClick = true;
-                                // Prevent default legend click behavior (toggling dataset visibility)
-                                if (e && e.stopPropagation) {
-                                    e.stopPropagation();
-                                }
-                                // Get the series name and strip icon if present
-                                let seriesName = legendItem.text || legendItem.label || 'Unknown';
-                                seriesName = String(seriesName).replace(/^🔗\s*/, '');
-                                // Always show popup. The popup will adapt to mode (development vs zone)
-                                showDevelopmentActionsPopupFromChart(e, seriesName, legend.chart.canvas);
-                                return false;
-                            },
-                            labels: {
-                                generateLabels: function(chart) {
-                                    const original = Chart.defaults.plugins.legend.labels.generateLabels;
-                                    const labels = original.call(this, chart);
-                                    
-                                    // Make legend items look clickable
-                                    labels.forEach(label => {
-                                        label.text = '🔗 ' + label.text; // Add link icon
-                                    });
-                                    
-                                    return labels;
-                                },
-                                usePointStyle: true,
-                                padding: 20,
-                                font: {
-                                    size: 12,
-                                    weight: '500'
-                                }
-                            }
-                        },
+                        legend: { display: false },
                         tooltip: {
                             mode: 'index',
                             intersect: false,
@@ -4105,6 +4204,9 @@
             // Create the chart
             const ctx = chartCanvas.getContext('2d');
             developmentChart = new Chart(ctx, config);
+
+            // Render custom legend now that chart exists
+            renderDevelopmentHtmlLegend();
             
             console.log('Chart.js chart created successfully');
         }
@@ -4341,7 +4443,7 @@
             }
         }
 
-        // Switch between chart types
+            // Switch between chart types
         function switchDevelopmentChart(chartType) {
             // If trying to switch to price_per_sqft but no data available, fall back to sales
             if (chartType === 'price_per_sqft' && !window.hasPricePerSqftData) {
@@ -4359,6 +4461,8 @@
             
             // Render the appropriate chart
             renderDevelopmentChart(chartType);
+            // Update legend for new datasets
+            renderDevelopmentHtmlLegend();
         }
 
         // Show the development controls view and hide the chart view
