@@ -3482,6 +3482,8 @@
                 btn.style.color = (selectionMode === mode) ? '#ffffff' : '#333333';
                 btn.addEventListener('click', async () => {
                     if (selectionMode === mode) return;
+                    // Capture current UI selections into the correct persisted list BEFORE switching mode
+                    try { persistCurrentModeSelections(); } catch (e) { console.warn('persistCurrentModeSelections failed:', e); }
                     selectionMode = mode;
                     // Update visual state
                     devBtn.style.background = (selectionMode === 'development') ? '#0d6efd' : '#ffffff';
@@ -3517,6 +3519,26 @@
                 controls.insertBefore(toggleWrap, controls.firstChild);
             } else if (container && container.parentElement) {
                 container.parentElement.insertBefore(toggleWrap, container);
+            }
+        }
+
+        // Read current dropdown selections from the UI
+        function readCurrentSelectionsFromUI() {
+            const values = [];
+            for (let i = 1; i <= developmentSelectionCount; i++) {
+                const sel = document.getElementById(`development-select-${i}`);
+                if (sel && sel.value) values.push(sel.value);
+            }
+            return values;
+        }
+
+        // Persist the currently displayed tab's selections (development or zone) into the corresponding list
+        function persistCurrentModeSelections() {
+            const values = readCurrentSelectionsFromUI();
+            if (selectionMode === 'development') {
+                window.selectedDevelopments = values.slice();
+            } else {
+                window.selectedZones = values.slice();
             }
         }
 
@@ -3983,12 +4005,8 @@
             if (chartContainer) chartContainer.innerHTML = '';
             
             try {
-                // Persist current selection into its list
-                if (selectionMode === 'development') {
-                    window.selectedDevelopments = selections.slice();
-                } else {
-                    window.selectedZones = selections.slice();
-                }
+                // Persist the currently displayed tab's selections
+                persistCurrentModeSelections();
                 // Ensure a name that exists in zones is not duplicated in developments and vice versa
                 if (Array.isArray(window.selectedDevelopments) && Array.isArray(window.selectedZones)) {
                     const zoneSet = new Set(window.selectedZones);
