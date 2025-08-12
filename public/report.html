@@ -818,14 +818,14 @@
         }
         
         // Function to show chart overlay
-        async function showChartOverlay(developmentName) {
+        async function showChartOverlay(entityName, typeHint) {
             const overlay = document.getElementById('chartOverlay');
             const title = document.getElementById('chartOverlayTitle');
             const content = document.getElementById('chartOverlayContent');
             
             // Show overlay
             overlay.style.display = 'flex';
-            title.textContent = `${developmentName} - Sales Analysis`;
+            title.textContent = `${entityName} - Sales Analysis`;
             
             // Show loading state
             content.innerHTML = `
@@ -836,8 +836,12 @@
             `;
             
             try {
-                // Fetch chart data
-                const response = await fetch(`${API_BASE}/development-chart/${encodeURIComponent(developmentName)}`);
+                // Fetch chart data (zones currently use same endpoint if supported; adjust if separate)
+                // Fetch appropriate chart endpoint based on type
+                const endpoint = (typeHint === 'zone')
+                    ? `${API_BASE}/zone-chart/${encodeURIComponent(entityName)}`
+                    : `${API_BASE}/development-chart/${encodeURIComponent(entityName)}`;
+                const response = await fetch(endpoint);
                 const result = await response.json();
                 
                 if (response.ok && result.success) {
@@ -3991,7 +3995,7 @@
                     window.selectedDevelopments = window.selectedDevelopments.filter(n => !zoneSet.has(n));
                 }
 
-                // Combine both sets to render a single chart (distinct lists)
+                // Combine both sets to render a single chart (distinct lists). Do not coerce types.
                 const devs = Array.isArray(window.selectedDevelopments) ? window.selectedDevelopments.slice() : [];
                 const zones = Array.isArray(window.selectedZones) ? window.selectedZones.slice() : [];
 
@@ -4014,7 +4018,7 @@
 
                 // Display merged data; order legend as devs then zones
                 const devSet = new Set(devs);
-                const orderedSelections = [...devs, ...zones.filter(n => !devSet.has(n))];
+                const orderedSelections = [...devs, ...zones];
                 displayDevelopmentComparisonChart(merged, orderedSelections);
                 
                 // Switch to chart view and show chart elements
@@ -4195,7 +4199,8 @@
                         e.preventDefault();
                         const label = dataset.label || '';
                         if (label) {
-                            openDevelopmentMapForName(label);
+                            const entityType = (Array.isArray(window.selectedZones) && window.selectedZones.includes(label)) ? 'zone' : 'development';
+                            openDevelopmentMapForName(label, entityType);
                         }
                     });
 
@@ -4206,7 +4211,8 @@
                         e.preventDefault();
                         const label = dataset.label || '';
                         if (label) {
-                            showChartOverlay(label);
+                            const isZone = Array.isArray(window.selectedZones) && window.selectedZones.includes(label);
+                            showChartOverlay(label, isZone ? 'zone' : 'development');
                         }
                     });
 
@@ -4574,7 +4580,7 @@
         }
         
         // Open development map for a specific development name
-        async function openDevelopmentMapForName(developmentName) {
+        async function openDevelopmentMapForName(developmentName, typeHint) {
             const modal = document.getElementById('mapModal');
             const loading = document.getElementById('mapLoading');
             const error = document.getElementById('mapError');
@@ -4589,7 +4595,7 @@
             }
             
             const cleanDevelopmentName = developmentName.trim();
-            const inZoneMode = (typeof selectionMode !== 'undefined' && selectionMode === 'zone');
+            const inZoneMode = (typeHint === 'zone') || (typeof selectionMode !== 'undefined' && selectionMode === 'zone');
             title.textContent = inZoneMode ? 'Zone Parcels Map' : 'Development Parcels Map';
             subtitle.textContent = `Showing parcels for ${cleanDevelopmentName}`;
             loadingText.textContent = inZoneMode ? 'Loading zone parcels...' : 'Loading development parcels...';
@@ -4671,39 +4677,10 @@
 
         // Show the development controls view and hide the chart view
         function showDevelopmentControlsView() {
-            const t0 = performance.now();
             document.getElementById('dev-controls-section').style.display = 'block';
             document.getElementById('dev-chart-section').style.display = 'none';
-
-            // Restore current selections (if any) instead of defaulting to one
-            try {
-                const current = (typeof window !== 'undefined') ? window.selectedDevelopments : null;
-                const list = Array.isArray(current) ? current.filter(Boolean) : [];
-                if (list.length > 0) {
-                    const container = document.getElementById('development-selections');
-                    if (container) container.innerHTML = '';
-                    // Recreate exactly list.length selects without altering the counter during creation
-                    const targetCount = list.length;
-                    let i = 1;
-                    function addNext() {
-                        if (i <= targetCount) {
-                            const pre = list[i - 1];
-                            renderDevelopmentSelectionAt(i, pre);
-                            i += 1;
-                            requestAnimationFrame(addNext);
-                        } else {
-                            developmentSelectionCount = targetCount;
-                            updateDevelopmentButtons();
-                        }
-                    }
-                    requestAnimationFrame(addNext);
-                    updateDevelopmentButtons();
-                }
-            } catch (e) {
-                console.warn('Failed to restore development selections on back:', e);
-            }
-            const t1 = performance.now();
-            console.log('showDevelopmentControlsView render ms:', Math.round(t1 - t0));
+            // Rebuild strictly from current mode's persisted list to avoid cross-mode pollution
+            rebuildSelectionsUIForCurrentMode();
         }
         
         // Show the development chart view and hide the controls view  

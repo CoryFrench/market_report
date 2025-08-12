@@ -837,6 +837,58 @@ app.get('/api/development-chart/:developmentName', async (req, res) => {
   }
 });
 
+// Zone chart data API endpoint - mirrors development chart but filters by zone
+app.get('/api/zone-chart/:zoneName', async (req, res) => {
+  try {
+    const { zoneName } = req.params;
+    if (!zoneName) {
+      return res.status(400).json({ success: false, error: 'Zone name is required' });
+    }
+    const chartDataQuery = `
+      WITH combined AS (
+        SELECT 
+          d.parcel_number,
+          d.zone_name,
+          m.listing_id,
+          m.status,
+          m.status_change_date,
+          m.listing_date,
+          m.sold_date,
+          m.sold_price
+        FROM waterfrontdata.development_data d
+        JOIN mls.vw_beaches_residential_developments m
+          ON m.parcel_id = d.parcel_number
+        WHERE d.zone_name = $1
+      )
+      SELECT 
+        EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) as sale_year,
+        COUNT(*) as sales_count,
+        AVG(sold_price::numeric) as avg_price,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sold_price::numeric) as median_price,
+        MIN(sold_price::numeric) as min_price,
+        MAX(sold_price::numeric) as max_price
+      FROM combined
+      WHERE status = 'Closed'
+        AND sold_date IS NOT NULL 
+        AND sold_date <> ''
+        AND sold_price IS NOT NULL 
+        AND sold_price <> ''
+        AND LENGTH(TRIM(sold_price)) > 0
+        AND sold_price ~ '^[0-9]+(\\.[0-9]+)?$'
+        AND EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) >= EXTRACT(YEAR FROM NOW()) - 10
+      GROUP BY EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD'))
+      ORDER BY sale_year ASC;`;
+
+    const { query } = require('./db');
+    const exactZoneName = zoneName.trim();
+    const chartResult = await query(chartDataQuery, [exactZoneName]);
+    res.json({ success: true, data: { zoneName: exactZoneName, chartData: chartResult.rows } });
+  } catch (error) {
+    console.error('Error fetching zone chart data:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch zone chart data', message: error.message });
+  }
+});
+
 // Property lookup by address to enrich Home Stats
 app.get('/api/property-lookup', async (req, res) => {
   try {
