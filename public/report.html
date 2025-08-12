@@ -677,7 +677,7 @@
                                 const fullBaths = formatInt(best.number_of_full_bathrooms);
                                 const halfBaths = formatInt(best.number_of_half_bathrooms);
                                 const halfBathsHtml = (halfBaths !== 'N/A' && parseInt(halfBaths, 10) > 0)
-                                    ? `<div><span style=\"color:#7f8c8d\">🚿 Half Baths:</span> <strong>${halfBaths}</strong></div>`
+                                    ? `<div><span style=\"color:#7f8c8d\">🚿 Half Bath:</span> <strong>${halfBaths}</strong></div>`
                                     : '';
                                 const marketValue = formatCurrency0(best.total_market_value);
 
@@ -703,12 +703,12 @@
                                         </div>
                                         <div style="height:1px; background:#e9ecef; margin:10px 0 14px 0;"></div>
                                         <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
-                                            <div><span style=\"color:#7f8c8d\">🏗️ Year Built:</span> <strong>${yearBuilt}</strong></div>
-                                            <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${livingSqFt}</strong></div>
                                             <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${bedrooms}</strong></div>
-                                        <div><span style=\"color:#7f8c8d\">🛁 Full Baths:</span> <strong>${fullBaths}</strong></div>
+                                            <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${livingSqFt}</strong></div>
+                                            <div><span style=\"color:#7f8c8d\">🛁 Bath:</span> <strong>${fullBaths}</strong></div>
+                                            <div><span style=\"color:#7f8c8d\">🏗️ Year Built:</span> <strong>${yearBuilt}</strong></div>
                                             ${halfBathsHtml}
-                                            <div><span style=\"color:#7f8c8d\">💲 Market Value:</span> <strong>${marketValue}</strong></div>
+                                            <div><span style=\"color:#7f8c8d\">💲 Tax Value:</span> <strong>${marketValue}</strong></div>
                                         </div>
                                     </div>
                                 `;
@@ -4365,6 +4365,36 @@
         function showDevelopmentControlsView() {
             document.getElementById('dev-controls-section').style.display = 'block';
             document.getElementById('dev-chart-section').style.display = 'none';
+
+            // Restore current selections (if any) instead of defaulting to one
+            try {
+                const current = (typeof window !== 'undefined') ? window.selectedDevelopments : null;
+                const list = Array.isArray(current) ? current.filter(Boolean) : [];
+                if (list.length > 0) {
+                    const container = document.getElementById('development-selections');
+                    if (container) container.innerHTML = '';
+                    // Recreate the exact number of selects
+                    developmentSelectionCount = list.length;
+                    // First one
+                    populateInitialDevelopmentDropdowns();
+                    // Additional ones
+                    for (let i = 2; i <= developmentSelectionCount; i++) {
+                        addDevelopmentSelection();
+                    }
+                    // Preselect values (using chunked population auto-select via data-preselect)
+                    list.forEach((name, idx) => {
+                        const selectEl = document.getElementById(`development-select-${idx + 1}`);
+                        if (selectEl) {
+                            selectEl.dataset.preselect = String(name);
+                            // Ensure options are populated (chunked)
+                            populateDevelopmentDropdown(selectEl);
+                        }
+                    });
+                    updateDevelopmentButtons();
+                }
+            } catch (e) {
+                console.warn('Failed to restore development selections on back:', e);
+            }
         }
         
         // Show the development chart view and hide the controls view  
