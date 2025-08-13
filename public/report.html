@@ -147,6 +147,51 @@
             border-color: #adb5bd !important;
             transform: translateY(-1px) !important;
         }
+
+        /* Custom Development HTML Legend */
+        #devLegend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin: 6px 0 12px 0;
+        }
+        #devLegend .legend-item {
+            background: #ffffff;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 6px 10px;
+            min-width: 150px;
+            text-align: center;
+        }
+        #devLegend .legend-name {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+            cursor: pointer;
+        }
+        #devLegend .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        #devLegend .legend-actions {
+            margin-top: 2px;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        #devLegend .legend-actions a {
+            color: #3498db;
+            text-decoration: none;
+            margin: 0 4px;
+            cursor: pointer;
+        }
+        #devLegend .legend-actions a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -299,7 +344,7 @@
                                             <line x1="12" y1="20" x2="12" y2="4"></line>
                                             <line x1="6" y1="20" x2="6" y2="14"></line>
                                         </svg>
-                                        <span style="color: #27ae60; font-size: 13px; font-weight: 500;">Chart</span>
+                                        <span style="color: #27ae60; font-size: 13px; font-weight: 500;">Stats</span>
                                     </div>
                                 </div>
                             </div>
@@ -361,6 +406,7 @@
                                         </select>
                                     </div>
                                     <div id="dev-comparison-chart-container" style="position: relative; height: 500px; width: 100%;">
+                                        <div id="devLegend"></div>
                                         <canvas id="dev-comparison-chart" class="fred-chart"></canvas>
                                         <div id="dev-chart-loading" class="chart-loading-message" style="display: none;">
                                             <div class="loading-spinner-small"></div>
@@ -665,7 +711,8 @@
 
                                 const formatCurrency0 = (value) => {
                                     if (value === null || value === undefined) return 'N/A';
-                                    const num = Number(String(value).replace(/[^0-9.-]/g, ''));
+                                    const cleaned = String(value).replace(/[^0-9.\-]/g, '');
+                                    const num = Number(cleaned);
                                     return Number.isFinite(num)
                                         ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num)
                                         : 'N/A';
@@ -677,7 +724,7 @@
                                 const fullBaths = formatInt(best.number_of_full_bathrooms);
                                 const halfBaths = formatInt(best.number_of_half_bathrooms);
                                 const halfBathsHtml = (halfBaths !== 'N/A' && parseInt(halfBaths, 10) > 0)
-                                    ? `<div><span style=\"color:#7f8c8d\">🚿 Half Baths:</span> <strong>${halfBaths}</strong></div>`
+                                    ? `<div><span style=\"color:#7f8c8d\">🚿 Half Bath:</span> <strong>${halfBaths}</strong></div>`
                                     : '';
                                 const marketValue = formatCurrency0(best.total_market_value);
 
@@ -703,12 +750,12 @@
                                         </div>
                                         <div style="height:1px; background:#e9ecef; margin:10px 0 14px 0;"></div>
                                         <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
-                                            <div><span style=\"color:#7f8c8d\">🏗️ Year Built:</span> <strong>${yearBuilt}</strong></div>
-                                            <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${livingSqFt}</strong></div>
                                             <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${bedrooms}</strong></div>
-                                        <div><span style=\"color:#7f8c8d\">🛁 Full Baths:</span> <strong>${fullBaths}</strong></div>
+                                            <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${livingSqFt}</strong></div>
+                                            <div><span style=\"color:#7f8c8d\">🛁 Bath:</span> <strong>${fullBaths}</strong></div>
+                                            <div><span style=\"color:#7f8c8d\">🏗️ Year Built:</span> <strong>${yearBuilt}</strong></div>
                                             ${halfBathsHtml}
-                                            <div><span style=\"color:#7f8c8d\">💲 Market Value:</span> <strong>${marketValue}</strong></div>
+                                            <div><span style=\"color:#7f8c8d\">💲 Tax Value:</span> <strong>${marketValue}</strong></div>
                                         </div>
                                     </div>
                                 `;
@@ -726,7 +773,6 @@
                                     if (addressBlock) addressBlock.style.display = 'none';
                                 }
                             }
-                            // Neighborhood chart auto-restore happens during initializeDevelopmentComparison()
                         }
                     }
                 } catch (lookupErr) {
@@ -772,14 +818,14 @@
         }
         
         // Function to show chart overlay
-        async function showChartOverlay(developmentName) {
+        async function showChartOverlay(entityName, typeHint) {
             const overlay = document.getElementById('chartOverlay');
             const title = document.getElementById('chartOverlayTitle');
             const content = document.getElementById('chartOverlayContent');
             
             // Show overlay
             overlay.style.display = 'flex';
-            title.textContent = `${developmentName} - Sales Analysis`;
+            title.textContent = `${entityName} - Sales Analysis`;
             
             // Show loading state
             content.innerHTML = `
@@ -790,8 +836,12 @@
             `;
             
             try {
-                // Fetch chart data
-                const response = await fetch(`${API_BASE}/development-chart/${encodeURIComponent(developmentName)}`);
+                // Fetch chart data (zones currently use same endpoint if supported; adjust if separate)
+                // Fetch appropriate chart endpoint based on type
+                const endpoint = (typeHint === 'zone')
+                    ? `${API_BASE}/zone-chart/${encodeURIComponent(entityName)}`
+                    : `${API_BASE}/development-chart/${encodeURIComponent(entityName)}`;
+                const response = await fetch(endpoint);
                 const result = await response.json();
                 
                 if (response.ok && result.success) {
@@ -3191,6 +3241,9 @@
 
         // Development/Zone Comparison Functionality
         let selectionMode = 'development'; // 'development' | 'zone'
+        // Maintain independent selections for developments and zones
+        window.selectedDevelopments = window.selectedDevelopments || [];
+        window.selectedZones = window.selectedZones || [];
         // Track last mouse position as a reliable fallback for popup placement
         (function trackLastMousePosition(){
             try {
@@ -3211,72 +3264,195 @@
         let zonesList = [];
         let __suppressNextDocumentClick = false;
 
-        // Initialize development comparison
-        async function initializeDevelopmentComparison() {
+        // Helper: Try direct-render neighbourhood from complete endpoint (fallback)
+        async function tryRenderFromComplete(slug) {
             try {
-                await loadDevelopmentsList();
-                // Pre-create the toggle UI
-                createSelectionModeToggle();
-                // Build initial selection UI
-                populateInitialDevelopmentDropdowns();
-                // Only auto-select when in development mode
-                if (selectionMode === 'development') {
-                    autoSelectReportDevelopment();
-                }
-                setupDevelopmentComparisonEventHandlers();
-                // Load saved neighborhood comparison selection if exists
-                try {
-                    const resp = await fetch(`${API_BASE}/reports/${urlSlug}/neighborhood-comparison`);
-                    if (resp.ok) {
-                        const saved = await resp.json();
-                        const payload = saved && saved.data ? saved.data : null;
-                        if (payload && Array.isArray(payload.locations) && payload.locations.length > 0) {
-                            // Switch mode if needed
-                            if (payload.stats_category === 'zone') {
-                                selectionMode = 'zone';
-                                updateDevZoneStaticLabels();
-                                if (zonesList.length === 0) await loadZonesList();
-                            }
-                            // Rebuild number of selects
-                            developmentSelectionCount = payload.locations.length;
-                            const container = document.getElementById('development-selections');
-                            if (container) container.innerHTML = '';
-                            populateInitialDevelopmentDropdowns();
-                            for (let i = 2; i <= developmentSelectionCount; i++) addDevelopmentSelection();
-                            // Populate values
-                            const list = selectionMode === 'development' ? developmentsList : zonesList;
-                            payload.locations.forEach((name, idx) => {
-                                const selectEl = document.getElementById(`development-select-${idx + 1}`);
-                                if (selectEl) {
-                                    populateDevelopmentDropdown(selectEl);
-                                    const match = (list || []).find(item => (item.development_name || item.zone_name || item.name) === name);
-                                    selectEl.value = match ? (match.development_name || match.zone_name || match.name) : name;
-                                }
-                            });
-                            updateDevelopmentButtons();
+                const resp = await fetch(`${API_BASE}/reports/complete/${slug}`);
+                if (!resp.ok) return false;
+                const json = await resp.json();
+                const charts = json && json.data && Array.isArray(json.data.charts) ? json.data.charts : [];
+                const saved = charts.find(c => c && (c.chart_type === 'neighbourhood_comparison' || c.chart_type === 'neighborhood_comparison'));
+                if (!saved || !Array.isArray(saved.locations) || saved.locations.length === 0) return false;
 
-                            // Restore chart type if stored; user can click Generate when ready
-                            try {
-                                if (payload.series_id) {
-                                    const type = String(payload.series_id);
-                                    if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
-                                        switchDevelopmentChart(type);
-                                    }
-                                }
-                            } catch (autoErr) {
-                                console.warn('Failed to restore neighborhood chart type:', autoErr);
-                            }
-                        }
+        const selections = saved.locations;
+        // Attempt to split types from saved payload if available, else treat all as developments for fetch but keep labels distinct
+        const devs = Array.isArray(saved.development_names) ? saved.development_names : selections;
+        const zones = Array.isArray(saved.zone_names) ? saved.zone_names : [];
+
+        // Fetch both types where possible
+        const reqs = [];
+        if (Array.isArray(devs) && devs.length > 0) {
+            reqs.push(fetch(`${API_BASE}/developments-comparison?developments=${encodeURIComponent(devs.join(','))}`));
+        }
+        if (Array.isArray(zones) && zones.length > 0) {
+            reqs.push(fetch(`${API_BASE}/zones-comparison?zones=${encodeURIComponent(zones.join(','))}`));
+        }
+        const resps = await Promise.all(reqs);
+        const jsons = await Promise.all(resps.map(r => r.ok ? r.json() : Promise.resolve(null)));
+        let merged = [];
+        jsons.forEach(j => {
+            if (!j || !j.success) return;
+            if (Array.isArray(j.data)) merged.push(...j.data);
+            else if (Array.isArray(j.data?.comparisonData)) merged.push(...j.data.comparisonData);
+        });
+
+        // Build labels and mappings
+        const devSetLower = new Set((devs || []).map(n => String(n).toLowerCase()));
+        const overlapLower = new Set((zones || []).map(n => String(n).toLowerCase()).filter(n => devSetLower.has(n)));
+        const entityLabelMap = {};
+        const entityKeyToLabel = {};
+        const labels = [];
+        (devs || []).forEach(name => {
+            const label = String(name);
+            labels.push(label);
+            entityLabelMap[label] = { name: String(name), type: 'development' };
+            entityKeyToLabel[`development:${String(name).toLowerCase()}`] = label;
+        });
+        (zones || []).forEach(name => {
+            const lower = String(name).toLowerCase();
+            const label = overlapLower.has(lower) ? `${name} (Zone)` : String(name);
+            labels.push(label);
+            entityLabelMap[label] = { name: String(name), type: 'zone' };
+            entityKeyToLabel[`zone:${lower}`] = label;
+        });
+        window.entityLabelMap = entityLabelMap;
+        window.entityKeyToLabel = entityKeyToLabel;
+
+        displayDevelopmentComparisonChart(merged, labels);
+                showDevelopmentChartView();
+                const chartControls = document.getElementById('development-chart-controls');
+                if (chartControls) chartControls.style.display = 'block';
+                const chartHeader = document.getElementById('dev-comparison-chart-header');
+                if (chartHeader) chartHeader.style.display = 'block';
+                // Restore chart type (no auto-regenerate)
+                if (saved.series_id) {
+                    const type = String(saved.series_id);
+                    if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
+                        switchDevelopmentChart(type);
                     }
-                } catch (loadSavedErr) {
-                    console.warn('No saved neighborhood comparison found or failed to load:', loadSavedErr);
                 }
-            } catch (error) {
-                console.error('Error initializing development comparison:', error);
+                return true;
+            } catch (e) {
+                console.warn('tryRenderFromComplete failed:', e);
+                return false;
             }
         }
 
-        // Load available developments
+        // Initialize development comparison
+        async function initializeDevelopmentComparison() {
+            const t0 = performance.now();
+            try {
+                // 1) Try direct-render from saved neighbourhood comparison first (no dropdown population)
+                try {
+                    const slugEl = document.getElementById('reportContent');
+                    const slug = (typeof urlSlug !== 'undefined') ? urlSlug : (window.location.pathname.split('/').pop());
+                    let rendered = false;
+                    try {
+                        const resp = await fetch(`${API_BASE}/reports/${slug}/neighbourhood-comparison`);
+                        if (resp.ok) {
+                            const saved = await resp.json();
+                            const payload = saved && saved.data ? saved.data : null;
+                            // Prefer explicit development/zone arrays from API to avoid misclassification
+                            const devs = Array.isArray(payload?.development_names) ? payload.development_names : [];
+                            const zonesSaved = Array.isArray(payload?.zone_names) ? payload.zone_names : [];
+                            window.selectedDevelopments = devs;
+                            window.selectedZones = zonesSaved;
+
+                            // Fetch both data sets in parallel and merge, tagging source type for disambiguation
+                            const reqs = [];
+                            const reqTypes = [];
+                            if (devs.length > 0) {
+                                reqs.push(fetch(`${API_BASE}/developments-comparison?developments=${encodeURIComponent(devs.join(','))}`));
+                                reqTypes.push('development');
+                            }
+                            if (zonesSaved.length > 0) {
+                                reqs.push(fetch(`${API_BASE}/zones-comparison?zones=${encodeURIComponent(zonesSaved.join(','))}`));
+                                reqTypes.push('zone');
+                            }
+                const resps = await Promise.all(reqs);
+                const jsons = await Promise.all(resps.map(r => r.ok ? r.json() : Promise.resolve(null)));
+                let mergedData = [];
+                jsons.forEach((j, idx) => {
+                    if (!j || !j.success) return;
+                    const srcType = reqTypes[idx] || 'development';
+                    if (Array.isArray(j.data)) mergedData.push(...j.data.map(row => ({ ...row, sourceType: srcType })));
+                    else if (Array.isArray(j.data?.comparisonData)) mergedData.push(...j.data.comparisonData.map(row => ({ ...row, sourceType: srcType })));
+                });
+
+                // Build label mapping and disambiguated labels (mirror Generate Analysis path)
+                const devSetLower = new Set(devs.map(n => String(n).toLowerCase()));
+                const overlapLower = new Set((zonesSaved || []).map(n => String(n).toLowerCase()).filter(n => devSetLower.has(n)));
+                const entityLabelMap = {}; // label -> { name, type }
+                const entityKeyToLabel = {}; // `${type}:${lowerName}` -> label
+                const labels = [];
+                devs.forEach(name => {
+                    const label = String(name);
+                    labels.push(label);
+                    entityLabelMap[label] = { name: String(name), type: 'development' };
+                    entityKeyToLabel[`development:${String(name).toLowerCase()}`] = label;
+                });
+                (zonesSaved || []).forEach(name => {
+                    const lower = String(name).toLowerCase();
+                    const label = overlapLower.has(lower) ? `${name} (Zone)` : String(name);
+                    labels.push(label);
+                    entityLabelMap[label] = { name: String(name), type: 'zone' };
+                    entityKeyToLabel[`zone:${lower}`] = label;
+                });
+                window.entityLabelMap = entityLabelMap;
+                window.entityKeyToLabel = entityKeyToLabel;
+                try {
+                    window.knownDevNamesLower = new Set(devs.map(n => String(n).toLowerCase()));
+                    window.knownZoneNamesLower = new Set((zonesSaved || []).map(n => String(n).toLowerCase()));
+                } catch {}
+
+                if (mergedData.length > 0) {
+                    displayDevelopmentComparisonChart(mergedData, labels);
+                    showDevelopmentChartView();
+                    const chartControls = document.getElementById('development-chart-controls');
+                    if (chartControls) chartControls.style.display = 'block';
+                    const chartHeader = document.getElementById('dev-comparison-chart-header');
+                    if (chartHeader) chartHeader.style.display = 'block';
+                    if (payload.series_id) {
+                        const type = String(payload.series_id);
+                        if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
+                            switchDevelopmentChart(type);
+                        }
+                    }
+                    rendered = true;
+                }
+                        }
+                        else if (resp.status === 404) {
+                            // Fallback to complete endpoint
+                            rendered = await tryRenderFromComplete(slug);
+                        }
+                    } catch (e) {
+                        // If endpoint missing, try fallback
+                        rendered = await tryRenderFromComplete(slug);
+                    }
+                } catch (e) {
+                    console.warn('Direct-render from saved neighbourhood comparison skipped:', e);
+                }
+
+                // 2) Prepare controls lazily for edits
+                // Load lists without blocking the main thread
+                loadDevelopmentsList().then(() => {
+                    try { populateInitialDevelopmentDropdowns(); } catch {}
+                });
+                // Zones are loaded on demand when toggled
+                createSelectionModeToggle();
+                // Initial dropdown will be populated when developments list resolves above
+                if (selectionMode === 'development') {
+                    setTimeout(() => { try { autoSelectReportDevelopment(); } catch {} }, 0);
+                }
+                setupDevelopmentComparisonEventHandlers();
+            } catch (error) {
+                console.error('Error initializing development comparison:', error);
+            }
+            const t1 = performance.now();
+            console.log('initializeDevelopmentComparison ms:', Math.round(t1 - t0));
+        }
+
+        // Load available developments (full list, once)
         async function loadDevelopmentsList() {
             try {
                 const response = await fetch(`${API_BASE}/developments`);
@@ -3286,10 +3462,14 @@
                 const result = await response.json();
                 
                 // Handle different response structures
-                if (result && result.success && result.data) {
-                    developmentsList = result.data;
+                if (result && result.success && Array.isArray(result.data)) {
+                    developmentsList = result.data.map(r => {
+                        const name = r.development_name || r.name || r.Development;
+                        return { development_name: String(name || '').trim() };
+                    }).filter(r => r.development_name.length > 0);
                 } else if (Array.isArray(result)) {
-                    developmentsList = result;
+                    developmentsList = result.map(v => ({ development_name: String(v || '').trim() }))
+                                              .filter(r => r.development_name.length > 0);
                 } else {
                     developmentsList = [];
                 }
@@ -3301,7 +3481,7 @@
             }
         }
 
-        // Load available zones
+        // Load available zones (full list, once)
         async function loadZonesList() {
             try {
                 const response = await fetch(`${API_BASE}/zones`);
@@ -3310,10 +3490,14 @@
                 }
                 const result = await response.json();
 
-                if (result && result.success && result.data) {
-                    zonesList = result.data;
+                if (result && result.success && Array.isArray(result.data)) {
+                    zonesList = result.data.map(r => {
+                        const name = r.zone_name || r.name || r.Zone;
+                        return { zone_name: String(name || '').trim() };
+                    }).filter(r => r.zone_name.length > 0);
                 } else if (Array.isArray(result)) {
-                    zonesList = result;
+                    zonesList = result.map(v => ({ zone_name: String(v || '').trim() }))
+                                      .filter(r => r.zone_name.length > 0);
                 } else {
                     zonesList = [];
                 }
@@ -3364,6 +3548,8 @@
                 btn.style.color = (selectionMode === mode) ? '#ffffff' : '#333333';
                 btn.addEventListener('click', async () => {
                     if (selectionMode === mode) return;
+                    // Capture current UI selections into the correct persisted list BEFORE switching mode
+                    try { persistCurrentModeSelections(); } catch (e) { console.warn('persistCurrentModeSelections failed:', e); }
                     selectionMode = mode;
                     // Update visual state
                     devBtn.style.background = (selectionMode === 'development') ? '#0d6efd' : '#ffffff';
@@ -3376,8 +3562,8 @@
                         await loadZonesList();
                     }
 
-                    // Reset UI for current mode
-                    resetDevelopmentComparison();
+                    // Rebuild UI for current mode without discarding other mode's selections
+                    rebuildSelectionsUIForCurrentMode();
 
                     // Update any static labels/titles to match mode
                     updateDevZoneStaticLabels();
@@ -3386,7 +3572,7 @@
             }
 
             const devBtn = makeButton('Development', 'development');
-            const zoneBtn = makeButton('Zone', 'zone');
+            const zoneBtn = makeButton('Waterfront Zone', 'zone');
 
             btnGroup.appendChild(devBtn);
             btnGroup.appendChild(zoneBtn);
@@ -3402,10 +3588,30 @@
             }
         }
 
-        // Update static labels and button text between Development and Zone
+        // Read current dropdown selections from the UI
+        function readCurrentSelectionsFromUI() {
+            const values = [];
+            for (let i = 1; i <= developmentSelectionCount; i++) {
+                const sel = document.getElementById(`development-select-${i}`);
+                if (sel && sel.value) values.push(sel.value);
+            }
+            return values;
+        }
+
+        // Persist the currently displayed tab's selections (development or zone) into the corresponding list
+        function persistCurrentModeSelections() {
+            const values = readCurrentSelectionsFromUI();
+            if (selectionMode === 'development') {
+                window.selectedDevelopments = values.slice();
+            } else {
+                window.selectedZones = values.slice();
+            }
+        }
+
+        // Update static labels and button text between Development and Waterfront Zone
         function updateDevZoneStaticLabels() {
-            const noun = (selectionMode === 'development') ? 'Development' : 'Zone';
-            const nounPlural = (selectionMode === 'development') ? 'developments' : 'zones';
+            const noun = (selectionMode === 'development') ? 'Development' : 'Waterfront Zone';
+            const nounPlural = (selectionMode === 'development') ? 'developments' : 'waterfront zones';
 
             const compTitle = document.getElementById('dev-comp-title');
             if (compTitle) compTitle.textContent = `${noun} Comparison Analysis`;
@@ -3441,9 +3647,9 @@
                 selectionDiv.innerHTML = `
                     <div class="location-row">
                         <div class="location-field">
-                            <label for="development-select-1">${selectionMode === 'development' ? 'Development' : 'Zone'} 1</label>
+                            <label for="development-select-1">${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'} 1</label>
                             <select id="development-select-1" class="fred-select">
-                                <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>
+                                <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'}...</option>
                             </select>
                         </div>
                     </div>
@@ -3451,35 +3657,97 @@
                 
                 container.appendChild(selectionDiv);
                 
-                // Populate the dropdown
-                const developmentSelect = document.getElementById('development-select-1');
-                if (developmentSelect) {
-                    populateDevelopmentDropdown(developmentSelect);
+                // Populate the dropdown only if list is ready; otherwise defer
+                const selectEl = document.getElementById('development-select-1');
+                if (selectEl) {
+                    const ready = (selectionMode === 'development') ? ((developmentsList||[]).length > 0)
+                                                                  : ((zonesList||[]).length > 0);
+                    const ensure = () => populateDevelopmentDropdown(selectEl);
+                    if (ready) {
+                        ensure();
+                    } else {
+                        let retries = 0;
+                        const waitAndPopulate = () => {
+                            const nowReady = (selectionMode === 'development') ? ((developmentsList||[]).length > 0)
+                                                                              : ((zonesList||[]).length > 0);
+                            if (nowReady) {
+                                ensure();
+                            } else if (retries < 50) {
+                                retries += 1;
+                                setTimeout(waitAndPopulate, 100);
+                            }
+                        };
+                        setTimeout(waitAndPopulate, 100);
+                    }
                 }
             }
         }
 
-        // Populate a single development dropdown
+        // Populate a single development dropdown (chunked to avoid blocking the UI)
         function populateDevelopmentDropdown(selectElement) {
-            if (!selectElement) return;
-            
-            // Clear existing options
-            selectElement.innerHTML = `<option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>`;
-            
-            // Add development options
-            const list = selectionMode === 'development' ? developmentsList : zonesList;
-            if (list && Array.isArray(list)) {
-                list.forEach(item => {
-                    const name = item.development_name || item.zone_name || item.name || item.Development || item.Zone;
-                    if (!name) return;
-                    const option = document.createElement('option');
-                    option.value = name;
-                    option.textContent = name;
-                    selectElement.appendChild(option);
-                });
-            } else {
-                console.warn('No options available to populate dropdown for mode:', selectionMode);
+            const t0 = performance.now();
+            if (selectElement.__populating) {
+                // Skip if a population cycle is already in progress for this select
+                console.log('populateDevelopmentDropdown skipped: already populating');
+                return;
             }
+            selectElement.__populating = true;
+            if (!selectElement) return;
+
+            // Clear existing options and add placeholder
+            selectElement.innerHTML = `<option value="">Select ${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'}...</option>`;
+
+            let list;
+            if (selectionMode === 'development') {
+                list = (developmentsList || []).map(r => r.development_name);
+            } else {
+                list = (zonesList || []).map(r => r.zone_name);
+            }
+            if (!list || !Array.isArray(list) || list.length === 0) {
+                console.warn('No options available to populate dropdown for mode:', selectionMode);
+                return;
+            }
+
+            const CHUNK_SIZE = 100; // smaller chunks for smoother rendering
+            let index = 0;
+
+            function addChunk() {
+                const frag = document.createDocumentFragment();
+                const upper = Math.min(index + CHUNK_SIZE, list.length);
+                for (let i = index; i < upper; i++) {
+                    const name = list[i];
+                    if (!name) continue;
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    frag.appendChild(opt);
+                }
+                selectElement.appendChild(frag);
+                index = upper;
+
+                if (index < list.length) {
+                    // Yield to the browser to keep UI responsive
+                    requestAnimationFrame(addChunk);
+                } else {
+                    const t1 = performance.now();
+                    console.log('populateDevelopmentDropdown options:', list.length, 'ms:', Math.round(t1 - t0));
+                    // Finalize: apply any preselect value if provided
+                    const desired = selectElement.dataset && selectElement.dataset.preselect ? String(selectElement.dataset.preselect) : '';
+                    if (desired) {
+                        for (let j = 0; j < selectElement.options.length; j++) {
+                            if (selectElement.options[j].value === desired) {
+                                selectElement.selectedIndex = j;
+                                break;
+                            }
+                        }
+                    }
+                    // Mark as done to prevent re-entry
+                    selectElement.__populating = false;
+                }
+            }
+
+            // Kick off chunked population
+            addChunk();
         }
 
         // Auto-select the development from the report's property address
@@ -3599,9 +3867,9 @@
             selectionDiv.innerHTML = `
                 <div class="location-row">
                     <div class="location-field">
-                        <label for="development-select-${developmentSelectionCount}">${selectionMode === 'development' ? 'Development' : 'Zone'} ${developmentSelectionCount}</label>
+                        <label for="development-select-${developmentSelectionCount}">${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'} ${developmentSelectionCount}</label>
                         <select id="development-select-${developmentSelectionCount}" class="fred-select">
-                            <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Zone'}...</option>
+                            <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'}...</option>
                         </select>
                     </div>
                     <button type="button" class="remove-location-btn" onclick="removeDevelopmentSelection(${developmentSelectionCount})" style="margin-left: 10px;">
@@ -3612,12 +3880,78 @@
             
             container.appendChild(selectionDiv);
             
-            // Populate the new dropdown
+            // Populate the new dropdown without blocking; defer if list not ready
             const newSelect = document.getElementById(`development-select-${developmentSelectionCount}`);
-            populateDevelopmentDropdown(newSelect);
+            if (newSelect) {
+                if (developmentsList && developmentsList.length > 0) {
+                    setTimeout(() => populateDevelopmentDropdown(newSelect), 0);
+                } else {
+                    let retries = 0;
+                    const waitAndPopulateNew = () => {
+                        if (developmentsList && developmentsList.length > 0) {
+                            populateDevelopmentDropdown(newSelect);
+                        } else if (retries < 50) {
+                            retries += 1;
+                            setTimeout(waitAndPopulateNew, 100);
+                        }
+                    };
+                    setTimeout(waitAndPopulateNew, 100);
+                }
+            }
             
             // Update button visibility
             updateDevelopmentButtons();
+        }
+
+        // Render a development selection at a specific index WITHOUT incrementing global count
+        function renderDevelopmentSelectionAt(index, preselectName) {
+            const container = document.getElementById('development-selections');
+            if (!container) return;
+
+            // If already exists, skip
+            if (document.getElementById(`development-selection-${index}`)) return;
+
+            const selectionDiv = document.createElement('div');
+            selectionDiv.className = 'location-selection';
+            selectionDiv.id = `development-selection-${index}`;
+
+            selectionDiv.innerHTML = `
+                <div class="location-row">
+                    <div class="location-field">
+                        <label for="development-select-${index}">${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'} ${index}</label>
+                        <select id="development-select-${index}" class="fred-select">
+                            <option value="">Select ${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'}...</option>
+                        </select>
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(selectionDiv);
+
+            const selectEl = document.getElementById(`development-select-${index}`);
+            if (selectEl) {
+                if (preselectName) selectEl.dataset.preselect = String(preselectName);
+                // Populate list based on current mode; use zones list for zone mode
+                const ready = (selectionMode === 'development') ? (developmentsList && developmentsList.length > 0)
+                                                               : (zonesList && zonesList.length > 0);
+                const ensurePopulate = () => populateDevelopmentDropdown(selectEl);
+                if (ready) {
+                    setTimeout(ensurePopulate, 0);
+                } else {
+                    let retries = 0;
+                    const waitAndPopulate = () => {
+                        const nowReady = (selectionMode === 'development') ? (developmentsList && developmentsList.length > 0)
+                                                                          : (zonesList && zonesList.length > 0);
+                        if (nowReady) {
+                            ensurePopulate();
+                        } else if (retries < 50) {
+                            retries += 1;
+                            setTimeout(waitAndPopulate, 100);
+                        }
+                    };
+                    setTimeout(waitAndPopulate, 100);
+                }
+            }
         }
 
         // Remove development selection
@@ -3644,6 +3978,29 @@
             if (removeBtn) {
                 removeBtn.style.display = currentSelections <= 1 ? 'none' : 'inline-block';
             }
+        }
+
+        // Rebuild the selections UI to reflect the current mode using persisted lists
+        function rebuildSelectionsUIForCurrentMode() {
+            const container = document.getElementById('development-selections');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const list = (selectionMode === 'development') ? (window.selectedDevelopments || []) : (window.selectedZones || []);
+            const targetCount = Math.max(1, list.length);
+            let i = 1;
+            function addNext() {
+                if (i <= targetCount) {
+                    const pre = list[i - 1] || '';
+                    renderDevelopmentSelectionAt(i, pre);
+                    i += 1;
+                    requestAnimationFrame(addNext);
+                } else {
+                    developmentSelectionCount = targetCount;
+                    updateDevelopmentButtons();
+                }
+            }
+            requestAnimationFrame(addNext);
         }
 
         // Reset development comparison to default
@@ -3686,7 +4043,7 @@
 
         // Generate development comparison
         async function generateDevelopmentComparison() {
-            // Collect all selected developments
+            // Collect current-mode selections
             const selections = [];
             let hasValidSelections = false;
             
@@ -3714,49 +4071,57 @@
             if (chartContainer) chartContainer.innerHTML = '';
             
             try {
-                // Fetch comparison data - send as comma-separated string
-                const param = selections.join(',');
-                const url = selectionMode === 'development'
-                    ? `${API_BASE}/developments-comparison?developments=${encodeURIComponent(param)}`
-                    : `${API_BASE}/zones-comparison?zones=${encodeURIComponent(param)}`;
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch comparison data: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                console.log('Development comparison data:', result);
-                
-                // Extract the actual data array from the response
-                let data;
-                if (result.success && result.data && result.data.comparisonData) {
-                    data = result.data.comparisonData;
-                } else if (result.success && result.data) {
-                    data = result.data;
-                } else if (Array.isArray(result)) {
-                    data = result;
-                } else {
-                    data = [];
-                }
-                
-                // Process and display the data
-                displayDevelopmentComparisonChart(data, selections);
+                // Persist the currently displayed tab's selections
+                persistCurrentModeSelections();
+                // Combine both sets to render a single chart (distinct lists). Do not coerce types.
+                const devs = Array.isArray(window.selectedDevelopments) ? window.selectedDevelopments.slice() : [];
+                const zones = Array.isArray(window.selectedZones) ? window.selectedZones.slice() : [];
 
-                // Persist neighborhood selection for this report
-                try {
-                    await fetch(`${API_BASE}/reports/${urlSlug}/neighborhood-comparison`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            mode: selectionMode === 'development' ? 'development' : 'zone',
-                            names: selections,
-                            chartType: currentDevelopmentChart || 'sales'
-                        })
-                    });
-                } catch (persistErr) {
-                    console.warn('Failed to persist neighborhood comparison selection:', persistErr);
+                // Build label mapping to disambiguate identical names across types
+                const devSetLower = new Set(devs.map(n => String(n).toLowerCase()));
+                const overlapLower = new Set(zones.map(n => String(n).toLowerCase()).filter(n => devSetLower.has(n)));
+                const entityLabelMap = {}; // label -> { name, type }
+                const entityKeyToLabel = {}; // `${type}:${lowerName}` -> label
+                const labels = [];
+                devs.forEach(name => {
+                    const label = String(name);
+                    labels.push(label);
+                    entityLabelMap[label] = { name: String(name), type: 'development' };
+                    entityKeyToLabel[`development:${String(name).toLowerCase()}`] = label;
+                });
+                zones.forEach(name => {
+                    const lower = String(name).toLowerCase();
+                    const label = overlapLower.has(lower) ? `${name} (Zone)` : String(name);
+                    labels.push(label);
+                    entityLabelMap[label] = { name: String(name), type: 'zone' };
+                    entityKeyToLabel[`zone:${lower}`] = label;
+                });
+                window.entityLabelMap = entityLabelMap;
+                window.entityKeyToLabel = entityKeyToLabel;
+
+                // Fetch both groups in parallel and tag with sourceType
+                const requests = [];
+                const requestTypes = [];
+                if (devs.length > 0) {
+                    requests.push(fetch(`${API_BASE}/developments-comparison?developments=${encodeURIComponent(devs.join(','))}`));
+                    requestTypes.push('development');
                 }
+                if (zones.length > 0) {
+                    requests.push(fetch(`${API_BASE}/zones-comparison?zones=${encodeURIComponent(zones.join(','))}`));
+                    requestTypes.push('zone');
+                }
+                const responses = await Promise.all(requests);
+                const jsons = await Promise.all(responses.map(r => r.ok ? r.json() : Promise.resolve(null)));
+                let merged = [];
+                jsons.forEach((j, idx) => {
+                    if (!j || !j.success) return;
+                    const srcType = requestTypes[idx] || 'development';
+                    if (Array.isArray(j.data)) merged.push(...j.data.map(row => ({ ...row, sourceType: srcType })));
+                    else if (Array.isArray(j.data?.comparisonData)) merged.push(...j.data.comparisonData.map(row => ({ ...row, sourceType: srcType })));
+                });
+
+                // Display merged data; order labels as devs then zones (with suffixes as needed)
+                displayDevelopmentComparisonChart(merged, labels);
                 
                 // Switch to chart view and show chart elements
                 showDevelopmentChartView();
@@ -3771,6 +4136,23 @@
                 const chartHeader = document.getElementById('dev-comparison-chart-header');
                 if (chartHeader) {
                     chartHeader.style.display = 'block';
+                }
+
+                // Non-blocking save to DB (neighbourhood) — persist mixed items (developments + zones)
+                try {
+                    const slug = (typeof urlSlug !== 'undefined') ? urlSlug : (window.location.pathname.split('/').pop());
+                    const seriesIdToSave = (typeof currentDevelopmentChart === 'string' && currentDevelopmentChart) ? currentDevelopmentChart : 'sales';
+                    const items = [
+                        ...devs.map(name => ({ name, type: 'development' })),
+                        ...zones.map(name => ({ name, type: 'zone' }))
+                    ];
+                    await fetch(`${API_BASE}/reports/${slug}/neighbourhood-comparison`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ seriesId: seriesIdToSave, items })
+                    });
+                } catch (persistErr) {
+                    console.warn('Neighbourhood save failed:', persistErr);
                 }
                 
             } catch (error) {
@@ -3794,50 +4176,47 @@
         // Display development comparison chart
         function displayDevelopmentComparisonChart(data, developments) {
             console.log('displayDevelopmentComparisonChart called with:', { data, developments });
-            developmentChartData = data;
-            
-            // Process data by development and year
-            const processedData = {};
-            
+            // Process rows by type-aware label so dev and zone with same name remain separate
+            const keyToLabel = (typeof window.entityKeyToLabel === 'object') ? window.entityKeyToLabel : {};
+            const processedByLabel = {};
+
             data.forEach(row => {
-                const dev = row.development_name || row.zone_name || row.name;
-                const year = row.sale_year || row.year; // Support both field names
-                
-                if (!processedData[dev]) {
-                    processedData[dev] = {};
+                const baseName = row.development_name || row.zone_name || row.name;
+                const lower = String(baseName || '').toLowerCase();
+                // Enhanced type detection: prefer explicit sourceType, then explicit fields, then known name sets
+                const knownDev = (window.knownDevNamesLower && typeof window.knownDevNamesLower.has === 'function') ? window.knownDevNamesLower.has(lower) : false;
+                const knownZone = (window.knownZoneNamesLower && typeof window.knownZoneNamesLower.has === 'function') ? window.knownZoneNamesLower.has(lower) : false;
+                const sourceType = (typeof row.sourceType === 'string') ? row.sourceType : null;
+                const isZone = (sourceType === 'zone') || (!!row.zone_name && (!row.development_name || row.development_name.length === 0)) || (knownZone && !knownDev);
+                const key = `${isZone ? 'zone' : 'development'}:${lower}`;
+                const label = keyToLabel[key] || (isZone ? `${baseName} (Zone)` : String(baseName));
+                const year = row.sale_year || row.year;
+
+                if (!processedByLabel[label]) {
+                    processedByLabel[label] = {};
                 }
-                
-                // Calculate price per square foot if both price and sqft are available
+
                 const avgPrice = parseFloat(row.avg_price ?? row.average_price) || 0;
                 const avgSqft = parseFloat(row.avg_sqft ?? row.average_sqft) || 0;
                 const pricePerSqft = avgSqft > 0 ? avgPrice / avgSqft : 0;
-                
-                // Debug: Log data availability for first few rows
-                if (Object.keys(processedData).length <= 2) {
-                    console.log(`Data for ${dev} (${year}):`, {
-                        avg_price: avgPrice,
-                        avg_sqft: avgSqft,
-                        calculated_price_per_sqft: pricePerSqft,
-                        raw_row: row
-                    });
-                }
-                
-                processedData[dev][year] = {
+
+                processedByLabel[label][year] = {
                     sales_count: parseInt(row.sales_count) || 0,
                     avg_price: avgPrice,
                     avg_price_per_sqft: pricePerSqft
                 };
             });
-            
-            console.log('Processed data:', processedData);
-            
-            // Store processed data globally
-            window.developmentComparisonData = processedData;
-            window.selectedDevelopments = developments;
+
+            console.log('Processed data (by label):', Object.keys(processedByLabel));
+
+            // Store processed data globally (do not mutate persisted selections here)
+            window.developmentComparisonData = processedByLabel;
+            // Track the exact entities (developments and/or zones) used for this chart render
+            try { window.comparisonEntities = Array.isArray(developments) ? developments.slice() : []; } catch {}
             
             // Check if we have any price per sqft data available
             let hasPricePerSqftData = false;
-            Object.values(processedData).forEach(devData => {
+            Object.values(processedByLabel).forEach(devData => {
                 Object.values(devData).forEach(yearData => {
                     if (yearData.avg_price_per_sqft > 0) {
                         hasPricePerSqftData = true;
@@ -3859,6 +4238,98 @@
         // Global Chart.js instance
         let developmentChart = null;
 
+        // Render custom two-line HTML legend with ( Map | Stats ) per series
+        function renderDevelopmentHtmlLegend() {
+            try {
+                const legendContainer = document.getElementById('devLegend');
+                if (!legendContainer || !developmentChart) return;
+
+                // Clear any existing items
+                legendContainer.innerHTML = '';
+
+                const datasets = developmentChart.data && developmentChart.data.datasets
+                    ? developmentChart.data.datasets
+                    : [];
+
+                datasets.forEach((dataset, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'legend-item';
+
+                    // Row 1: dot + name (click toggles visibility)
+                    const nameRow = document.createElement('div');
+                    nameRow.className = 'legend-name';
+
+                    const dot = document.createElement('span');
+                    dot.className = 'legend-dot';
+                    dot.style.backgroundColor = dataset.borderColor || '#3498db';
+
+                    const nameText = document.createElement('span');
+                    nameText.textContent = dataset.label || `Series ${index + 1}`;
+
+                    nameRow.appendChild(dot);
+                    nameRow.appendChild(nameText);
+
+                    nameRow.addEventListener('click', () => {
+                        const currentlyVisible = developmentChart.isDatasetVisible(index);
+                        developmentChart.setDatasetVisibility(index, !currentlyVisible);
+                        developmentChart.update();
+                        renderDevelopmentHtmlLegend();
+                    });
+
+                    // Apply hidden styling
+                    if (!developmentChart.isDatasetVisible(index)) {
+                        nameRow.style.opacity = '0.5';
+                        nameRow.style.textDecoration = 'line-through';
+                    }
+
+                    // Row 2: ( Map | Stats ) actions
+                    const actionsRow = document.createElement('div');
+                    actionsRow.className = 'legend-actions';
+
+                    const openParen = document.createTextNode('( ');
+                    const pipeText = document.createTextNode(' | ');
+                    const closeParen = document.createTextNode(' )');
+
+                    const mapLink = document.createElement('a');
+                    mapLink.href = '#';
+                    mapLink.textContent = 'Map';
+                    mapLink.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const label = dataset.label || '';
+                        if (label) {
+                            const entity = (window.entityLabelMap && window.entityLabelMap[label]) || { name: label, type: (Array.isArray(window.selectedZones) && window.selectedZones.includes(label)) ? 'zone' : 'development' };
+                            openDevelopmentMapForName(entity.name, entity.type);
+                        }
+                    });
+
+                    const statsLink = document.createElement('a');
+                    statsLink.href = '#';
+                    statsLink.textContent = 'Stats';
+                    statsLink.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const label = dataset.label || '';
+                        if (label) {
+                            const entity = (window.entityLabelMap && window.entityLabelMap[label]) || { name: label, type: (Array.isArray(window.selectedZones) && window.selectedZones.includes(label)) ? 'zone' : 'development' };
+                            showChartOverlay(entity.name, entity.type);
+                        }
+                    });
+
+                    actionsRow.appendChild(openParen);
+                    actionsRow.appendChild(mapLink);
+                    actionsRow.appendChild(pipeText);
+                    actionsRow.appendChild(statsLink);
+                    actionsRow.appendChild(closeParen);
+
+                    item.appendChild(nameRow);
+                    item.appendChild(actionsRow);
+
+                    legendContainer.appendChild(item);
+                });
+            } catch (legendErr) {
+                console.warn('Failed to render custom development legend:', legendErr);
+            }
+        }
+
         // Render development chart based on type using Chart.js
         function renderDevelopmentChart(chartType) {
             console.log('renderDevelopmentChart called with chartType:', chartType);
@@ -3872,8 +4343,11 @@
             }
             
             const data = window.developmentComparisonData;
-            const developments = window.selectedDevelopments;
-            console.log('About to process chart with data:', data, 'developments:', developments);
+            const labelToEntity = (typeof window.entityLabelMap === 'object') ? window.entityLabelMap : {};
+            const developments = Array.isArray(window.comparisonEntities) && window.comparisonEntities.length > 0
+                ? window.comparisonEntities
+                : (Array.isArray(window.selectedDevelopments) ? window.selectedDevelopments : []);
+            console.log('About to process chart with data:', data, 'entities:', developments);
             
             // Get all years across all developments
             const allYears = new Set();
@@ -3902,9 +4376,13 @@
             }
             
             // Prepare datasets for Chart.js
-            const datasets = developments.map((dev, index) => {
+            const datasets = developments.map((label, index) => {
+                // Resolve label to underlying entity if mapping exists
+                const entity = labelToEntity[label] || { name: label, type: 'development' };
+                // Prefer label-keyed data (handles identical names across types)
+                const dataKeyForEntity = data[label] || data[entity.name] || {};
                 const developmentData = years.map(year => {
-                    const yearData = data[dev] && data[dev][year] ? data[dev][year][dataKey] : 0;
+                    const yearData = dataKeyForEntity[year] ? dataKeyForEntity[year][dataKey] : 0;
                     // For price per sqft, only show data points where we have valid calculations
                     if (chartType === 'price_per_sqft' && yearData === 0) {
                         return null; // This will create gaps in the chart for missing data
@@ -3927,7 +4405,7 @@
                 ];
                 
                 return {
-                    label: dev,
+                    label,
                     data: developmentData,
                     backgroundColor: colors[index % colors.length] + '20', // 20% opacity for fill
                     borderColor: colors[index % colors.length],
@@ -3957,50 +4435,13 @@
                     plugins: {
                         title: {
                             display: true,
-                            text: `${selectionMode === 'development' ? 'Development' : 'Zone'} Trends - ${yAxisLabel}`,
+                            text: `${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'} Trends - ${yAxisLabel}`,
                             font: {
                                 size: 16,
                                 weight: 'bold'
                             }
                         },
-                        legend: {
-                            display: true,
-                            position: 'top',
-                            onClick: function(e, legendItem, legend) {
-                                console.log('Legend onClick triggered:', { e, legendItem, legend });
-                                // Suppress the next document click to avoid immediate close
-                                __suppressNextDocumentClick = true;
-                                // Prevent default legend click behavior (toggling dataset visibility)
-                                if (e && e.stopPropagation) {
-                                    e.stopPropagation();
-                                }
-                                // Get the series name and strip icon if present
-                                let seriesName = legendItem.text || legendItem.label || 'Unknown';
-                                seriesName = String(seriesName).replace(/^🔗\s*/, '');
-                                // Always show popup. The popup will adapt to mode (development vs zone)
-                                showDevelopmentActionsPopupFromChart(e, seriesName, legend.chart.canvas);
-                                return false;
-                            },
-                            labels: {
-                                generateLabels: function(chart) {
-                                    const original = Chart.defaults.plugins.legend.labels.generateLabels;
-                                    const labels = original.call(this, chart);
-                                    
-                                    // Make legend items look clickable
-                                    labels.forEach(label => {
-                                        label.text = '🔗 ' + label.text; // Add link icon
-                                    });
-                                    
-                                    return labels;
-                                },
-                                usePointStyle: true,
-                                padding: 20,
-                                font: {
-                                    size: 12,
-                                    weight: '500'
-                                }
-                            }
-                        },
+                        legend: { display: false },
                         tooltip: {
                             mode: 'index',
                             intersect: false,
@@ -4076,6 +4517,9 @@
             // Create the chart
             const ctx = chartCanvas.getContext('2d');
             developmentChart = new Chart(ctx, config);
+
+            // Render custom legend now that chart exists
+            renderDevelopmentHtmlLegend();
             
             console.log('Chart.js chart created successfully');
         }
@@ -4239,7 +4683,7 @@
         }
         
         // Open development map for a specific development name
-        async function openDevelopmentMapForName(developmentName) {
+        async function openDevelopmentMapForName(developmentName, typeHint) {
             const modal = document.getElementById('mapModal');
             const loading = document.getElementById('mapLoading');
             const error = document.getElementById('mapError');
@@ -4254,11 +4698,13 @@
             }
             
             const cleanDevelopmentName = developmentName.trim();
-            const inZoneMode = (typeof selectionMode !== 'undefined' && selectionMode === 'zone');
-            title.textContent = inZoneMode ? 'Zone Parcels Map' : 'Development Parcels Map';
+            const inZoneMode = (typeof typeHint === 'string')
+                ? (typeHint === 'zone')
+                : (typeof selectionMode !== 'undefined' && selectionMode === 'zone');
+            title.textContent = inZoneMode ? 'Waterfront Zone Parcels Map' : 'Development Parcels Map';
             subtitle.textContent = `Showing parcels for ${cleanDevelopmentName}`;
-            loadingText.textContent = inZoneMode ? 'Loading zone parcels...' : 'Loading development parcels...';
-            errorContext.textContent = inZoneMode ? 'Could not load parcel data for this zone.' : 'Could not load parcel data for this development.';
+            loadingText.textContent = inZoneMode ? 'Loading waterfront zone parcels...' : 'Loading development parcels...';
+            errorContext.textContent = inZoneMode ? 'Could not load parcel data for this waterfront zone.' : 'Could not load parcel data for this development.';
             
             // Show modal and loading state
             modal.style.display = 'block';
@@ -4312,7 +4758,7 @@
             }
         }
 
-        // Switch between chart types
+            // Switch between chart types
         function switchDevelopmentChart(chartType) {
             // If trying to switch to price_per_sqft but no data available, fall back to sales
             if (chartType === 'price_per_sqft' && !window.hasPricePerSqftData) {
@@ -4330,12 +4776,16 @@
             
             // Render the appropriate chart
             renderDevelopmentChart(chartType);
+            // Update legend for new datasets
+            renderDevelopmentHtmlLegend();
         }
 
         // Show the development controls view and hide the chart view
         function showDevelopmentControlsView() {
             document.getElementById('dev-controls-section').style.display = 'block';
             document.getElementById('dev-chart-section').style.display = 'none';
+            // Rebuild strictly from current mode's persisted list to avoid cross-mode pollution
+            rebuildSelectionsUIForCurrentMode();
         }
         
         // Show the development chart view and hide the controls view  
@@ -4346,13 +4796,7 @@
 
         // Initialize development comparison when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize after first paint; avoid blocking during load
-            const start = () => setTimeout(initializeDevelopmentComparison, 0);
-            if ('requestIdleCallback' in window) {
-                window.requestIdleCallback(start, { timeout: 1000 });
-            } else {
-                start();
-            }
+            setTimeout(initializeDevelopmentComparison, 1500);
         });
     </script>
 
@@ -4469,3 +4913,4 @@
     </div>
 </body>
 </html>
+

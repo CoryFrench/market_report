@@ -55,70 +55,12 @@ const dbQueries = {
     return await query(baseQuery);
   },
 
-  // Get neighbourhood comparison (developments/zones) for a specific report
-  getNeighborhoodComparison: async (reportId) => {
-    const queryText = `
-      SELECT report_id, chart_id, series_id, stats_category, locations
-      FROM customer.report_charts
-      WHERE report_id = $1 AND chart_type = 'neighbourhood_comparison'
-      LIMIT 1
-    `;
-    return await query(queryText, [reportId]);
-  },
-
-  // Upsert neighbourhood comparison for a report
-  upsertNeighborhoodComparison: async (reportId, mode, names, chartType) => {
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      const existing = await client.query(`
-        SELECT chart_id
-        FROM customer.report_charts
-        WHERE report_id = $1 AND chart_type = 'neighbourhood_comparison'
-      `, [reportId]);
-
-      if (existing.rowCount > 0) {
-        const chartId = existing.rows[0].chart_id;
-        await client.query(`
-          UPDATE customer.report_charts
-          SET series_id = $1, stats_category = NULL, locations = $2::text[]
-          WHERE chart_id = $3
-        `, [chartType || null, names, chartId]);
-      } else {
-        const maxChartIdResult = await client.query(`
-          SELECT COALESCE(MAX(chart_id), 0) as max_chart_id
-          FROM customer.report_charts
-        `);
-        const nextChartId = maxChartIdResult.rows[0].max_chart_id + 1;
-
-        await client.query(`
-          INSERT INTO customer.report_charts (chart_id, report_id, chart_type, series_id, stats_category, locations)
-          VALUES ($1, $2, 'neighbourhood_comparison', $3, NULL, $4::text[])
-        `, [nextChartId, reportId, chartType || null, names]);
-      }
-
-      await client.query('COMMIT');
-      return { success: true };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-  },
-
-  // Get report charts data
+  // Get report charts data (legacy compatibility if needed)
   getReportCharts: async (reportId = null) => {
-    const baseQuery = `
-      SELECT report_id, chart_id, chart_type, series_id, stats_category, locations
-      FROM customer.report_charts
-    `;
-    
-    if (reportId) {
-      return await query(`${baseQuery} WHERE report_id = $1`, [reportId]);
-    }
-    return await query(baseQuery);
+    // Return an empty set; callers now use specific tables per chart type
+    const empty = { rows: [], rowCount: 0 };
+    if (reportId) return empty;
+    return empty;
   },
 
   // Get report home info
@@ -165,25 +107,51 @@ const dbQueries = {
         rhi.zip_code,
         rhi.development,
         rhi.subdivision,
-        COALESCE(
-          json_agg(
-            DISTINCT jsonb_build_object(
-              'chart_id', rc.chart_id,
-              'chart_type', rc.chart_type,
-              'series_id', rc.series_id,
-              'stats_category', rc.stats_category,
-              'locations', rc.locations
-            )
-          ) FILTER (WHERE rc.chart_id IS NOT NULL AND rc.chart_type != 'fred'), 
-          '[]'::json
+        -- Aggregate non-FRED charts from new tables
+        (
+          SELECT (
+            COALESCE(county_data.county_json, '[]'::jsonb) || COALESCE(neigh_data.neigh_json, '[]'::jsonb)
+          )::json
+          FROM (
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'chart_id', cc.chart_id,
+                'chart_type', 'county_comparison',
+                'series_id', cc.series_id,
+                'locations', cc.locations
+              )
+            ) AS county_json
+            FROM (
+              SELECT chart_id, series_id, array_agg(county_name ORDER BY county_name) AS locations
+              FROM customer.report_charts_county
+              WHERE report_id = rb.report_id
+              GROUP BY chart_id, series_id
+            ) cc
+          ) county_data,
+          (
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'chart_id', nc.chart_id,
+                'chart_type', 'neighbourhood_comparison',
+                'series_id', nc.series,
+                'locations', nc.locations
+              )
+            ) AS neigh_json
+            FROM (
+              SELECT chart_id, series, array_agg(location ORDER BY location) AS locations
+              FROM customer.report_charts_neighborhood
+              WHERE report_id = rb.report_id
+              GROUP BY chart_id, series
+            ) nc
+          ) neigh_data
         ) as charts,
+        -- Aggregate FRED charts from new table
         COALESCE(
-          json_agg(
-            DISTINCT jsonb_build_object(
-              'chart_id', rfc.chart_id,
-              'series_id', rfc.series_id
-            )
-          ) FILTER (WHERE rfc.chart_id IS NOT NULL), 
+          (
+            SELECT json_agg(jsonb_build_object('chart_id', f.chart_id, 'series_id', f.series_id) ORDER BY f.chart_id)
+            FROM customer.report_charts_fred f
+            WHERE f.report_id = rb.report_id
+          ),
           '[]'::json
         ) as fred_charts,
         COALESCE(
@@ -198,8 +166,6 @@ const dbQueries = {
         ) as interest_areas
       FROM customer.report_basic rb
       LEFT JOIN customer.report_home_info rhi ON rb.report_id = rhi.report_id
-      LEFT JOIN customer.report_charts rc ON rb.report_id = rc.report_id AND rc.chart_type != 'fred'
-      LEFT JOIN customer.report_charts rfc ON rb.report_id = rfc.report_id AND rfc.chart_type = 'fred'
       LEFT JOIN customer.report_interest_area ria ON rb.report_id = ria.report_id
       WHERE rb.report_id = $1
       GROUP BY rb.report_id, rb.created_at, rb.last_updated, rb.report_url, 
@@ -232,25 +198,49 @@ const dbQueries = {
         rhi.zip_code,
         rhi.development,
         rhi.subdivision,
-        COALESCE(
-          json_agg(
-            DISTINCT jsonb_build_object(
-              'chart_id', rc.chart_id,
-              'chart_type', rc.chart_type,
-              'series_id', rc.series_id,
-              'stats_category', rc.stats_category,
-              'locations', rc.locations
-            )
-          ) FILTER (WHERE rc.chart_id IS NOT NULL AND rc.chart_type != 'fred'), 
-          '[]'::json
+        (
+          SELECT (
+            COALESCE(county_data.county_json, '[]'::jsonb) || COALESCE(neigh_data.neigh_json, '[]'::jsonb)
+          )::json
+          FROM (
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'chart_id', cc.chart_id,
+                'chart_type', 'county_comparison',
+                'series_id', cc.series_id,
+                'locations', cc.locations
+              )
+            ) AS county_json
+            FROM (
+              SELECT chart_id, series_id, array_agg(county_name ORDER BY county_name) AS locations
+              FROM customer.report_charts_county
+              WHERE report_id = rb.report_id
+              GROUP BY chart_id, series_id
+            ) cc
+          ) county_data,
+          (
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'chart_id', nc.chart_id,
+                'chart_type', 'neighbourhood_comparison',
+                'series_id', nc.series,
+                'locations', nc.locations
+              )
+            ) AS neigh_json
+            FROM (
+              SELECT chart_id, series, array_agg(location ORDER BY location) AS locations
+              FROM customer.report_charts_neighborhood
+              WHERE report_id = rb.report_id
+              GROUP BY chart_id, series
+            ) nc
+          ) neigh_data
         ) as charts,
         COALESCE(
-          json_agg(
-            DISTINCT jsonb_build_object(
-              'chart_id', rfc.chart_id,
-              'series_id', rfc.series_id
-            )
-          ) FILTER (WHERE rfc.chart_id IS NOT NULL), 
+          (
+            SELECT json_agg(jsonb_build_object('chart_id', f.chart_id, 'series_id', f.series_id) ORDER BY f.chart_id)
+            FROM customer.report_charts_fred f
+            WHERE f.report_id = rb.report_id
+          ),
           '[]'::json
         ) as fred_charts,
         COALESCE(
@@ -265,8 +255,6 @@ const dbQueries = {
         ) as interest_areas
       FROM customer.report_basic rb
       LEFT JOIN customer.report_home_info rhi ON rb.report_id = rhi.report_id
-      LEFT JOIN customer.report_charts rc ON rb.report_id = rc.report_id AND rc.chart_type != 'fred'
-      LEFT JOIN customer.report_charts rfc ON rb.report_id = rfc.report_id AND rfc.chart_type = 'fred'
       LEFT JOIN customer.report_interest_area ria ON rb.report_id = ria.report_id
       WHERE rb.report_url = $1
       GROUP BY rb.report_id, rb.created_at, rb.last_updated, rb.report_url, 
@@ -347,12 +335,12 @@ const dbQueries = {
     }
   },
 
-  // Get FRED charts for a specific report
+  // Get FRED charts for a specific report (new table)
   getFredCharts: async (reportId) => {
     const queryText = `
       SELECT report_id, chart_id, series_id
-      FROM customer.report_charts
-      WHERE report_id = $1 AND chart_type = 'fred'
+      FROM customer.report_charts_fred
+      WHERE report_id = $1
       ORDER BY chart_id ASC
     `;
     return await query(queryText, [reportId]);
@@ -368,8 +356,8 @@ const dbQueries = {
       // Get existing FRED charts for this report
       const existingCharts = await client.query(`
         SELECT chart_id, series_id
-        FROM customer.report_charts 
-        WHERE report_id = $1 AND chart_type = 'fred'
+        FROM customer.report_charts_fred
+        WHERE report_id = $1
         ORDER BY chart_id ASC
       `, [reportId]);
 
@@ -379,22 +367,22 @@ const dbQueries = {
         const rightChartId = existingCharts.rows[1].chart_id;
 
         await client.query(`
-          UPDATE customer.report_charts 
+          UPDATE customer.report_charts_fred
           SET series_id = $1
-          WHERE chart_id = $2
-        `, [leftSeriesId, leftChartId]);
+          WHERE report_id = $2 AND chart_id = $3
+        `, [leftSeriesId, reportId, leftChartId]);
 
         await client.query(`
-          UPDATE customer.report_charts 
+          UPDATE customer.report_charts_fred
           SET series_id = $1
-          WHERE chart_id = $2
-        `, [rightSeriesId, rightChartId]);
+          WHERE report_id = $2 AND chart_id = $3
+        `, [rightSeriesId, reportId, rightChartId]);
 
       } else {
         // Need to create new charts - get next available chart_ids
         const maxChartIdResult = await client.query(`
           SELECT COALESCE(MAX(chart_id), 0) as max_chart_id
-          FROM customer.report_charts
+          FROM customer.report_charts_fred
         `);
         
         const nextChartId = maxChartIdResult.rows[0].max_chart_id + 1;
@@ -403,14 +391,14 @@ const dbQueries = {
 
         // Insert new charts
         await client.query(`
-          INSERT INTO customer.report_charts (chart_id, report_id, chart_type, series_id, stats_category, locations)
-          VALUES ($1, $2, 'fred', $3, null, null)
-        `, [leftChartId, reportId, leftSeriesId]);
+          INSERT INTO customer.report_charts_fred (report_id, chart_id, series_id)
+          VALUES ($1, $2, $3)
+        `, [reportId, leftChartId, leftSeriesId]);
 
         await client.query(`
-          INSERT INTO customer.report_charts (chart_id, report_id, chart_type, series_id, stats_category, locations)
-          VALUES ($1, $2, 'fred', $3, null, null)
-        `, [rightChartId, reportId, rightSeriesId]);
+          INSERT INTO customer.report_charts_fred (report_id, chart_id, series_id)
+          VALUES ($1, $2, $3)
+        `, [reportId, rightChartId, rightSeriesId]);
       }
 
       await client.query('COMMIT');
@@ -447,55 +435,52 @@ const dbQueries = {
     return await query(queryText, [state]);
   },
 
-  // Get area comparison for a specific report
+  // Get area (county) comparison for a specific report (new table)
   getAreaComparison: async (reportId) => {
     const queryText = `
-      SELECT report_id, chart_id, series_id, locations
-      FROM customer.report_charts
-      WHERE report_id = $1 AND chart_type = 'county_comparison'
+      SELECT $1::bigint as report_id,
+             MIN(chart_id) as chart_id,
+             series_id,
+             array_agg(county_name ORDER BY county_name) as locations
+      FROM customer.report_charts_county
+      WHERE report_id = $1
+      GROUP BY series_id
       LIMIT 1
     `;
     return await query(queryText, [reportId]);
   },
 
-  // Update/Insert area comparison for a report
+  // Update/Insert area comparison for a report (new table)
   upsertAreaComparison: async (reportId, seriesId, countyIds) => {
     const client = await pool.connect();
     
     try {
       await client.query('BEGIN');
 
-      // Get existing area comparison for this report
-      const existingComparison = await client.query(`
+      // Find existing chart_id for this report in county table
+      const existingChart = await client.query(`
         SELECT chart_id
-        FROM customer.report_charts 
-        WHERE report_id = $1 AND chart_type = 'county_comparison'
+        FROM customer.report_charts_county
+        WHERE report_id = $1
+        LIMIT 1
       `, [reportId]);
 
-      if (existingComparison.rowCount > 0) {
-        // Update existing comparison
-        const chartId = existingComparison.rows[0].chart_id;
-
-        await client.query(`
-          UPDATE customer.report_charts 
-          SET series_id = $1, locations = $2
-          WHERE chart_id = $3
-        `, [seriesId, countyIds, chartId]);
-
+      let chartId;
+      if (existingChart.rowCount > 0) {
+        chartId = existingChart.rows[0].chart_id;
+        // Remove existing rows for this chart
+        await client.query(`DELETE FROM customer.report_charts_county WHERE report_id = $1 AND chart_id = $2`, [reportId, chartId]);
       } else {
-        // Create new comparison - get next available chart_id
-        const maxChartIdResult = await client.query(`
-          SELECT COALESCE(MAX(chart_id), 0) as max_chart_id
-          FROM customer.report_charts
-        `);
-        
-        const nextChartId = maxChartIdResult.rows[0].max_chart_id + 1;
+        const maxChartIdResult = await client.query(`SELECT COALESCE(MAX(chart_id), 0) as max_chart_id FROM customer.report_charts_county`);
+        chartId = maxChartIdResult.rows[0].max_chart_id + 1;
+      }
 
-        // Insert new comparison
+      // Insert one row per county
+      for (const countyName of countyIds) {
         await client.query(`
-          INSERT INTO customer.report_charts (chart_id, report_id, chart_type, series_id, stats_category, locations)
-          VALUES ($1, $2, 'county_comparison', $3, null, $4)
-        `, [nextChartId, reportId, seriesId, countyIds]);
+          INSERT INTO customer.report_charts_county (report_id, chart_id, series_id, county_name)
+          VALUES ($1, $2, $3, $4)
+        `, [reportId, chartId, seriesId, countyName]);
       }
 
       await client.query('COMMIT');
@@ -539,6 +524,73 @@ const dbQueries = {
       FROM recent_sales;
     `;
     
+    return await query(queryText, [reportId]);
+  }
+  ,
+
+  // Neighbourhood comparison persistence (supports mixed types)
+  upsertNeighbourhoodComparison: async (reportId, seriesId, items) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const existing = await client.query(
+        `SELECT chart_id FROM customer.report_charts_neighborhood WHERE report_id = $1 LIMIT 1`,
+        [reportId]
+      );
+      let chartId;
+      if (existing.rowCount > 0) {
+        chartId = existing.rows[0].chart_id;
+        await client.query(`DELETE FROM customer.report_charts_neighborhood WHERE report_id = $1 AND chart_id = $2`, [reportId, chartId]);
+      } else {
+        const maxChartIdResult = await client.query(`SELECT COALESCE(MAX(chart_id), 0) as max_chart_id FROM customer.report_charts_neighborhood`);
+        chartId = maxChartIdResult.rows[0].max_chart_id + 1;
+      }
+
+      // Normalize items: accept array of strings (assume development) or objects { name, type }
+      const normalized = Array.isArray(items) ? items : [];
+      for (const raw of normalized) {
+        let name, type;
+        if (typeof raw === 'string') {
+          name = raw;
+          type = 'development';
+        } else if (raw && typeof raw === 'object') {
+          name = raw.name || raw.location || raw.development || raw.zone;
+          type = (raw.type || raw.location_type || '').toLowerCase();
+          if (type !== 'development' && type !== 'zone') type = 'development';
+        }
+        if (!name || String(name).trim().length === 0) continue;
+        await client.query(
+          `INSERT INTO customer.report_charts_neighborhood (report_id, chart_id, series, location, location_type)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [reportId, chartId, seriesId || 'sales', String(name).trim(), type]
+        );
+      }
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  ,
+
+  // Fetch neighbourhood comparison (new table)
+  getNeighbourhoodComparison: async (reportId) => {
+    const queryText = `
+      SELECT
+        $1::bigint as report_id,
+        COALESCE(MIN(chart_id), 1) AS chart_id,
+        COALESCE(MAX(series), 'sales') AS series_id,
+        json_agg(jsonb_build_object('name', location, 'type', location_type) ORDER BY location_type, location) AS items,
+        array_agg(location ORDER BY location) FILTER (WHERE location_type = 'development') AS development_names,
+        array_agg(location ORDER BY location) FILTER (WHERE location_type = 'zone') AS zone_names
+      FROM customer.report_charts_neighborhood
+      WHERE report_id = $1
+      GROUP BY report_id
+      LIMIT 1
+    `;
     return await query(queryText, [reportId]);
   }
 };

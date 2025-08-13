@@ -263,12 +263,15 @@ app.put('/api/reports/:reportId/area-comparison', async (req, res) => {
   }
 });
 
-// Get neighbourhood comparison (development/zone) for a specific report
-app.get('/api/reports/:reportId/neighborhood-comparison', async (req, res) => {
+// Minimal save API for neighbourhood comparison
+app.put('/api/reports/:reportId/neighbourhood-comparison', async (req, res) => {
   try {
     const { reportId: urlSlug } = req.params;
-
-    // Resolve reportId from slug or numeric id
+    const { seriesId, names, items } = req.body;
+    const payload = Array.isArray(items) ? items : (Array.isArray(names) ? names : []);
+    if (!Array.isArray(payload) || payload.length === 0) {
+      return res.status(400).json({ success: false, error: 'names (array) or items (array) required' });
+    }
     let reportId;
     if (/^\d+$/.test(urlSlug)) {
       reportId = urlSlug;
@@ -276,41 +279,21 @@ app.get('/api/reports/:reportId/neighborhood-comparison', async (req, res) => {
       const expectedUrl = `/reports/${urlSlug}`;
       const basicResult = await dbQueries.getReportBasic();
       const matchingReport = basicResult.rows.find(r => r.report_url === expectedUrl);
-      if (!matchingReport) {
-        return res.status(404).json({ success: false, error: 'Report not found' });
-      }
+      if (!matchingReport) return res.status(404).json({ success: false, error: 'Report not found' });
       reportId = matchingReport.report_id;
     }
-
-    const result = await dbQueries.getNeighborhoodComparison(reportId);
-    res.json({ success: true, data: result.rows[0] || null });
+    await dbQueries.upsertNeighbourhoodComparison(reportId, seriesId || null, payload);
+    res.json({ success: true });
   } catch (error) {
-    console.error('Error fetching neighborhood comparison:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch neighborhood comparison', message: error.message });
+    console.error('Error saving neighbourhood comparison:', error);
+    res.status(500).json({ success: false, error: 'Failed to save neighbourhood comparison', message: error.message });
   }
 });
 
-// Update neighbourhood comparison for a specific report
-app.put('/api/reports/:reportId/neighborhood-comparison', async (req, res) => {
+// Fetch neighbourhood comparison for a report (new table)
+app.get('/api/reports/:reportId/neighbourhood-comparison', async (req, res) => {
   try {
     const { reportId: urlSlug } = req.params;
-    const { mode, names, chartType } = req.body;
-
-    // Normalize names to array of strings
-    const normalizedNames = Array.isArray(names)
-      ? names.map(n => String(n))
-      : [];
-
-
-    // Validate inputs
-    if (!mode || !['development', 'zone'].includes(String(mode))) {
-      return res.status(400).json({ success: false, error: 'mode must be development or zone' });
-    }
-    if (!Array.isArray(normalizedNames) || normalizedNames.length === 0) {
-      return res.status(400).json({ success: false, error: 'names must be a non-empty array' });
-    }
-
-    // Resolve reportId from slug or numeric id
     let reportId;
     if (/^\d+$/.test(urlSlug)) {
       reportId = urlSlug;
@@ -318,20 +301,17 @@ app.put('/api/reports/:reportId/neighborhood-comparison', async (req, res) => {
       const expectedUrl = `/reports/${urlSlug}`;
       const basicResult = await dbQueries.getReportBasic();
       const matchingReport = basicResult.rows.find(r => r.report_url === expectedUrl);
-      if (!matchingReport) {
-        return res.status(404).json({ success: false, error: 'Report not found' });
-      }
+      if (!matchingReport) return res.status(404).json({ success: false, error: 'Report not found' });
       reportId = matchingReport.report_id;
     }
-
-    await dbQueries.upsertNeighborhoodComparison(reportId, mode, normalizedNames, chartType || null);
-    res.json({ success: true, message: 'Neighbourhood comparison updated successfully' });
+    const result = await dbQueries.getNeighbourhoodComparison(reportId);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'No neighbourhood comparison' });
+    }
+    res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Error updating neighbourhood comparison:', {
-      message: error.message,
-      stack: error.stack
-    });
-    res.status(500).json({ success: false, error: 'Failed to update neighbourhood comparison', message: error.message });
+    console.error('Error fetching neighbourhood comparison:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch neighbourhood comparison', message: error.message });
   }
 });
 // Get all report home info
@@ -600,7 +580,7 @@ app.get('/api/development-stats/:developmentName', async (req, res) => {
       SELECT 
         COUNT(DISTINCT property_control_number) as total_tax_properties
       FROM tax.palm_beach_county_fl 
-      WHERE development_name = $1
+      WHERE TRIM(development_name) = TRIM($1)
     `;
     
     const mlsStatsQuery = `
@@ -654,7 +634,7 @@ app.get('/api/development-stats/:developmentName', async (req, res) => {
       LEFT JOIN deduplicated_mls mls 
         ON tax.property_control_number = mls.parcel_id
         AND mls.row_num = 1
-      WHERE tax.development_name = $1
+      WHERE TRIM(tax.development_name) = TRIM($1)
     `;
     
     const medianPricesQuery = `
@@ -857,6 +837,58 @@ app.get('/api/development-chart/:developmentName', async (req, res) => {
   }
 });
 
+// Zone chart data API endpoint - mirrors development chart but filters by zone
+app.get('/api/zone-chart/:zoneName', async (req, res) => {
+  try {
+    const { zoneName } = req.params;
+    if (!zoneName) {
+      return res.status(400).json({ success: false, error: 'Zone name is required' });
+    }
+    const chartDataQuery = `
+      WITH combined AS (
+        SELECT 
+          d.parcel_number,
+          d.zone_name,
+          m.listing_id,
+          m.status,
+          m.status_change_date,
+          m.listing_date,
+          m.sold_date,
+          m.sold_price
+        FROM waterfrontdata.development_data d
+        JOIN mls.vw_beaches_residential_developments m
+          ON m.parcel_id = d.parcel_number
+        WHERE d.zone_name = $1
+      )
+      SELECT 
+        EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) as sale_year,
+        COUNT(*) as sales_count,
+        AVG(sold_price::numeric) as avg_price,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sold_price::numeric) as median_price,
+        MIN(sold_price::numeric) as min_price,
+        MAX(sold_price::numeric) as max_price
+      FROM combined
+      WHERE status = 'Closed'
+        AND sold_date IS NOT NULL 
+        AND sold_date <> ''
+        AND sold_price IS NOT NULL 
+        AND sold_price <> ''
+        AND LENGTH(TRIM(sold_price)) > 0
+        AND sold_price ~ '^[0-9]+(\\.[0-9]+)?$'
+        AND EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD')) >= EXTRACT(YEAR FROM NOW()) - 10
+      GROUP BY EXTRACT(YEAR FROM TO_DATE(sold_date, 'YYYY-MM-DD'))
+      ORDER BY sale_year ASC;`;
+
+    const { query } = require('./db');
+    const exactZoneName = zoneName.trim();
+    const chartResult = await query(chartDataQuery, [exactZoneName]);
+    res.json({ success: true, data: { zoneName: exactZoneName, chartData: chartResult.rows } });
+  } catch (error) {
+    console.error('Error fetching zone chart data:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch zone chart data', message: error.message });
+  }
+});
+
 // Property lookup by address to enrich Home Stats
 app.get('/api/property-lookup', async (req, res) => {
   try {
@@ -969,11 +1001,27 @@ app.get('/api/property-lookup', async (req, res) => {
         FROM tax.palm_beach_county_fl t
         ${joinClause}
         WHERE ${whereClauses.join(' AND ')}
+      ),
+      merged AS (
+        SELECT
+          property_control_number,
+          MAX(situs_address)               FILTER (WHERE situs_address IS NOT NULL)               AS situs_address,
+          MAX(situs_address_city_name)     FILTER (WHERE situs_address_city_name IS NOT NULL)     AS situs_address_city_name,
+          MAX(situs_address_zip_code)      FILTER (WHERE situs_address_zip_code IS NOT NULL)      AS situs_address_zip_code,
+          MAX(year_built)                  FILTER (WHERE year_built IS NOT NULL)                  AS year_built,
+          MAX(square_foot_living_area)     FILTER (WHERE square_foot_living_area IS NOT NULL)     AS square_foot_living_area,
+          MAX(number_of_bedrooms)          FILTER (WHERE number_of_bedrooms IS NOT NULL)          AS number_of_bedrooms,
+          MAX(number_of_full_bathrooms)    FILTER (WHERE number_of_full_bathrooms IS NOT NULL)    AS number_of_full_bathrooms,
+          MAX(number_of_half_bathrooms)    FILTER (WHERE number_of_half_bathrooms IS NOT NULL)    AS number_of_half_bathrooms,
+          MAX(total_market_value)          FILTER (WHERE total_market_value IS NOT NULL)          AS total_market_value,
+          MAX(match_score) AS best_match_score
+        FROM candidates
+        GROUP BY property_control_number
       )
       SELECT *
-      FROM candidates
-      ORDER BY match_score DESC, LENGTH(situs_address) ASC
-      LIMIT 5;
+      FROM merged
+      ORDER BY best_match_score DESC
+      LIMIT 1;
     `;
 
     const { query } = require('./db');
@@ -983,7 +1031,8 @@ app.get('/api/property-lookup', async (req, res) => {
       return res.json({ success: true, count: 0, data: [] });
     }
 
-    return res.json({ success: true, count: rows.length, data: rows });
+    // Return a single consolidated row in an array for backward compatibility
+    return res.json({ success: true, count: 1, data: [rows[0]] });
   } catch (err) {
     console.error('Error in /api/property-lookup:', err);
     return res.status(500).json({ success: false, error: 'Failed to lookup property by address', message: err.message });
@@ -994,7 +1043,7 @@ app.get('/api/property-lookup', async (req, res) => {
 app.get('/api/developments', async (req, res) => {
   try {
     const developmentsQuery = `
-      SELECT DISTINCT development_name
+      SELECT DISTINCT TRIM(development_name) AS development_name
       FROM waterfrontdata.development_data
       WHERE development_name IS NOT NULL 
         AND development_name != ''
@@ -1025,11 +1074,44 @@ app.get('/api/developments', async (req, res) => {
   }
 });
 
+// Get subdivisions for a given development (cascading dropdown)
+app.get('/api/subdivisions', async (req, res) => {
+  try {
+    const { development } = req.query;
+    if (!development || String(development).trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'development query parameter is required' });
+    }
+
+    const subdivisionsQuery = `
+      SELECT DISTINCT TRIM(subdivision_name) AS subdivision_name
+      FROM tax.palm_beach_county_fl
+      WHERE TRIM(development_name) = TRIM($1)
+        AND subdivision_name IS NOT NULL
+        AND subdivision_name <> ''
+        AND LENGTH(TRIM(subdivision_name)) > 0
+      ORDER BY subdivision_name ASC;
+    `;
+
+    try {
+      const { query } = require('./db');
+      const result = await query(subdivisionsQuery, [String(development).trim()]);
+      const rows = result.rows.map(r => ({ subdivision_name: r.subdivision_name }));
+      res.json({ success: true, data: rows });
+    } catch (dbError) {
+      console.error('Database query error for subdivisions:', dbError);
+      throw new Error(`Failed to fetch subdivisions: ${dbError.message}`);
+    }
+  } catch (error) {
+    console.error('Error fetching subdivisions:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch subdivisions', message: error.message });
+  }
+});
+
 // Get all distinct zones for comparison dropdowns
 app.get('/api/zones', async (req, res) => {
   try {
     const zonesQuery = `
-      SELECT DISTINCT zone_name
+      SELECT DISTINCT TRIM(zone_name) AS zone_name
       FROM waterfrontdata.development_data
       WHERE zone_name IS NOT NULL 
         AND zone_name != ''
@@ -1041,8 +1123,8 @@ app.get('/api/zones', async (req, res) => {
       const { query } = require('./db');
       const result = await query(zonesQuery);
 
-      // Normalize to { development_name }
-      const rows = result.rows.map(r => ({ development_name: r.zone_name }));
+      // Normalize to { zone_name }
+      const rows = result.rows.map(r => ({ zone_name: r.zone_name }));
       res.json({ success: true, data: rows });
 
     } catch (dbError) {
@@ -1094,7 +1176,7 @@ app.get('/api/developments-comparison', async (req, res) => {
               mls.status DESC
           ) as row_num
         FROM mls.vw_beaches_residential_developments mls
-        WHERE mls.wf_development = ANY($1)
+        WHERE TRIM(mls.wf_development) = ANY(SELECT TRIM(x) FROM unnest($1::text[]) x)
       )
       SELECT 
         wf_development as development_name,
@@ -1187,7 +1269,7 @@ app.get('/api/zones-comparison', async (req, res) => {
         FROM waterfrontdata.development_data d
         JOIN mls.vw_beaches_residential_developments m
           ON m.parcel_id = d.parcel_number
-        WHERE d.zone_name = ANY($1)
+        WHERE TRIM(d.zone_name) = ANY(SELECT TRIM(x) FROM unnest($1::text[]) x)
       ),
       deduplicated_mls AS (
         SELECT 
@@ -1346,7 +1428,7 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
 
     console.log('Fetching parcels for development:', developmentName);
 
-    // SQL query to get unique geometries in development (deduplicates condo buildings)
+    // SQL query to get unique parcels by parcel id and merge attributes from duplicates
     // Additionally joins MLS data to include waterfrontage (matched on parcel/property control number)
     const query = `
       WITH deduplicated_mls AS (
@@ -1363,11 +1445,11 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
         FROM mls.vw_beaches_residential_developments mls
         WHERE mls.wf_development = $1
       ),
-      unique_geometries AS (
-        SELECT DISTINCT ON (p.geom)
+      base AS (
+        SELECT 
           p.gid,
           p.parcelno,
-          ST_AsGeoJSON(ST_Transform(p.geom, 4326)) as geometry,
+          p.geom,
           t.property_control_number,
           t.total_market_value,
           t.situs_address,
@@ -1387,19 +1469,91 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
           COALESCE(mls.waterfrontage, NULL) AS waterfrontage,
           mls.status AS mls_status,
           mls.status_change_date AS mls_status_change_date,
-          mls.sold_date AS mls_sold_date,
-          COUNT(*) OVER (PARTITION BY p.geom) as unit_count
+          mls.sold_date AS mls_sold_date
         FROM geodata.palm_beach_county_fl p
         INNER JOIN tax.palm_beach_county_fl t 
           ON p.parcelno = t.parcel_number
         LEFT JOIN deduplicated_mls mls
           ON mls.parcel_id = t.property_control_number
          AND mls.row_num = 1
-        WHERE t.development_name = $1
+        WHERE TRIM(t.development_name) = TRIM($1)
           AND p.geom IS NOT NULL
-        ORDER BY p.geom, t.property_control_number
+      ),
+      merged AS (
+        SELECT
+          property_control_number,
+          MIN(gid) AS gid,
+          MIN(parcelno) AS parcelno,
+          (ARRAY_AGG(geom))[1] AS geom,
+          MAX(total_market_value)            FILTER (WHERE total_market_value IS NOT NULL)            AS total_market_value,
+          MAX(situs_address)                 FILTER (WHERE situs_address IS NOT NULL)                 AS situs_address,
+          MAX(situs_address_city_name)       FILTER (WHERE situs_address_city_name IS NOT NULL)       AS situs_address_city_name,
+          MAX(situs_address_zip_code)        FILTER (WHERE situs_address_zip_code IS NOT NULL)        AS situs_address_zip_code,
+          MAX(development_name)              FILTER (WHERE development_name IS NOT NULL)              AS development_name,
+          MAX(subdivision_name)              FILTER (WHERE subdivision_name IS NOT NULL)              AS subdivision_name,
+          MAX(owner_name)                    FILTER (WHERE owner_name IS NOT NULL)                    AS owner_name,
+          MAX(year_built)                    FILTER (WHERE year_built IS NOT NULL)                    AS year_built,
+          MAX(square_foot_living_area)       FILTER (WHERE square_foot_living_area IS NOT NULL)       AS square_foot_living_area,
+          MAX(number_of_bedrooms)            FILTER (WHERE number_of_bedrooms IS NOT NULL)            AS number_of_bedrooms,
+          MAX(number_of_full_bathrooms)      FILTER (WHERE number_of_full_bathrooms IS NOT NULL)      AS number_of_full_bathrooms,
+          MAX(number_of_half_bathrooms)      FILTER (WHERE number_of_half_bathrooms IS NOT NULL)      AS number_of_half_bathrooms,
+          MAX(sales_date_1)                  FILTER (WHERE sales_date_1 IS NOT NULL)                  AS sales_date_1,
+          MAX(sales_price_1)                 FILTER (WHERE sales_price_1 IS NOT NULL)                 AS sales_price_1,
+          MAX(land_use_description)          FILTER (WHERE land_use_description IS NOT NULL)          AS land_use_description,
+          MAX(waterfrontage)                 FILTER (WHERE waterfrontage IS NOT NULL)                 AS waterfrontage,
+          MAX(mls_status)                    FILTER (WHERE mls_status IS NOT NULL)                    AS mls_status,
+          MAX(mls_status_change_date)        FILTER (WHERE mls_status_change_date IS NOT NULL)        AS mls_status_change_date,
+          MAX(mls_sold_date)                 FILTER (WHERE mls_sold_date IS NOT NULL)                 AS mls_sold_date
+        FROM base
+        GROUP BY property_control_number
       )
-      SELECT * FROM unique_geometries
+      SELECT 
+        MIN(gid) AS gid,
+        MIN(parcelno) AS parcelno,
+        ST_AsGeoJSON(ST_Transform((ARRAY_AGG(geom))[1], 4326)) as geometry,
+        property_control_number,
+        total_market_value,
+        situs_address,
+        situs_address_city_name,
+        situs_address_zip_code,
+        development_name,
+        subdivision_name,
+        owner_name,
+        year_built,
+        square_foot_living_area,
+        number_of_bedrooms,
+        number_of_full_bathrooms,
+        number_of_half_bathrooms,
+        sales_date_1,
+        sales_price_1,
+        land_use_description,
+        waterfrontage,
+        mls_status,
+        mls_status_change_date,
+        mls_sold_date,
+        1 AS unit_count
+      FROM merged
+      GROUP BY 
+        property_control_number,
+        total_market_value,
+        situs_address,
+        situs_address_city_name,
+        situs_address_zip_code,
+        development_name,
+        subdivision_name,
+        owner_name,
+        year_built,
+        square_foot_living_area,
+        number_of_bedrooms,
+        number_of_full_bathrooms,
+        number_of_half_bathrooms,
+        sales_date_1,
+        sales_price_1,
+        land_use_description,
+        waterfrontage,
+        mls_status,
+        mls_status_change_date,
+        mls_sold_date
       ORDER BY parcelno;
     `;
 
@@ -1480,14 +1634,14 @@ app.get('/api/zone-parcels/:zoneName', async (req, res) => {
 
     console.log('Fetching parcels for zone:', zoneName);
 
-    // Query parcels linked to the requested zone via development_data table, including tax sale data and MLS status
+    // Query parcels linked to the requested zone and merge duplicate parcel rows into a single record
     const query = `
       WITH zone_parcels AS (
         SELECT DISTINCT d.parcel_number
         FROM waterfrontdata.development_data d
-        WHERE d.zone_name = $1
+        WHERE TRIM(d.zone_name) = TRIM($1)
       ),
-      combined AS (
+      base AS (
         SELECT 
           p.gid,
           p.parcelno,
@@ -1517,19 +1671,36 @@ app.get('/api/zone-parcels/:zoneName', async (req, res) => {
         LEFT JOIN mls.vw_beaches_residential_developments m
           ON m.parcel_id = t.property_control_number
       ),
-      deduplicated AS (
-        SELECT 
-          c.*,
-          ROW_NUMBER() OVER (
-            PARTITION BY c.parcelno
-            ORDER BY COALESCE(c.mls_status_change_date, c.mls_sold_date) DESC NULLS LAST
-          ) AS row_num
-        FROM combined c
+      merged AS (
+        SELECT
+          property_control_number,
+          MIN(gid) AS gid,
+          MIN(parcelno) AS parcelno,
+          (ARRAY_AGG(geom))[1] AS geom,
+          MAX(situs_address)                 FILTER (WHERE situs_address IS NOT NULL)                 AS situs_address,
+          MAX(situs_address_city_name)       FILTER (WHERE situs_address_city_name IS NOT NULL)       AS situs_address_city_name,
+          MAX(situs_address_zip_code)        FILTER (WHERE situs_address_zip_code IS NOT NULL)        AS situs_address_zip_code,
+          MAX(development_name)              FILTER (WHERE development_name IS NOT NULL)              AS development_name,
+          MAX(subdivision_name)              FILTER (WHERE subdivision_name IS NOT NULL)              AS subdivision_name,
+          MAX(total_market_value)            FILTER (WHERE total_market_value IS NOT NULL)            AS total_market_value,
+          MAX(sales_date_1)                  FILTER (WHERE sales_date_1 IS NOT NULL)                  AS sales_date_1,
+          MAX(sales_price_1)                 FILTER (WHERE sales_price_1 IS NOT NULL)                 AS sales_price_1,
+          MAX(land_use_description)          FILTER (WHERE land_use_description IS NOT NULL)          AS land_use_description,
+          MAX(year_built)                    FILTER (WHERE year_built IS NOT NULL)                    AS year_built,
+          MAX(square_foot_living_area)       FILTER (WHERE square_foot_living_area IS NOT NULL)       AS square_foot_living_area,
+          MAX(number_of_bedrooms)            FILTER (WHERE number_of_bedrooms IS NOT NULL)            AS number_of_bedrooms,
+          MAX(number_of_full_bathrooms)      FILTER (WHERE number_of_full_bathrooms IS NOT NULL)      AS number_of_full_bathrooms,
+          MAX(number_of_half_bathrooms)      FILTER (WHERE number_of_half_bathrooms IS NOT NULL)      AS number_of_half_bathrooms,
+          MAX(mls_status)                    FILTER (WHERE mls_status IS NOT NULL)                    AS mls_status,
+          MAX(mls_status_change_date)        FILTER (WHERE mls_status_change_date IS NOT NULL)        AS mls_status_change_date,
+          MAX(mls_sold_date)                 FILTER (WHERE mls_sold_date IS NOT NULL)                 AS mls_sold_date
+        FROM base
+        GROUP BY property_control_number
       )
       SELECT 
-        gid,
-        parcelno,
-        ST_AsGeoJSON(ST_Transform(geom, 4326)) as geometry,
+        MIN(gid) AS gid,
+        MIN(parcelno) AS parcelno,
+        ST_AsGeoJSON(ST_Transform((ARRAY_AGG(geom))[1], 4326)) as geometry,
         property_control_number,
         situs_address,
         situs_address_city_name,
@@ -1548,8 +1719,26 @@ app.get('/api/zone-parcels/:zoneName', async (req, res) => {
         mls_status,
         mls_status_change_date,
         mls_sold_date
-      FROM deduplicated
-      WHERE geom IS NOT NULL AND row_num = 1
+      FROM merged
+      GROUP BY 
+        property_control_number,
+        situs_address,
+        situs_address_city_name,
+        situs_address_zip_code,
+        development_name,
+        subdivision_name,
+        total_market_value,
+        sales_date_1,
+        sales_price_1,
+        land_use_description,
+        year_built,
+        square_foot_living_area,
+        number_of_bedrooms,
+        number_of_full_bathrooms,
+        number_of_half_bathrooms,
+        mls_status,
+        mls_status_change_date,
+        mls_sold_date
       ORDER BY parcelno;
     `;
 
