@@ -1001,11 +1001,27 @@ app.get('/api/property-lookup', async (req, res) => {
         FROM tax.palm_beach_county_fl t
         ${joinClause}
         WHERE ${whereClauses.join(' AND ')}
+      ),
+      merged AS (
+        SELECT
+          property_control_number,
+          MAX(situs_address)               FILTER (WHERE situs_address IS NOT NULL)               AS situs_address,
+          MAX(situs_address_city_name)     FILTER (WHERE situs_address_city_name IS NOT NULL)     AS situs_address_city_name,
+          MAX(situs_address_zip_code)      FILTER (WHERE situs_address_zip_code IS NOT NULL)      AS situs_address_zip_code,
+          MAX(year_built)                  FILTER (WHERE year_built IS NOT NULL)                  AS year_built,
+          MAX(square_foot_living_area)     FILTER (WHERE square_foot_living_area IS NOT NULL)     AS square_foot_living_area,
+          MAX(number_of_bedrooms)          FILTER (WHERE number_of_bedrooms IS NOT NULL)          AS number_of_bedrooms,
+          MAX(number_of_full_bathrooms)    FILTER (WHERE number_of_full_bathrooms IS NOT NULL)    AS number_of_full_bathrooms,
+          MAX(number_of_half_bathrooms)    FILTER (WHERE number_of_half_bathrooms IS NOT NULL)    AS number_of_half_bathrooms,
+          MAX(total_market_value)          FILTER (WHERE total_market_value IS NOT NULL)          AS total_market_value,
+          MAX(match_score) AS best_match_score
+        FROM candidates
+        GROUP BY property_control_number
       )
       SELECT *
-      FROM candidates
-      ORDER BY match_score DESC, LENGTH(situs_address) ASC
-      LIMIT 5;
+      FROM merged
+      ORDER BY best_match_score DESC
+      LIMIT 1;
     `;
 
     const { query } = require('./db');
@@ -1015,7 +1031,8 @@ app.get('/api/property-lookup', async (req, res) => {
       return res.json({ success: true, count: 0, data: [] });
     }
 
-    return res.json({ success: true, count: rows.length, data: rows });
+    // Return a single consolidated row in an array for backward compatibility
+    return res.json({ success: true, count: 1, data: [rows[0]] });
   } catch (err) {
     console.error('Error in /api/property-lookup:', err);
     return res.status(500).json({ success: false, error: 'Failed to lookup property by address', message: err.message });
@@ -1411,7 +1428,7 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
 
     console.log('Fetching parcels for development:', developmentName);
 
-    // SQL query to get unique geometries in development (deduplicates condo buildings)
+    // SQL query to get unique parcels by parcel id and merge attributes from duplicates
     // Additionally joins MLS data to include waterfrontage (matched on parcel/property control number)
     const query = `
       WITH deduplicated_mls AS (
@@ -1428,11 +1445,11 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
         FROM mls.vw_beaches_residential_developments mls
         WHERE mls.wf_development = $1
       ),
-      unique_geometries AS (
-        SELECT DISTINCT ON (p.geom)
+      base AS (
+        SELECT 
           p.gid,
           p.parcelno,
-          ST_AsGeoJSON(ST_Transform(p.geom, 4326)) as geometry,
+          p.geom,
           t.property_control_number,
           t.total_market_value,
           t.situs_address,
@@ -1452,8 +1469,7 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
           COALESCE(mls.waterfrontage, NULL) AS waterfrontage,
           mls.status AS mls_status,
           mls.status_change_date AS mls_status_change_date,
-          mls.sold_date AS mls_sold_date,
-          COUNT(*) OVER (PARTITION BY p.geom) as unit_count
+          mls.sold_date AS mls_sold_date
         FROM geodata.palm_beach_county_fl p
         INNER JOIN tax.palm_beach_county_fl t 
           ON p.parcelno = t.parcel_number
@@ -1462,9 +1478,82 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
          AND mls.row_num = 1
         WHERE t.development_name = $1
           AND p.geom IS NOT NULL
-        ORDER BY p.geom, t.property_control_number
+      ),
+      merged AS (
+        SELECT
+          property_control_number,
+          MIN(gid) AS gid,
+          MIN(parcelno) AS parcelno,
+          (ARRAY_AGG(geom))[1] AS geom,
+          MAX(total_market_value)            FILTER (WHERE total_market_value IS NOT NULL)            AS total_market_value,
+          MAX(situs_address)                 FILTER (WHERE situs_address IS NOT NULL)                 AS situs_address,
+          MAX(situs_address_city_name)       FILTER (WHERE situs_address_city_name IS NOT NULL)       AS situs_address_city_name,
+          MAX(situs_address_zip_code)        FILTER (WHERE situs_address_zip_code IS NOT NULL)        AS situs_address_zip_code,
+          MAX(development_name)              FILTER (WHERE development_name IS NOT NULL)              AS development_name,
+          MAX(subdivision_name)              FILTER (WHERE subdivision_name IS NOT NULL)              AS subdivision_name,
+          MAX(owner_name)                    FILTER (WHERE owner_name IS NOT NULL)                    AS owner_name,
+          MAX(year_built)                    FILTER (WHERE year_built IS NOT NULL)                    AS year_built,
+          MAX(square_foot_living_area)       FILTER (WHERE square_foot_living_area IS NOT NULL)       AS square_foot_living_area,
+          MAX(number_of_bedrooms)            FILTER (WHERE number_of_bedrooms IS NOT NULL)            AS number_of_bedrooms,
+          MAX(number_of_full_bathrooms)      FILTER (WHERE number_of_full_bathrooms IS NOT NULL)      AS number_of_full_bathrooms,
+          MAX(number_of_half_bathrooms)      FILTER (WHERE number_of_half_bathrooms IS NOT NULL)      AS number_of_half_bathrooms,
+          MAX(sales_date_1)                  FILTER (WHERE sales_date_1 IS NOT NULL)                  AS sales_date_1,
+          MAX(sales_price_1)                 FILTER (WHERE sales_price_1 IS NOT NULL)                 AS sales_price_1,
+          MAX(land_use_description)          FILTER (WHERE land_use_description IS NOT NULL)          AS land_use_description,
+          MAX(waterfrontage)                 FILTER (WHERE waterfrontage IS NOT NULL)                 AS waterfrontage,
+          MAX(mls_status)                    FILTER (WHERE mls_status IS NOT NULL)                    AS mls_status,
+          MAX(mls_status_change_date)        FILTER (WHERE mls_status_change_date IS NOT NULL)        AS mls_status_change_date,
+          MAX(mls_sold_date)                 FILTER (WHERE mls_sold_date IS NOT NULL)                 AS mls_sold_date
+        FROM base
+        GROUP BY property_control_number
       )
-      SELECT * FROM unique_geometries
+      SELECT 
+        MIN(gid) AS gid,
+        MIN(parcelno) AS parcelno,
+        ST_AsGeoJSON(ST_Transform((ARRAY_AGG(geom))[1], 4326)) as geometry,
+        property_control_number,
+        total_market_value,
+        situs_address,
+        situs_address_city_name,
+        situs_address_zip_code,
+        development_name,
+        subdivision_name,
+        owner_name,
+        year_built,
+        square_foot_living_area,
+        number_of_bedrooms,
+        number_of_full_bathrooms,
+        number_of_half_bathrooms,
+        sales_date_1,
+        sales_price_1,
+        land_use_description,
+        waterfrontage,
+        mls_status,
+        mls_status_change_date,
+        mls_sold_date,
+        1 AS unit_count
+      FROM merged
+      GROUP BY 
+        property_control_number,
+        total_market_value,
+        situs_address,
+        situs_address_city_name,
+        situs_address_zip_code,
+        development_name,
+        subdivision_name,
+        owner_name,
+        year_built,
+        square_foot_living_area,
+        number_of_bedrooms,
+        number_of_full_bathrooms,
+        number_of_half_bathrooms,
+        sales_date_1,
+        sales_price_1,
+        land_use_description,
+        waterfrontage,
+        mls_status,
+        mls_status_change_date,
+        mls_sold_date
       ORDER BY parcelno;
     `;
 
@@ -1545,14 +1634,14 @@ app.get('/api/zone-parcels/:zoneName', async (req, res) => {
 
     console.log('Fetching parcels for zone:', zoneName);
 
-    // Query parcels linked to the requested zone via development_data table, including tax sale data and MLS status
+    // Query parcels linked to the requested zone and merge duplicate parcel rows into a single record
     const query = `
       WITH zone_parcels AS (
         SELECT DISTINCT d.parcel_number
         FROM waterfrontdata.development_data d
         WHERE d.zone_name = $1
       ),
-      combined AS (
+      base AS (
         SELECT 
           p.gid,
           p.parcelno,
@@ -1582,19 +1671,36 @@ app.get('/api/zone-parcels/:zoneName', async (req, res) => {
         LEFT JOIN mls.vw_beaches_residential_developments m
           ON m.parcel_id = t.property_control_number
       ),
-      deduplicated AS (
-        SELECT 
-          c.*,
-          ROW_NUMBER() OVER (
-            PARTITION BY c.parcelno
-            ORDER BY COALESCE(c.mls_status_change_date, c.mls_sold_date) DESC NULLS LAST
-          ) AS row_num
-        FROM combined c
+      merged AS (
+        SELECT
+          property_control_number,
+          MIN(gid) AS gid,
+          MIN(parcelno) AS parcelno,
+          (ARRAY_AGG(geom))[1] AS geom,
+          MAX(situs_address)                 FILTER (WHERE situs_address IS NOT NULL)                 AS situs_address,
+          MAX(situs_address_city_name)       FILTER (WHERE situs_address_city_name IS NOT NULL)       AS situs_address_city_name,
+          MAX(situs_address_zip_code)        FILTER (WHERE situs_address_zip_code IS NOT NULL)        AS situs_address_zip_code,
+          MAX(development_name)              FILTER (WHERE development_name IS NOT NULL)              AS development_name,
+          MAX(subdivision_name)              FILTER (WHERE subdivision_name IS NOT NULL)              AS subdivision_name,
+          MAX(total_market_value)            FILTER (WHERE total_market_value IS NOT NULL)            AS total_market_value,
+          MAX(sales_date_1)                  FILTER (WHERE sales_date_1 IS NOT NULL)                  AS sales_date_1,
+          MAX(sales_price_1)                 FILTER (WHERE sales_price_1 IS NOT NULL)                 AS sales_price_1,
+          MAX(land_use_description)          FILTER (WHERE land_use_description IS NOT NULL)          AS land_use_description,
+          MAX(year_built)                    FILTER (WHERE year_built IS NOT NULL)                    AS year_built,
+          MAX(square_foot_living_area)       FILTER (WHERE square_foot_living_area IS NOT NULL)       AS square_foot_living_area,
+          MAX(number_of_bedrooms)            FILTER (WHERE number_of_bedrooms IS NOT NULL)            AS number_of_bedrooms,
+          MAX(number_of_full_bathrooms)      FILTER (WHERE number_of_full_bathrooms IS NOT NULL)      AS number_of_full_bathrooms,
+          MAX(number_of_half_bathrooms)      FILTER (WHERE number_of_half_bathrooms IS NOT NULL)      AS number_of_half_bathrooms,
+          MAX(mls_status)                    FILTER (WHERE mls_status IS NOT NULL)                    AS mls_status,
+          MAX(mls_status_change_date)        FILTER (WHERE mls_status_change_date IS NOT NULL)        AS mls_status_change_date,
+          MAX(mls_sold_date)                 FILTER (WHERE mls_sold_date IS NOT NULL)                 AS mls_sold_date
+        FROM base
+        GROUP BY property_control_number
       )
       SELECT 
-        gid,
-        parcelno,
-        ST_AsGeoJSON(ST_Transform(geom, 4326)) as geometry,
+        MIN(gid) AS gid,
+        MIN(parcelno) AS parcelno,
+        ST_AsGeoJSON(ST_Transform((ARRAY_AGG(geom))[1], 4326)) as geometry,
         property_control_number,
         situs_address,
         situs_address_city_name,
@@ -1613,8 +1719,26 @@ app.get('/api/zone-parcels/:zoneName', async (req, res) => {
         mls_status,
         mls_status_change_date,
         mls_sold_date
-      FROM deduplicated
-      WHERE geom IS NOT NULL AND row_num = 1
+      FROM merged
+      GROUP BY 
+        property_control_number,
+        situs_address,
+        situs_address_city_name,
+        situs_address_zip_code,
+        development_name,
+        subdivision_name,
+        total_market_value,
+        sales_date_1,
+        sales_price_1,
+        land_use_description,
+        year_built,
+        square_foot_living_area,
+        number_of_bedrooms,
+        number_of_full_bathrooms,
+        number_of_half_bathrooms,
+        mls_status,
+        mls_status_change_date,
+        mls_sold_date
       ORDER BY parcelno;
     `;
 
