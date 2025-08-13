@@ -580,7 +580,7 @@ app.get('/api/development-stats/:developmentName', async (req, res) => {
       SELECT 
         COUNT(DISTINCT property_control_number) as total_tax_properties
       FROM tax.palm_beach_county_fl 
-      WHERE development_name = $1
+      WHERE TRIM(development_name) = TRIM($1)
     `;
     
     const mlsStatsQuery = `
@@ -634,7 +634,7 @@ app.get('/api/development-stats/:developmentName', async (req, res) => {
       LEFT JOIN deduplicated_mls mls 
         ON tax.property_control_number = mls.parcel_id
         AND mls.row_num = 1
-      WHERE tax.development_name = $1
+      WHERE TRIM(tax.development_name) = TRIM($1)
     `;
     
     const medianPricesQuery = `
@@ -1043,7 +1043,7 @@ app.get('/api/property-lookup', async (req, res) => {
 app.get('/api/developments', async (req, res) => {
   try {
     const developmentsQuery = `
-      SELECT DISTINCT development_name
+      SELECT DISTINCT TRIM(development_name) AS development_name
       FROM waterfrontdata.development_data
       WHERE development_name IS NOT NULL 
         AND development_name != ''
@@ -1083,9 +1083,9 @@ app.get('/api/subdivisions', async (req, res) => {
     }
 
     const subdivisionsQuery = `
-      SELECT DISTINCT subdivision_name
+      SELECT DISTINCT TRIM(subdivision_name) AS subdivision_name
       FROM tax.palm_beach_county_fl
-      WHERE development_name = $1
+      WHERE TRIM(development_name) = TRIM($1)
         AND subdivision_name IS NOT NULL
         AND subdivision_name <> ''
         AND LENGTH(TRIM(subdivision_name)) > 0
@@ -1111,7 +1111,7 @@ app.get('/api/subdivisions', async (req, res) => {
 app.get('/api/zones', async (req, res) => {
   try {
     const zonesQuery = `
-      SELECT DISTINCT zone_name
+      SELECT DISTINCT TRIM(zone_name) AS zone_name
       FROM waterfrontdata.development_data
       WHERE zone_name IS NOT NULL 
         AND zone_name != ''
@@ -1176,7 +1176,7 @@ app.get('/api/developments-comparison', async (req, res) => {
               mls.status DESC
           ) as row_num
         FROM mls.vw_beaches_residential_developments mls
-        WHERE mls.wf_development = ANY($1)
+        WHERE TRIM(mls.wf_development) = ANY(SELECT TRIM(x) FROM unnest($1::text[]) x)
       )
       SELECT 
         wf_development as development_name,
@@ -1269,7 +1269,7 @@ app.get('/api/zones-comparison', async (req, res) => {
         FROM waterfrontdata.development_data d
         JOIN mls.vw_beaches_residential_developments m
           ON m.parcel_id = d.parcel_number
-        WHERE d.zone_name = ANY($1)
+        WHERE TRIM(d.zone_name) = ANY(SELECT TRIM(x) FROM unnest($1::text[]) x)
       ),
       deduplicated_mls AS (
         SELECT 
@@ -1476,7 +1476,7 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
         LEFT JOIN deduplicated_mls mls
           ON mls.parcel_id = t.property_control_number
          AND mls.row_num = 1
-        WHERE t.development_name = $1
+        WHERE TRIM(t.development_name) = TRIM($1)
           AND p.geom IS NOT NULL
       ),
       merged AS (
@@ -1639,7 +1639,7 @@ app.get('/api/zone-parcels/:zoneName', async (req, res) => {
       WITH zone_parcels AS (
         SELECT DISTINCT d.parcel_number
         FROM waterfrontdata.development_data d
-        WHERE d.zone_name = $1
+        WHERE TRIM(d.zone_name) = TRIM($1)
       ),
       base AS (
         SELECT 
