@@ -344,7 +344,7 @@
                                             <line x1="12" y1="20" x2="12" y2="4"></line>
                                             <line x1="6" y1="20" x2="6" y2="14"></line>
                                         </svg>
-                                        <span style="color: #27ae60; font-size: 13px; font-weight: 500;">Chart</span>
+                                        <span style="color: #27ae60; font-size: 13px; font-weight: 500;">Stats</span>
                                     </div>
                                 </div>
                             </div>
@@ -3274,14 +3274,51 @@
                 const saved = charts.find(c => c && (c.chart_type === 'neighbourhood_comparison' || c.chart_type === 'neighborhood_comparison'));
                 if (!saved || !Array.isArray(saved.locations) || saved.locations.length === 0) return false;
 
-                const selections = saved.locations;
-                const url = `${API_BASE}/developments-comparison?developments=${encodeURIComponent(selections.join(','))}`;
-                const response = await fetch(url);
-                if (!response.ok) return false;
-                const result = await response.json();
-                const data = (result && result.data && result.data.comparisonData) ? result.data.comparisonData : (result.data || []);
+        const selections = saved.locations;
+        // Attempt to split types from saved payload if available, else treat all as developments for fetch but keep labels distinct
+        const devs = Array.isArray(saved.development_names) ? saved.development_names : selections;
+        const zones = Array.isArray(saved.zone_names) ? saved.zone_names : [];
 
-                displayDevelopmentComparisonChart(data, selections);
+        // Fetch both types where possible
+        const reqs = [];
+        if (Array.isArray(devs) && devs.length > 0) {
+            reqs.push(fetch(`${API_BASE}/developments-comparison?developments=${encodeURIComponent(devs.join(','))}`));
+        }
+        if (Array.isArray(zones) && zones.length > 0) {
+            reqs.push(fetch(`${API_BASE}/zones-comparison?zones=${encodeURIComponent(zones.join(','))}`));
+        }
+        const resps = await Promise.all(reqs);
+        const jsons = await Promise.all(resps.map(r => r.ok ? r.json() : Promise.resolve(null)));
+        let merged = [];
+        jsons.forEach(j => {
+            if (!j || !j.success) return;
+            if (Array.isArray(j.data)) merged.push(...j.data);
+            else if (Array.isArray(j.data?.comparisonData)) merged.push(...j.data.comparisonData);
+        });
+
+        // Build labels and mappings
+        const devSetLower = new Set((devs || []).map(n => String(n).toLowerCase()));
+        const overlapLower = new Set((zones || []).map(n => String(n).toLowerCase()).filter(n => devSetLower.has(n)));
+        const entityLabelMap = {};
+        const entityKeyToLabel = {};
+        const labels = [];
+        (devs || []).forEach(name => {
+            const label = String(name);
+            labels.push(label);
+            entityLabelMap[label] = { name: String(name), type: 'development' };
+            entityKeyToLabel[`development:${String(name).toLowerCase()}`] = label;
+        });
+        (zones || []).forEach(name => {
+            const lower = String(name).toLowerCase();
+            const label = overlapLower.has(lower) ? `${name} (Zone)` : String(name);
+            labels.push(label);
+            entityLabelMap[label] = { name: String(name), type: 'zone' };
+            entityKeyToLabel[`zone:${lower}`] = label;
+        });
+        window.entityLabelMap = entityLabelMap;
+        window.entityKeyToLabel = entityKeyToLabel;
+
+        displayDevelopmentComparisonChart(merged, labels);
                 showDevelopmentChartView();
                 const chartControls = document.getElementById('development-chart-controls');
                 if (chartControls) chartControls.style.display = 'block';
@@ -3321,39 +3358,68 @@
                             window.selectedDevelopments = devs;
                             window.selectedZones = zonesSaved;
 
-                            // Fetch both data sets in parallel and merge
+                            // Fetch both data sets in parallel and merge, tagging source type for disambiguation
                             const reqs = [];
+                            const reqTypes = [];
                             if (devs.length > 0) {
                                 reqs.push(fetch(`${API_BASE}/developments-comparison?developments=${encodeURIComponent(devs.join(','))}`));
+                                reqTypes.push('development');
                             }
                             if (zonesSaved.length > 0) {
                                 reqs.push(fetch(`${API_BASE}/zones-comparison?zones=${encodeURIComponent(zonesSaved.join(','))}`));
+                                reqTypes.push('zone');
                             }
-                            const resps = await Promise.all(reqs);
-                            const jsons = await Promise.all(resps.map(r => r.ok ? r.json() : Promise.resolve(null)));
-                            let mergedData = [];
-                            jsons.forEach(j => {
-                                if (!j || !j.success) return;
-                                if (Array.isArray(j.data)) mergedData.push(...j.data);
-                                else if (Array.isArray(j.data?.comparisonData)) mergedData.push(...j.data.comparisonData);
-                            });
+                const resps = await Promise.all(reqs);
+                const jsons = await Promise.all(resps.map(r => r.ok ? r.json() : Promise.resolve(null)));
+                let mergedData = [];
+                jsons.forEach((j, idx) => {
+                    if (!j || !j.success) return;
+                    const srcType = reqTypes[idx] || 'development';
+                    if (Array.isArray(j.data)) mergedData.push(...j.data.map(row => ({ ...row, sourceType: srcType })));
+                    else if (Array.isArray(j.data?.comparisonData)) mergedData.push(...j.data.comparisonData.map(row => ({ ...row, sourceType: srcType })));
+                });
 
-                            const selections = [...devs, ...zonesSaved];
-                            if (mergedData.length > 0) {
-                                displayDevelopmentComparisonChart(mergedData, selections);
-                                showDevelopmentChartView();
-                                const chartControls = document.getElementById('development-chart-controls');
-                                if (chartControls) chartControls.style.display = 'block';
-                                const chartHeader = document.getElementById('dev-comparison-chart-header');
-                                if (chartHeader) chartHeader.style.display = 'block';
-                                if (payload.series_id) {
-                                    const type = String(payload.series_id);
-                                    if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
-                                        switchDevelopmentChart(type);
-                                    }
-                                }
-                                rendered = true;
-                            }
+                // Build label mapping and disambiguated labels (mirror Generate Analysis path)
+                const devSetLower = new Set(devs.map(n => String(n).toLowerCase()));
+                const overlapLower = new Set((zonesSaved || []).map(n => String(n).toLowerCase()).filter(n => devSetLower.has(n)));
+                const entityLabelMap = {}; // label -> { name, type }
+                const entityKeyToLabel = {}; // `${type}:${lowerName}` -> label
+                const labels = [];
+                devs.forEach(name => {
+                    const label = String(name);
+                    labels.push(label);
+                    entityLabelMap[label] = { name: String(name), type: 'development' };
+                    entityKeyToLabel[`development:${String(name).toLowerCase()}`] = label;
+                });
+                (zonesSaved || []).forEach(name => {
+                    const lower = String(name).toLowerCase();
+                    const label = overlapLower.has(lower) ? `${name} (Zone)` : String(name);
+                    labels.push(label);
+                    entityLabelMap[label] = { name: String(name), type: 'zone' };
+                    entityKeyToLabel[`zone:${lower}`] = label;
+                });
+                window.entityLabelMap = entityLabelMap;
+                window.entityKeyToLabel = entityKeyToLabel;
+                try {
+                    window.knownDevNamesLower = new Set(devs.map(n => String(n).toLowerCase()));
+                    window.knownZoneNamesLower = new Set((zonesSaved || []).map(n => String(n).toLowerCase()));
+                } catch {}
+
+                if (mergedData.length > 0) {
+                    displayDevelopmentComparisonChart(mergedData, labels);
+                    showDevelopmentChartView();
+                    const chartControls = document.getElementById('development-chart-controls');
+                    if (chartControls) chartControls.style.display = 'block';
+                    const chartHeader = document.getElementById('dev-comparison-chart-header');
+                    if (chartHeader) chartHeader.style.display = 'block';
+                    if (payload.series_id) {
+                        const type = String(payload.series_id);
+                        if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
+                            switchDevelopmentChart(type);
+                        }
+                    }
+                    rendered = true;
+                }
                         }
                         else if (resp.status === 404) {
                             // Fallback to complete endpoint
@@ -4007,37 +4073,55 @@
             try {
                 // Persist the currently displayed tab's selections
                 persistCurrentModeSelections();
-                // Ensure a name that exists in zones is not duplicated in developments and vice versa
-                if (Array.isArray(window.selectedDevelopments) && Array.isArray(window.selectedZones)) {
-                    const zoneSet = new Set(window.selectedZones);
-                    window.selectedDevelopments = window.selectedDevelopments.filter(n => !zoneSet.has(n));
-                }
-
                 // Combine both sets to render a single chart (distinct lists). Do not coerce types.
                 const devs = Array.isArray(window.selectedDevelopments) ? window.selectedDevelopments.slice() : [];
                 const zones = Array.isArray(window.selectedZones) ? window.selectedZones.slice() : [];
 
-                // Fetch both groups in parallel
+                // Build label mapping to disambiguate identical names across types
+                const devSetLower = new Set(devs.map(n => String(n).toLowerCase()));
+                const overlapLower = new Set(zones.map(n => String(n).toLowerCase()).filter(n => devSetLower.has(n)));
+                const entityLabelMap = {}; // label -> { name, type }
+                const entityKeyToLabel = {}; // `${type}:${lowerName}` -> label
+                const labels = [];
+                devs.forEach(name => {
+                    const label = String(name);
+                    labels.push(label);
+                    entityLabelMap[label] = { name: String(name), type: 'development' };
+                    entityKeyToLabel[`development:${String(name).toLowerCase()}`] = label;
+                });
+                zones.forEach(name => {
+                    const lower = String(name).toLowerCase();
+                    const label = overlapLower.has(lower) ? `${name} (Zone)` : String(name);
+                    labels.push(label);
+                    entityLabelMap[label] = { name: String(name), type: 'zone' };
+                    entityKeyToLabel[`zone:${lower}`] = label;
+                });
+                window.entityLabelMap = entityLabelMap;
+                window.entityKeyToLabel = entityKeyToLabel;
+
+                // Fetch both groups in parallel and tag with sourceType
                 const requests = [];
+                const requestTypes = [];
                 if (devs.length > 0) {
                     requests.push(fetch(`${API_BASE}/developments-comparison?developments=${encodeURIComponent(devs.join(','))}`));
+                    requestTypes.push('development');
                 }
                 if (zones.length > 0) {
                     requests.push(fetch(`${API_BASE}/zones-comparison?zones=${encodeURIComponent(zones.join(','))}`));
+                    requestTypes.push('zone');
                 }
                 const responses = await Promise.all(requests);
                 const jsons = await Promise.all(responses.map(r => r.ok ? r.json() : Promise.resolve(null)));
                 let merged = [];
-                jsons.forEach(j => {
+                jsons.forEach((j, idx) => {
                     if (!j || !j.success) return;
-                    if (Array.isArray(j.data)) merged.push(...j.data);
-                    else if (Array.isArray(j.data?.comparisonData)) merged.push(...j.data.comparisonData);
+                    const srcType = requestTypes[idx] || 'development';
+                    if (Array.isArray(j.data)) merged.push(...j.data.map(row => ({ ...row, sourceType: srcType })));
+                    else if (Array.isArray(j.data?.comparisonData)) merged.push(...j.data.comparisonData.map(row => ({ ...row, sourceType: srcType })));
                 });
 
-                // Display merged data; order legend as devs then zones
-                const devSet = new Set(devs);
-                const orderedSelections = [...devs, ...zones];
-                displayDevelopmentComparisonChart(merged, orderedSelections);
+                // Display merged data; order labels as devs then zones (with suffixes as needed)
+                displayDevelopmentComparisonChart(merged, labels);
                 
                 // Switch to chart view and show chart elements
                 showDevelopmentChartView();
@@ -4092,51 +4176,47 @@
         // Display development comparison chart
         function displayDevelopmentComparisonChart(data, developments) {
             console.log('displayDevelopmentComparisonChart called with:', { data, developments });
-            developmentChartData = data;
-            
-            // Process data by development and year
-            const processedData = {};
-            
+            // Process rows by type-aware label so dev and zone with same name remain separate
+            const keyToLabel = (typeof window.entityKeyToLabel === 'object') ? window.entityKeyToLabel : {};
+            const processedByLabel = {};
+
             data.forEach(row => {
-                const dev = row.development_name || row.zone_name || row.name;
-                const year = row.sale_year || row.year; // Support both field names
-                
-                if (!processedData[dev]) {
-                    processedData[dev] = {};
+                const baseName = row.development_name || row.zone_name || row.name;
+                const lower = String(baseName || '').toLowerCase();
+                // Enhanced type detection: prefer explicit sourceType, then explicit fields, then known name sets
+                const knownDev = (window.knownDevNamesLower && typeof window.knownDevNamesLower.has === 'function') ? window.knownDevNamesLower.has(lower) : false;
+                const knownZone = (window.knownZoneNamesLower && typeof window.knownZoneNamesLower.has === 'function') ? window.knownZoneNamesLower.has(lower) : false;
+                const sourceType = (typeof row.sourceType === 'string') ? row.sourceType : null;
+                const isZone = (sourceType === 'zone') || (!!row.zone_name && (!row.development_name || row.development_name.length === 0)) || (knownZone && !knownDev);
+                const key = `${isZone ? 'zone' : 'development'}:${lower}`;
+                const label = keyToLabel[key] || (isZone ? `${baseName} (Zone)` : String(baseName));
+                const year = row.sale_year || row.year;
+
+                if (!processedByLabel[label]) {
+                    processedByLabel[label] = {};
                 }
-                
-                // Calculate price per square foot if both price and sqft are available
+
                 const avgPrice = parseFloat(row.avg_price ?? row.average_price) || 0;
                 const avgSqft = parseFloat(row.avg_sqft ?? row.average_sqft) || 0;
                 const pricePerSqft = avgSqft > 0 ? avgPrice / avgSqft : 0;
-                
-                // Debug: Log data availability for first few rows
-                if (Object.keys(processedData).length <= 2) {
-                    console.log(`Data for ${dev} (${year}):`, {
-                        avg_price: avgPrice,
-                        avg_sqft: avgSqft,
-                        calculated_price_per_sqft: pricePerSqft,
-                        raw_row: row
-                    });
-                }
-                
-                processedData[dev][year] = {
+
+                processedByLabel[label][year] = {
                     sales_count: parseInt(row.sales_count) || 0,
                     avg_price: avgPrice,
                     avg_price_per_sqft: pricePerSqft
                 };
             });
-            
-            console.log('Processed data:', processedData);
-            
+
+            console.log('Processed data (by label):', Object.keys(processedByLabel));
+
             // Store processed data globally (do not mutate persisted selections here)
-            window.developmentComparisonData = processedData;
+            window.developmentComparisonData = processedByLabel;
             // Track the exact entities (developments and/or zones) used for this chart render
             try { window.comparisonEntities = Array.isArray(developments) ? developments.slice() : []; } catch {}
             
             // Check if we have any price per sqft data available
             let hasPricePerSqftData = false;
-            Object.values(processedData).forEach(devData => {
+            Object.values(processedByLabel).forEach(devData => {
                 Object.values(devData).forEach(yearData => {
                     if (yearData.avg_price_per_sqft > 0) {
                         hasPricePerSqftData = true;
@@ -4217,8 +4297,8 @@
                         e.preventDefault();
                         const label = dataset.label || '';
                         if (label) {
-                            const entityType = (Array.isArray(window.selectedZones) && window.selectedZones.includes(label)) ? 'zone' : 'development';
-                            openDevelopmentMapForName(label, entityType);
+                            const entity = (window.entityLabelMap && window.entityLabelMap[label]) || { name: label, type: (Array.isArray(window.selectedZones) && window.selectedZones.includes(label)) ? 'zone' : 'development' };
+                            openDevelopmentMapForName(entity.name, entity.type);
                         }
                     });
 
@@ -4229,8 +4309,8 @@
                         e.preventDefault();
                         const label = dataset.label || '';
                         if (label) {
-                            const isZone = Array.isArray(window.selectedZones) && window.selectedZones.includes(label);
-                            showChartOverlay(label, isZone ? 'zone' : 'development');
+                            const entity = (window.entityLabelMap && window.entityLabelMap[label]) || { name: label, type: (Array.isArray(window.selectedZones) && window.selectedZones.includes(label)) ? 'zone' : 'development' };
+                            showChartOverlay(entity.name, entity.type);
                         }
                     });
 
@@ -4263,6 +4343,7 @@
             }
             
             const data = window.developmentComparisonData;
+            const labelToEntity = (typeof window.entityLabelMap === 'object') ? window.entityLabelMap : {};
             const developments = Array.isArray(window.comparisonEntities) && window.comparisonEntities.length > 0
                 ? window.comparisonEntities
                 : (Array.isArray(window.selectedDevelopments) ? window.selectedDevelopments : []);
@@ -4295,9 +4376,13 @@
             }
             
             // Prepare datasets for Chart.js
-            const datasets = developments.map((dev, index) => {
+            const datasets = developments.map((label, index) => {
+                // Resolve label to underlying entity if mapping exists
+                const entity = labelToEntity[label] || { name: label, type: 'development' };
+                // Prefer label-keyed data (handles identical names across types)
+                const dataKeyForEntity = data[label] || data[entity.name] || {};
                 const developmentData = years.map(year => {
-                    const yearData = data[dev] && data[dev][year] ? data[dev][year][dataKey] : 0;
+                    const yearData = dataKeyForEntity[year] ? dataKeyForEntity[year][dataKey] : 0;
                     // For price per sqft, only show data points where we have valid calculations
                     if (chartType === 'price_per_sqft' && yearData === 0) {
                         return null; // This will create gaps in the chart for missing data
@@ -4320,7 +4405,7 @@
                 ];
                 
                 return {
-                    label: dev,
+                    label,
                     data: developmentData,
                     backgroundColor: colors[index % colors.length] + '20', // 20% opacity for fill
                     borderColor: colors[index % colors.length],
