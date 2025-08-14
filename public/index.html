@@ -3,23 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Area Analysis Generator</title>
+    <title>Area Insights</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <div class="letterhead">
-            <div class="report-title">Area Analysis Generator</div>
+            <div class="report-title"><img src="logo.png" alt="Waterfront Properties" class="report-logo"></div>
         </div>
 
         <div class="form-container">
             <div class="form-header">
-                <h1>Create New Analysis</h1>
-                <p>Enter client information to generate a comprehensive area analysis report.</p>
+                <h1>Create Area Insights</h1>
+                <p>Enter client information to request personalized area insights.</p>
             </div>
 
             <form id="reportForm">
-                <div class="form-group">
+                <div class="form-group" id="agentNameGroup">
                     <label for="agentName">Agent Name *</label>
                     <input type="text" id="agentName" name="agentName" required>
                 </div>
@@ -32,6 +32,11 @@
                 <div class="form-group">
                     <label for="lastName">Last Name *</label>
                     <input type="text" id="lastName" name="lastName" required>
+                </div>
+
+                <div class="form-group" id="emailGroup">
+                    <label for="email">Email (for confirmation)</label>
+                    <input type="text" id="email" name="email" placeholder="you@example.com">
                 </div>
 
                 <div class="form-group">
@@ -84,6 +89,29 @@
             </div>
 
             <div id="message"></div>
+            
+            <!-- Success Modal -->
+            <div id="successOverlay" class="overlay" style="display:none;">
+                <div class="overlay-content">
+                    <button id="closeOverlayX" type="button" class="overlay-close" aria-label="Close">×</button>
+                    <h2>Your Custom Area Analysis is Ready</h2>
+                    <div class="overlay-actions">
+                        <a id="continueToAnalysis" class="primary-btn" href="#" target="_blank" rel="noopener noreferrer">View Report</a>
+                    </div>
+                    <p id="reportStub" class="report-stub"></p>
+                    <div id="linkDisplay" class="link-display" tabindex="0" role="link" aria-label="Open your report link">
+                        <span class="icon" aria-hidden="true">🔗</span>
+                        <a id="reportLinkAnchor" class="url-display" href="#" target="_blank" rel="noopener noreferrer"></a>
+                    </div>
+                    <div class="copy-row">
+                        <button id="copyLinkBtn" type="button" class="secondary-btn">Copy</button>
+                        <span id="copyFeedback" class="copy-feedback" role="status" aria-live="polite"></span>
+                    </div>
+                    <div class="bookmark-hint">
+                        <p><span class="icon" aria-hidden="true">ℹ️</span> Save this link for easy access later — press Ctrl+D (Windows) or Cmd+D (Mac).</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="footer">
@@ -95,6 +123,9 @@
 
     <script>
         const underReport = window.location.pathname.startsWith('/report');
+        const path = window.location.pathname;
+        const isCustomerMode = path.includes('/customer-signup') || path.includes('/signup');
+        const isAgentMode = path.includes('/agent-signup') || (!isCustomerMode && underReport);
         const API_BASE = underReport ? '/report/api' : '/api';
         const PUBLIC_BASE = underReport ? '/report' : '';
 
@@ -103,7 +134,39 @@
         const loading = document.getElementById('loading');
         const messageDiv = document.getElementById('message');
         const developmentSelect = document.getElementById('development');
+        const agentNameGroup = document.getElementById('agentNameGroup');
+        const agentNameInput = document.getElementById('agentName');
+
+        // Mode-specific UI adjustments
+        if (isCustomerMode && agentNameGroup && agentNameInput) {
+            agentNameGroup.style.display = 'none';
+            agentNameInput.required = false;
+        }
+
+        // Customer-facing copy tweaks
+        const headerTitle = document.querySelector('.form-header h1');
+        const headerSubtitle = document.querySelector('.form-header p');
+        const topTitle = document.querySelector('.report-title');
+        if (isCustomerMode && headerTitle && headerSubtitle) {
+            headerTitle.textContent = 'Request Your Area Insights';
+            headerSubtitle.textContent = 'Fill in your details and property location to request personalized area insights for your home and neighborhood.';
+        }
+
+        // Keep top banner consistent but do not overwrite if logo image is present
+        if (topTitle && !topTitle.querySelector('img')) {
+            topTitle.textContent = 'Area Insights';
+        }
         const subdivisionSelect = document.getElementById('subdivision');
+        const emailInput = document.getElementById('email');
+        const overlay = document.getElementById('successOverlay');
+        const closeOverlayBtn = document.getElementById('closeOverlayX');
+        const continueBtn = document.getElementById('continueToAnalysis');
+        const copyLinkBtn = document.getElementById('copyLinkBtn');
+        const reportIdEl = document.getElementById('successReportId');
+        const reportStubEl = document.getElementById('reportStub');
+        const reportLinkAnchor = document.getElementById('reportLinkAnchor');
+        const detailsToggle = document.getElementById('detailsToggle');
+        const detailsSection = document.getElementById('detailsSection');
 
         async function loadDevelopments() {
             try {
@@ -195,8 +258,14 @@
                 state: String(formData.get('state') || '').trim(),
                 zipCode: String(formData.get('zipCode') || '').trim(),
                 development: getOrNull(formData.get('development')),
-                subdivision: getOrNull(formData.get('subdivision'))
+                subdivision: getOrNull(formData.get('subdivision')),
+                email: getOrNull(formData.get('email'))
             };
+
+            // Backend requires agentName; set a safe default in customer mode
+            if (isCustomerMode && (!data.agentName || data.agentName.length === 0)) {
+                data.agentName = 'Waterfront Properties';
+            }
 
             try {
                 const response = await fetch(`${API_BASE}/reports/create`, {
@@ -210,15 +279,39 @@
                 const result = await response.json();
 
                 if (response.ok && result.success) {
-                    messageDiv.innerHTML = `
-                        <div class="form-message success">
-                            Area analysis created successfully!<br>
-                            <strong>Report ID:</strong> ${result.reportId}<br>
-                            <a href="${PUBLIC_BASE}${result.reportUrl}" target="_blank">View Analysis</a>
-                        </div>
-                    `;
+                    // Centered overlay confirmation
+                    const reportHref = `${PUBLIC_BASE}${result.reportUrl}`;
+                    const fullUrl = `${window.location.origin}${reportHref}`;
+                    continueBtn.href = reportHref;
+                    reportLinkAnchor.href = reportHref;
+                    reportLinkAnchor.textContent = fullUrl;
+                    // Extract stub (lastname-reportid) from URL
+                    const stub = (result.reportUrl || '').split('/').pop();
+                    reportStubEl.textContent = stub ? `Your Report ID is: ${stub}` : '';
+                    overlay.style.display = 'flex';
+
+                    // Wire copy button
+                    copyLinkBtn.onclick = async () => {
+                        try {
+                            await navigator.clipboard.writeText(fullUrl);
+                            const fb = document.getElementById('copyFeedback');
+                            if (fb) {
+                                fb.textContent = 'Copied!';
+                                fb.style.opacity = '1';
+                                setTimeout(() => { fb.style.opacity = '0'; fb.textContent = ''; }, 1200);
+                            }
+                        } catch (_) {}
+                    };
+
+                    closeOverlayBtn.onclick = () => {
+                        overlay.style.display = 'none';
+                    };
+
+                    // Make entire link-display clickable
+                    const linkDisplay = document.getElementById('linkDisplay');
+                    linkDisplay.onclick = () => { window.open(reportHref, '_blank'); };
+
                     form.reset();
-                    // Reset dependent selects
                     subdivisionSelect.innerHTML = '<option value="">Select a subdivision (optional)</option>';
                     subdivisionSelect.disabled = true;
                 } else {

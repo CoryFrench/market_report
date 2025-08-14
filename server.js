@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+let nodemailer = null;
+try { nodemailer = require('nodemailer'); } catch (_) { /* optional */ }
 require('dotenv').config();
 const { testConnection, dbQueries, pool } = require('./db');
 
@@ -25,13 +27,24 @@ app.get('/agent-signup', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
 });
 
-app.get('/customer-signup', (req, res) => {
+// New signup route (customer implied)
+app.get('/signup', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
+});
+
+// Backward compatibility
+app.get('/customer-signup', (req, res) => {
+  res.redirect(302, '/signup');
 });
 
 // Analysis view route - handles both old format (numbers) and new format (lastname-id)
 app.get('/reports/:urlSlug', (req, res) => {
   res.sendFile(__dirname + '/public/report.html');
+});
+
+// Retrieve page (future: enter last_name-report_id)
+app.get('/retrieve', (req, res) => {
+  res.sendFile(__dirname + '/public/retrieve.html');
 });
 
 // Health check endpoint
@@ -506,7 +519,8 @@ app.post('/api/reports/create', async (req, res) => {
       state, 
       zipCode, 
       development, 
-      subdivision 
+      subdivision,
+      email
     } = req.body;
     
     // Validate required fields
@@ -529,9 +543,25 @@ app.post('/api/reports/create', async (req, res) => {
       state: state.trim(),
       zipCode: zipCode.trim(),
       development: development ? development.trim() : null,
-      subdivision: subdivision ? subdivision.trim() : null
+      subdivision: subdivision ? subdivision.trim() : null,
+      email: email ? String(email).trim() : null
     });
     
+    // Send confirmation email if provided and mailer configured
+    if (email && String(email).trim().length > 3) {
+      try {
+        await sendReportEmail({
+          toEmail: String(email).trim(),
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          reportUrl: result.reportUrl,
+          reportId: result.reportId
+        });
+      } catch (mailErr) {
+        console.error('Email send failed:', mailErr.message || mailErr);
+      }
+    }
+
     res.status(201).json({
       success: true,
       message: 'Area analysis created successfully',
@@ -549,6 +579,86 @@ app.post('/api/reports/create', async (req, res) => {
     });
   }
 });
+
+// Resend report link via email (no storage; requires last name and id)
+app.post('/api/reports/resend', async (req, res) => {
+  try {
+    const { lastName, reportId, email } = req.body;
+    if (!lastName || !reportId || !email) {
+      return res.status(400).json({ success: false, error: 'lastName, reportId, and email are required' });
+    }
+    const cleanLast = String(lastName).toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    const slug = `${cleanLast}-${reportId}`;
+    const reportUrl = `/reports/${slug}`;
+    await sendReportEmail({
+      toEmail: String(email).trim(),
+      firstName: '',
+      lastName: String(lastName).trim(),
+      reportUrl,
+      reportId
+    });
+    res.json({ success: true, reportUrl });
+  } catch (error) {
+    console.error('Error resending report email:', error);
+    res.status(500).json({ success: false, error: 'Failed to resend report email', message: error.message });
+  }
+});
+
+// Helper to send email (optional nodemailer)
+async function sendReportEmail({ toEmail, firstName, lastName, reportUrl, reportId }) {
+  const origin = process.env.PUBLIC_ORIGIN || '';
+  const fullUrl = `${origin}${reportUrl}`;
+
+  const subject = 'Your Area Analysis Report Link';
+  const plain = `Hello ${firstName || lastName || ''},\n\nYour area analysis is ready.\n\nReport ID: ${reportId}\nLink: ${fullUrl}\n\nTip: Bookmark this link (Ctrl+D on Windows, Cmd+D on Mac).\n\n— Waterfront Properties`;
+  const html = `
+    <div style="font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #1a202c;">
+      <h2 style="color:#1a365d;">Your Area Analysis is Ready</h2>
+      <p>Hello ${escapeHtml(firstName || lastName || '')},</p>
+      <p>Report ID: <strong>${escapeHtml(String(reportId))}</strong></p>
+      <p>
+        Link: <a href="${escapeAttr(fullUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(fullUrl)}</a>
+      </p>
+      <p style="color:#4a5568;">Tip: Bookmark this link so you can return later (Ctrl+D on Windows, Cmd+D on Mac).</p>
+      <p>— Waterfront Properties</p>
+    </div>
+  `;
+
+  // Resolve SMTP config with aliases for compatibility
+  const SMTP_HOST = process.env.SMTP_HOST || '';
+  const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+  const SMTP_SECURE = !!(process.env.SMTP_SECURE === 'true');
+  const SMTP_USER = process.env.SMTP_USER || '';
+  const SMTP_PASS = process.env.SMTP_PASS || process.env.SMTP_PASSWORD || '';
+  const SMTP_FROM = process.env.SMTP_FROM || process.env.FROM_EMAIL || SMTP_USER;
+
+  // If nodemailer not installed or no SMTP config, just log
+  if (!nodemailer || !SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+    console.log('[Email disabled] Would send to', toEmail, 'subject:', subject, 'url:', fullUrl);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    auth: { user: SMTP_USER, pass: SMTP_PASS }
+  });
+
+  await transporter.sendMail({
+    from: SMTP_FROM,
+    to: toEmail,
+    subject,
+    text: plain,
+    html
+  });
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s); }
 
 // Legacy endpoint - redirect to basic reports
 app.get('/api/reports', async (req, res) => {

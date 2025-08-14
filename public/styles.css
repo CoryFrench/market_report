@@ -92,6 +92,14 @@ body {
     letter-spacing: -0.01em;
 }
 
+.report-logo {
+    max-width: 260px;
+    width: 100%;
+    height: auto;
+    display: inline-block;
+    filter: brightness(0) invert(1);
+}
+
 .content {
     padding: 80px 80px 80px 10px;
 }
@@ -388,10 +396,7 @@ body {
     transform: translateY(-1px);
 }
 
-.form-group input[type="text"]:invalid,
-.form-group select:invalid {
-    border-color: #e53e3e;
-}
+/* Validation styling is handled via JS on submit/invalid; keep neutral borders by default */
 
 /* Disabled state for subdivision select until development is selected */
 .form-group select:disabled {
@@ -461,6 +466,150 @@ body {
 
 .form-message a:hover {
     text-decoration: underline;
+}
+
+/* Centered overlay for success confirmation */
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(1200px 600px at 30% 20%, rgba(26,54,93,0.08), transparent 60%) , rgba(0,0,0,0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+}
+
+
+.overlay-content {
+    background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+    max-width: 640px;
+    width: 100%;
+    padding: 34px 30px 24px;
+    border-radius: 16px;
+    box-shadow: 0 16px 46px rgba(0,0,0,0.16);
+    text-align: center;
+    border-top: 5px solid #ccb27a;
+    border-left: 1px solid rgba(204,178,122,0.25);
+    border-right: 1px solid rgba(204,178,122,0.2);
+}
+
+.overlay-close {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    background: none;
+    border: none;
+    color: #718096;
+    font-size: 28px;
+    cursor: pointer;
+}
+
+.overlay-content h2 {
+    color: #1a365d;
+    margin-bottom: 12px;
+    font-size: 27px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+}
+
+.overlay-actions {
+    display: flex;
+    gap: 14px;
+    margin: 22px 0 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.primary-btn {
+    background: linear-gradient(135deg, #1a365d 0%, #2d3748 100%);
+    color: #fff;
+    padding: 13px 22px;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 700;
+    box-shadow: 0 6px 18px rgba(26,54,93,0.25);
+}
+.primary-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(26,54,93,0.28); }
+.primary-btn:active { transform: translateY(0); box-shadow: 0 4px 12px rgba(26,54,93,0.2); }
+
+.secondary-btn {
+    background: #ffffff;
+    color: #1a365d;
+    padding: 12px 18px;
+    border-radius: 10px;
+    border: 2px solid #cbd5e0;
+    font-weight: 700;
+}
+
+.link-btn {
+    background: none;
+    border: none;
+    color: #4a5568;
+    text-decoration: underline;
+    cursor: pointer;
+    margin-top: 8px;
+}
+
+.bookmark-hint { color: #4a5568; font-size: 0.95em; margin-top: 10px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+.link-display {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #f7fafc;
+    border: 1px solid rgba(204,178,122,0.35);
+    border-radius: 8px;
+    margin: 6px 0 8px;
+    cursor: pointer;
+}
+
+.url-display {
+    color: #1a365d;
+    font-weight: 600;
+    text-decoration: none;
+    word-break: break-all;
+}
+
+.url-display:hover { text-decoration: underline; }
+
+.icon { opacity: 0.8; }
+
+.details-toggle {
+    margin-top: 6px;
+    background: none;
+    border: none;
+    color: #1a365d;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.details { color: #4a5568; font-size: 0.95em; margin-top: 6px; }
+
+.report-stub { color: #4a5568; font-size: 0.95em; margin-top: 8px; }
+
+.copy-row { display: inline-flex; align-items: center; gap: 10px; margin-top: 6px; position: relative; flex-wrap: nowrap; }
+.copy-feedback { 
+    position: absolute; 
+    top: -10px; 
+    right: -6px; 
+    background: #e6fffa; 
+    color: #276749; 
+    border: 1px solid #b2f5ea; 
+    border-radius: 6px; 
+    padding: 2px 6px; 
+    font-weight: 700; 
+    font-size: 12px; 
+    white-space: nowrap; 
+    pointer-events: none; 
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    opacity: 0; 
+    transition: opacity 0.2s ease-in-out;
 }
 
 .form-loading {

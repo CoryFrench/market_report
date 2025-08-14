@@ -45,7 +45,7 @@ const dbQueries = {
   // Get all basic report data
   getReportBasic: async (reportId = null) => {
     const baseQuery = `
-      SELECT report_id, created_at, last_updated, report_url, agent_name, first_name, last_name
+      SELECT report_id, created_at, last_updated, report_url, agent_name, first_name, last_name, email
       FROM customer.report_basic
     `;
     
@@ -100,6 +100,7 @@ const dbQueries = {
         rb.agent_name,
         rb.first_name,
         rb.last_name,
+        rb.email,
         rhi.address_line_1,
         rhi.address_line_2,
         rhi.city as home_city,
@@ -169,7 +170,7 @@ const dbQueries = {
       LEFT JOIN customer.report_interest_area ria ON rb.report_id = ria.report_id
       WHERE rb.report_id = $1
       GROUP BY rb.report_id, rb.created_at, rb.last_updated, rb.report_url, 
-               rb.agent_name, rb.first_name, rb.last_name,
+               rb.agent_name, rb.first_name, rb.last_name, rb.email,
                rhi.address_line_1, rhi.address_line_2, rhi.city, rhi.state, 
                rhi.zip_code, rhi.development, rhi.subdivision
     `;
@@ -191,6 +192,7 @@ const dbQueries = {
         rb.agent_name,
         rb.first_name,
         rb.last_name,
+        rb.email,
         rhi.address_line_1,
         rhi.address_line_2,
         rhi.city as home_city,
@@ -258,7 +260,7 @@ const dbQueries = {
       LEFT JOIN customer.report_interest_area ria ON rb.report_id = ria.report_id
       WHERE rb.report_url = $1
       GROUP BY rb.report_id, rb.created_at, rb.last_updated, rb.report_url, 
-               rb.agent_name, rb.first_name, rb.last_name,
+               rb.agent_name, rb.first_name, rb.last_name, rb.email,
                rhi.address_line_1, rhi.address_line_2, rhi.city, rhi.state, 
                rhi.zip_code, rhi.development, rhi.subdivision
     `;
@@ -275,15 +277,16 @@ const dbQueries = {
       
       // Insert into report_basic and get the generated report_id
       const basicInsertQuery = `
-        INSERT INTO customer.report_basic (agent_name, first_name, last_name, created_at, last_updated)
-        VALUES ($1, $2, $3, NOW(), NOW())
+        INSERT INTO customer.report_basic (agent_name, first_name, last_name, email, created_at, last_updated)
+        VALUES ($1, $2, $3, $4, NOW(), NOW())
         RETURNING report_id, created_at
       `;
       
       const basicResult = await client.query(basicInsertQuery, [
         reportData.agentName,
         reportData.firstName,
-        reportData.lastName
+        reportData.lastName,
+        reportData.email || null
       ]);
       
       const reportId = basicResult.rows[0].report_id;

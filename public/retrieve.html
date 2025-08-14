@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Retrieve Report</title>
+	<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+	<div class="container">
+		<div class="letterhead">
+			<div class="report-title"><img src="logo.png" alt="Waterfront Properties" class="report-logo"></div>
+		</div>
+		<div class="form-container">
+			<div class="form-header">
+				<h1>Find Your Report</h1>
+				<p>Enter your last name and report ID to view your analysis.</p>
+			</div>
+			<form id="retrieveForm">
+				<div class="form-group">
+					<label for="lastName">Last Name *</label>
+					<input type="text" id="lastName" name="lastName" required>
+				</div>
+				<div class="form-group">
+					<label for="reportId">Report ID *</label>
+					<input type="text" id="reportId" name="reportId" required>
+				</div>
+				<div class="form-group">
+					<label for="email">Email (optional, to resend the link)</label>
+					<input type="text" id="email" name="email" placeholder="you@example.com">
+				</div>
+				<button type="submit" class="form-submit">Open Report</button>
+			</form>
+			<div id="message"></div>
+		</div>
+	</div>
+
+	<script>
+		const form = document.getElementById('retrieveForm');
+		const messageDiv = document.getElementById('message');
+		form.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			messageDiv.innerHTML = '';
+			const lastName = String(document.getElementById('lastName').value || '').trim();
+			const reportId = String(document.getElementById('reportId').value || '').trim();
+			const email = String(document.getElementById('email').value || '').trim();
+			if (!lastName || !reportId) return;
+			const cleanLast = lastName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+			const slug = `${cleanLast}-${reportId}`;
+			const url = `/reports/${slug}`;
+			if (email) {
+				try {
+					await fetch('/api/reports/resend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lastName, reportId, email }) });
+				} catch (_) {}
+			}
+			window.location.href = url;
+		});
+	</script>
+</body>
+</html>
+
