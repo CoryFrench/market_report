@@ -20,6 +20,15 @@ app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
 });
 
+// Duplicate entry pages for agent and customer flows (serve same UI for now)
+app.get('/agent-signup', (req, res) => {
+  res.sendFile(__dirname + '/public/index.html');
+});
+
+app.get('/customer-signup', (req, res) => {
+  res.sendFile(__dirname + '/public/index.html');
+});
+
 // Analysis view route - handles both old format (numbers) and new format (lastname-id)
 app.get('/reports/:urlSlug', (req, res) => {
   res.sendFile(__dirname + '/public/report.html');
@@ -900,7 +909,18 @@ app.get('/api/property-lookup', async (req, res) => {
 
     // Build normalized strings and helpful tokens for ranking
     const normalizedAddress = String(address).trim().replace(/\s+/g, ' ');
-    const likePattern = `%${normalizedAddress.replace(/\s+/g, '%')}%`;
+    const addressNoPunct = normalizedAddress.replace(/[.,]/g, '');
+    const suffixTokens = new Set([
+      'DR', 'DRIVE', 'RD', 'ROAD', 'AVE', 'AV', 'AVENUE', 'ST', 'STREET',
+      'BLVD', 'BOULEVARD', 'CT', 'COURT', 'LN', 'LANE', 'TER', 'TERRACE',
+      'PL', 'PLACE', 'PKWY', 'PARKWAY', 'HWY', 'HIGHWAY', 'CIR', 'CIRCLE',
+      'WAY', 'TRL', 'TRAIL'
+    ]);
+    const addressTokens = addressNoPunct.split(/\s+/);
+    const addressTokensNoSuffix = addressTokens.filter(t => !suffixTokens.has(String(t).toUpperCase()));
+    const likePattern = addressTokensNoSuffix.length > 0
+      ? `%${addressTokensNoSuffix.join('%')}%`
+      : `%${normalizedAddress.replace(/\s+/g, '%')}%`;
 
     // Extract house number prefix (e.g., "123 ") for anchored match
     const houseNumberMatch = normalizedAddress.match(/^\s*(\d+)\b/);
@@ -910,7 +930,8 @@ app.get('/api/property-lookup', async (req, res) => {
     // Derive a base street phrase (remove leading number and cut off at unit designators)
     const afterNumber = normalizedAddress.replace(/^\s*\d+\s*/, '');
     const streetUntilUnit = afterNumber.split(/\b(?:APT|APARTMENT|UNIT|STE|SUITE|#)\b/i)[0] || '';
-    const streetTokens = streetUntilUnit.trim().split(/\s+/).filter(t => t.length > 2);
+    const rawStreetTokens = streetUntilUnit.trim().split(/\s+/).filter(t => t.length > 1);
+    const streetTokens = rawStreetTokens.filter(t => !suffixTokens.has(String(t).toUpperCase()));
     const baseStreet = streetTokens.length > 0 ? streetTokens.slice(0, Math.min(2, streetTokens.length)).join(' ') : null;
     const streetLike = baseStreet ? `%${baseStreet}%` : null;
 
@@ -934,15 +955,13 @@ app.get('/api/property-lookup', async (req, res) => {
       whereParams.push(String(zip).trim());
     }
 
-    let joinClause = '';
-    let ddScoreClause = '';
+    // Always join development_data so we can return inferred development even when not provided
+    let joinClause = 'LEFT JOIN waterfrontdata.development_data dd ON dd.parcel_number = t.property_control_number';
+    let ddScoreClause = ` + (CASE WHEN COALESCE($7::text, '') <> '' AND dd.development_name = $7::text THEN 5 ELSE 0 END)`;
     if (development && String(development).trim().length > 0) {
       // Restrict to parcels in this development if provided
-      joinClause = 'LEFT JOIN waterfrontdata.development_data dd ON dd.parcel_number = t.property_control_number';
       whereClauses.push(`dd.development_name = ${makePlaceholder()}::text`);
       whereParams.push(String(development).trim());
-      // Only include dd score term when the join is present (uses scoring param $7)
-      ddScoreClause = ` + (CASE WHEN COALESCE($7::text, '') <> '' AND dd.development_name = $7::text THEN 5 ELSE 0 END)`;
     }
 
     if (subdivision && String(subdivision).trim().length > 0) {
@@ -989,6 +1008,7 @@ app.get('/api/property-lookup', async (req, res) => {
           t.number_of_full_bathrooms,
           t.number_of_half_bathrooms,
           t.total_market_value,
+          dd.development_name,
           (
             (CASE WHEN t.situs_address = $1::text THEN 100 ELSE 0 END)
           + (CASE WHEN COALESCE($2::text, '') <> '' AND t.situs_address ILIKE $2::text THEN 50 ELSE 0 END)
@@ -998,6 +1018,7 @@ app.get('/api/property-lookup', async (req, res) => {
           + (CASE WHEN COALESCE($6::text, '') <> '' AND t.subdivision_name = $6::text THEN 5 ELSE 0 END)
           ${ddScoreClause}
           ) AS match_score
+          , COALESCE($7::text, '') AS __dev_param_anchor
         FROM tax.palm_beach_county_fl t
         ${joinClause}
         WHERE ${whereClauses.join(' AND ')}
@@ -1014,6 +1035,7 @@ app.get('/api/property-lookup', async (req, res) => {
           MAX(number_of_full_bathrooms)    FILTER (WHERE number_of_full_bathrooms IS NOT NULL)    AS number_of_full_bathrooms,
           MAX(number_of_half_bathrooms)    FILTER (WHERE number_of_half_bathrooms IS NOT NULL)    AS number_of_half_bathrooms,
           MAX(total_market_value)          FILTER (WHERE total_market_value IS NOT NULL)          AS total_market_value,
+          MAX(development_name)            FILTER (WHERE development_name IS NOT NULL)            AS development_name,
           MAX(match_score) AS best_match_score
         FROM candidates
         GROUP BY property_control_number

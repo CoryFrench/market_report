@@ -612,22 +612,43 @@
         }
         
         function displayHomeStats(data) {
+            // Helpers to normalize casing for display
+            const DIRECTIONALS = new Set(['N','S','E','W','NE','NW','SE','SW']);
+            const ROMAN_NUMERALS = new Set(['I','II','III','IV','V','VI','VII','VIII','IX','X']);
+            function capitalizeWord(word) {
+                if (!word) return word;
+                const raw = String(word);
+                const alnum = raw.replace(/[^A-Za-z0-9]/g, '');
+                if (alnum.length === 0) return raw; // punctuation-only
+                if (/^\d+$/.test(alnum)) return raw; // numbers
+                if (DIRECTIONALS.has(alnum.toUpperCase())) return alnum.toUpperCase();
+                if (ROMAN_NUMERALS.has(alnum.toUpperCase())) return alnum.toUpperCase();
+                const lower = raw.toLowerCase();
+                return lower.replace(/([A-Za-zÀ-ÖØ-öø-ÿ])(\S*)/, (_m, a, b) => a.toUpperCase() + b);
+            }
+            function toTitleCaseSmart(str) {
+                if (!str) return str;
+                return String(str)
+                    .split(' ')
+                    .map(part => part.split('-').map(capitalizeWord).join('-'))
+                    .join(' ');
+            }
             // Format address with each component on separate lines
             let addressLines = [];
             
-            // Address Line 1
+            // Address Line 1 (title case for display)
             if (data.address_line_1 && data.address_line_1.trim()) {
-                addressLines.push(data.address_line_1);
+                addressLines.push(toTitleCaseSmart(data.address_line_1.trim()));
             }
             
             // Address Line 2 (if exists)
             if (data.address_line_2 && data.address_line_2.trim()) {
-                addressLines.push(data.address_line_2);
+                addressLines.push(toTitleCaseSmart(data.address_line_2.trim()));
             }
             
             // City, State, Zip
             let cityStateZip = [];
-            if (data.home_city) cityStateZip.push(data.home_city);
+            if (data.home_city) cityStateZip.push(toTitleCaseSmart(data.home_city));
             if (data.home_state) cityStateZip.push(data.home_state);
             if (data.zip_code) cityStateZip.push(data.zip_code);
             if (cityStateZip.length > 0) {
@@ -635,8 +656,8 @@
             }
             
             // Development & Subdivision (avoid duplicate when identical)
-            const devName = (data.development && data.development.trim()) ? data.development.trim() : '';
-            const subName = (data.subdivision && data.subdivision.trim()) ? data.subdivision.trim() : '';
+            const devName = (data.development && data.development.trim()) ? toTitleCaseSmart(data.development.trim()) : '';
+            const subName = (data.subdivision && data.subdivision.trim()) ? toTitleCaseSmart(data.subdivision.trim()) : '';
             if (devName) {
                 addressLines.push(devName);
             }
@@ -729,7 +750,7 @@
                                 const marketValue = formatCurrency0(best.total_market_value);
 
                                 // Build address content to merge into one unified card
-                                const addressHtml = addressLines.length > 0
+                                let addressHtml = addressLines.length > 0
                                     ? addressLines.map((line, idx) => {
                                         const isCityStateZip = line.includes(',') && /\d{5}/.test(line);
                                         const isPrimary = idx === 0 || (idx === 1 && !isCityStateZip);
@@ -741,6 +762,15 @@
                                         return `<div style="${style}">${line}</div>`;
                                     }).join('')
                                     : '<div style="font-size:16px;color:#95a5a6;font-style:italic;">Address information not available</div>';
+
+                                // If development was not provided but inferred from lookup, reflect it in UI and globals
+                                if ((!data.development || String(data.development).trim().length === 0) && best.development_name) {
+                                    try { window._inferredDevelopment = best.development_name; } catch {}
+                                    try { currentDevelopmentName = best.development_name; } catch {}
+                                    try { setupChartButton(best.development_name); } catch {}
+                                    const devLine = `<div style=\"font-size:16px;font-weight:400;color:#7f8c8d;margin-bottom:3px;line-height:1.4;font-style:italic;\">${best.development_name}</div>`;
+                                    addressHtml = addressHtml + devLine;
+                                }
 
                                 infoBlock.innerHTML = `
                                     <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
@@ -772,6 +802,10 @@
                                     const addressBlock = leftPanel.querySelector('#propertyAddress');
                                     if (addressBlock) addressBlock.style.display = 'none';
                                 }
+                                // If no development was provided, try to auto-load stats from inferred development
+                                if ((!data.development || String(data.development).trim().length === 0) && best.development_name) {
+                                    try { await loadDevelopmentStats(best.development_name); } catch {}
+                                }
                             }
                         }
                     }
@@ -789,28 +823,36 @@
             setupChartButton(data.development && data.development.trim() ? data.development.trim() : null);
         }
         
-        // Function to setup chart button click handler
+        // Function to setup chart button click handler (idempotent and re-runnable)
         function setupChartButton(developmentName) {
             const chartButton = document.getElementById('chartButton');
-            if (chartButton && developmentName) {
-                chartButton.addEventListener('click', () => {
-                    showChartOverlay(developmentName);
-                });
-                
-                // Add hover effect
-                chartButton.addEventListener('mouseenter', function() {
+            if (!chartButton) return;
+            const hasDev = typeof developmentName === 'string' && developmentName.trim().length > 0;
+            if (hasDev) {
+                const dev = developmentName.trim();
+                // Enable styles
+                chartButton.style.opacity = '';
+                chartButton.style.cursor = 'pointer';
+                chartButton.title = '';
+                chartButton.style.backgroundColor = '#ffffff';
+                chartButton.style.borderColor = '#dee2e6';
+                // Replace handlers idempotently
+                chartButton.onclick = function() { showChartOverlay(dev); };
+                chartButton.onmouseenter = function() {
                     this.style.backgroundColor = '#f8f9fa';
                     this.style.borderColor = '#27ae60';
                     this.style.transform = 'translateY(-1px)';
-                });
-                
-                chartButton.addEventListener('mouseleave', function() {
+                };
+                chartButton.onmouseleave = function() {
                     this.style.backgroundColor = '#ffffff';
                     this.style.borderColor = '#dee2e6';
                     this.style.transform = 'translateY(0)';
-                });
-            } else if (chartButton) {
-                // Disable chart button if no development
+                };
+            } else {
+                // Disable and remove handlers
+                chartButton.onclick = null;
+                chartButton.onmouseenter = null;
+                chartButton.onmouseleave = null;
                 chartButton.style.opacity = '0.5';
                 chartButton.style.cursor = 'not-allowed';
                 chartButton.title = 'Chart data not available for this property';
@@ -3136,8 +3178,18 @@
         
         // Get current report data
         function getCurrentReportData() {
-            // This function should return the current report data
-            // For now, we'll try to extract it from the DOM or use a global variable
+            // Prefer inferred development from lookup or current selection
+            try {
+                if (window._inferredDevelopment && String(window._inferredDevelopment).trim().length > 0) {
+                    return { development: String(window._inferredDevelopment).trim() };
+                }
+            } catch {}
+            try {
+                if (typeof currentDevelopmentName === 'string' && currentDevelopmentName.trim().length > 0) {
+                    return { development: currentDevelopmentName.trim() };
+                }
+            } catch {}
+            // Fallback: try to extract development from the styled address block
             const developmentElement = document.querySelector('#propertyAddress');
             if (developmentElement) {
                 // Try to extract development name from the styled address
