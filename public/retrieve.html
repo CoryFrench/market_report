@@ -56,9 +56,13 @@
     </div>
 
 	<script>
-    const byIdForm = document.getElementById('retrieveByIdForm');
-    const byEmailForm = document.getElementById('retrieveByEmailForm');
-    const messageDiv = document.getElementById('message');
+		const byIdForm = document.getElementById('retrieveByIdForm');
+		const byEmailForm = document.getElementById('retrieveByEmailForm');
+		const messageDiv = document.getElementById('message');
+
+		// Prefer production paths under /report to ensure correct destination URLs
+		const PUBLIC_BASE = '/report';
+		const API_BASE = '/report/api';
     const panelId = document.getElementById('panelId');
     const panelEmail = document.getElementById('panelEmail');
     const toggleId = document.getElementById('toggleId');
@@ -106,23 +110,40 @@
         }
     });
 
-    byIdForm.addEventListener('submit', (e) => {
+		byIdForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         messageDiv.style.display = 'none';
         messageDiv.className = 'form-message';
-        const ref = String(refInput.value || '').trim().toLowerCase();
+			const ref = String(refInput.value || '').trim().toLowerCase();
         if (!refPattern.test(ref)) {
             refError.textContent = 'Use format lastname-id (e.g., smith-24).';
             refInput.setAttribute('aria-invalid', 'true');
             return;
         }
         if (!ref) return;
-        const clean = ref.replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
-        window.location.href = `/reports/${clean}`;
+			const clean = ref.replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+			// Validate existence before redirect for better UX
+			try {
+				const resp = await fetch(`${API_BASE}/reports/complete/${clean}`);
+				if (resp.ok) {
+					window.location.href = `${PUBLIC_BASE}/reports/${clean}`;
+					return;
+				}
+				const json = await resp.json().catch(() => ({}));
+				refError.textContent = json.error || 'We could not find a report with that Reference ID.';
+				refInput.setAttribute('aria-invalid', 'true');
+				messageDiv.className = 'form-message error';
+				messageDiv.textContent = 'Please check your Reference ID or try retrieving by email.';
+				messageDiv.style.display = 'block';
+			} catch (_) {
+				messageDiv.className = 'form-message error';
+				messageDiv.textContent = 'Unable to verify the Reference ID right now. Please try again.';
+				messageDiv.style.display = 'block';
+			}
     });
 
     // Real-time validation for email
-    const emailInput = document.querySelector('#retrieveByEmailForm #email');
+		const emailInput = document.querySelector('#retrieveByEmailForm #email');
     const emailError = document.getElementById('emailError');
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     emailInput.addEventListener('input', () => {
@@ -152,8 +173,8 @@
             return;
         }
         if (!email) return;
-        try {
-            const resp = await fetch('/api/reports/retrieve-by-email', {
+		try {
+			const resp = await fetch(`${API_BASE}/reports/retrieve-by-email`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })
