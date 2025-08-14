@@ -532,6 +532,29 @@ app.post('/api/reports/create', async (req, res) => {
       });
     }
     
+    // Normalize and guard against duplicate emails
+    const normalizedEmail = email && String(email).trim().length > 0
+      ? String(email).trim().toLowerCase()
+      : null;
+
+    if (normalizedEmail) {
+      try {
+        const existing = await dbQueries.getLatestReportByEmail(normalizedEmail, 1);
+        if (existing && existing.rowCount > 0) {
+          const row = existing.rows[0];
+          return res.status(409).json({
+            success: false,
+            error: 'An account already exists for this email',
+            reportUrl: row.report_url,
+            reportId: row.report_id
+          });
+        }
+      } catch (lookupErr) {
+        // Fall through on lookup error; creation may still proceed
+        console.error('Email lookup failed:', lookupErr.message || lookupErr);
+      }
+    }
+
     // Create the report
     const result = await dbQueries.createReport({
       agentName: agentName.trim(),
@@ -544,14 +567,14 @@ app.post('/api/reports/create', async (req, res) => {
       zipCode: zipCode.trim(),
       development: development ? development.trim() : null,
       subdivision: subdivision ? subdivision.trim() : null,
-      email: email ? String(email).trim() : null
+      email: normalizedEmail
     });
     
     // Send confirmation email if provided and mailer configured
-    if (email && String(email).trim().length > 3) {
+    if (normalizedEmail && normalizedEmail.length > 3) {
       try {
         await sendReportEmail({
-          toEmail: String(email).trim(),
+          toEmail: normalizedEmail,
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           reportUrl: result.reportUrl,
@@ -573,6 +596,9 @@ app.post('/api/reports/create', async (req, res) => {
     
   } catch (error) {
     console.error('Error creating report:', error);
+    if (error && error.code === '23505') { // unique_violation (if a DB constraint exists)
+      return res.status(409).json({ success: false, error: 'An account already exists for this email' });
+    }
     res.status(500).json({
       success: false,
       error: 'Failed to create report',
@@ -615,13 +641,14 @@ app.post('/api/reports/retrieve-by-email', async (req, res) => {
     if (!email || String(email).trim().length < 3) {
       return res.status(400).json({ success: false, error: 'Valid email is required' });
     }
-    const result = await dbQueries.getLatestReportByEmail(String(email).trim(), 1);
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const result = await dbQueries.getLatestReportByEmail(normalizedEmail, 1);
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, error: 'No report found for this email' });
     }
     const row = result.rows[0];
     await sendReportEmail({
-      toEmail: String(email).trim(),
+      toEmail: normalizedEmail,
       firstName: row.first_name || '',
       lastName: row.last_name || '',
       reportUrl: row.report_url,

@@ -278,7 +278,7 @@ const dbQueries = {
       // Insert into report_basic and get the generated report_id
       const basicInsertQuery = `
         INSERT INTO customer.report_basic (agent_name, first_name, last_name, email, created_at, last_updated)
-        VALUES ($1, $2, $3, $4, NOW(), NOW())
+        VALUES ($1, $2, $3, LOWER($4), NOW(), NOW())
         RETURNING report_id, created_at
       `;
       
@@ -595,6 +595,19 @@ const dbQueries = {
       LIMIT 1
     `;
     return await query(queryText, [reportId]);
+  }
+  ,
+
+  // Retrieve most recent report(s) by email
+  getLatestReportByEmail: async (email, limit = 1) => {
+    const queryText = `
+      SELECT report_id, report_url, first_name, last_name, created_at
+      FROM customer.report_basic
+      WHERE LOWER(email) = LOWER($1)
+      ORDER BY created_at DESC
+      LIMIT $2
+    `;
+    return await query(queryText, [email, Math.max(1, Math.min(10, Number(limit) || 1))]);
   }
 };
 
