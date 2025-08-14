@@ -14,20 +14,20 @@
         <div class="form-container">
             <div class="form-header">
                 <h1>Retrieve Your Report</h1>
-                <p>Enter your Reference ID or retrieve it by email.</p>
+                <p>Enter your Report ID or retrieve it by email.</p>
             </div>
             <div class="retrieve-toggle tabs" role="tablist" aria-label="Retrieve options">
-                <button id="toggleId" class="toggle-btn tab active" role="tab" aria-selected="true" aria-controls="panelId" type="button">Use Reference ID</button>
+                <button id="toggleId" class="toggle-btn tab active" role="tab" aria-selected="true" aria-controls="panelId" type="button">Use Report ID</button>
                 <button id="toggleEmail" class="toggle-btn tab" role="tab" aria-selected="false" aria-controls="panelEmail" type="button">Retrieve by Email</button>
             </div>
 
             <div id="panelId" class="retrieve-panel" role="tabpanel" aria-labelledby="toggleId">
                 <div class="retrieve-card integrated">
-                    <h3>Have your Reference ID?</h3>
+                    <h3>Have your Report ID?</h3>
                     <p class="muted">Example format: lastname-id (e.g., smith-24)</p>
                     <form id="retrieveByIdForm">
                         <div class="form-group">
-                            <label for="referenceId">Reference ID</label>
+                            <label for="referenceId">Report ID</label>
                             <input type="text" id="referenceId" name="referenceId" placeholder="lastname-id" required aria-invalid="false" aria-describedby="refError">
                             <div id="refError" class="field-error" aria-live="polite"></div>
                         </div>
@@ -38,7 +38,7 @@
 
             <div id="panelEmail" class="retrieve-panel" role="tabpanel" aria-labelledby="toggleEmail" style="display:none;">
                 <div class="retrieve-card integrated">
-                    <h3>Forgot your Reference ID?</h3>
+                    <h3>Forgot your Report ID?</h3>
                     <p class="muted">We’ll email your report link to the address we have on file.</p>
                     <form id="retrieveByEmailForm">
                         <div class="form-group">
@@ -130,14 +130,14 @@
 					return;
 				}
 				const json = await resp.json().catch(() => ({}));
-				refError.textContent = json.error || 'We could not find a report with that Reference ID.';
+                refError.textContent = json.error || 'We could not find a report with that Report ID.';
 				refInput.setAttribute('aria-invalid', 'true');
 				messageDiv.className = 'form-message error';
-				messageDiv.textContent = 'Please check your Reference ID or try retrieving by email.';
+                messageDiv.textContent = 'Please check your Report ID or try retrieving by email.';
 				messageDiv.style.display = 'block';
 			} catch (_) {
 				messageDiv.className = 'form-message error';
-				messageDiv.textContent = 'Unable to verify the Reference ID right now. Please try again.';
+                messageDiv.textContent = 'Unable to verify the Report ID right now. Please try again.';
 				messageDiv.style.display = 'block';
 			}
     });
