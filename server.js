@@ -607,6 +607,32 @@ app.post('/api/reports/resend', async (req, res) => {
   }
 });
 
+// Retrieve by email (send most recent report link)
+app.post('/api/reports/retrieve-by-email', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || String(email).trim().length < 3) {
+      return res.status(400).json({ success: false, error: 'Valid email is required' });
+    }
+    const result = await dbQueries.getLatestReportByEmail(String(email).trim(), 1);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'No report found for this email' });
+    }
+    const row = result.rows[0];
+    await sendReportEmail({
+      toEmail: String(email).trim(),
+      firstName: row.first_name || '',
+      lastName: row.last_name || '',
+      reportUrl: row.report_url,
+      reportId: row.report_id
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error retrieving by email:', error);
+    res.status(500).json({ success: false, error: 'Failed to process request', message: error.message });
+  }
+});
+
 // Helper to send email (optional nodemailer)
 async function sendReportEmail({ toEmail, firstName, lastName, reportUrl, reportId }) {
   const origin = process.env.PUBLIC_ORIGIN || '';
@@ -627,13 +653,28 @@ async function sendReportEmail({ toEmail, firstName, lastName, reportUrl, report
     </div>
   `;
 
+  // Prefer Mandrill (Mailchimp Transactional) API if available
+  const MANDRILL_API_KEY = process.env.MANDRILL_API_KEY || '';
+  const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || process.env.SMTP_FROM || '';
+  if (MANDRILL_API_KEY) {
+    await sendViaMandrill({
+      apiKey: MANDRILL_API_KEY,
+      fromEmail: EMAIL_FROM || process.env.SMTP_USER || 'no-reply@example.com',
+      toEmail,
+      subject,
+      text: plain,
+      html
+    });
+    return;
+  }
+
   // Resolve SMTP config with aliases for compatibility
   const SMTP_HOST = process.env.SMTP_HOST || '';
   const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
   const SMTP_SECURE = !!(process.env.SMTP_SECURE === 'true');
   const SMTP_USER = process.env.SMTP_USER || '';
   const SMTP_PASS = process.env.SMTP_PASS || process.env.SMTP_PASSWORD || '';
-  const SMTP_FROM = process.env.SMTP_FROM || process.env.FROM_EMAIL || SMTP_USER;
+  const SMTP_FROM = process.env.SMTP_FROM || process.env.FROM_EMAIL || EMAIL_FROM || SMTP_USER;
 
   // If nodemailer not installed or no SMTP config, just log
   if (!nodemailer || !SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
@@ -659,6 +700,28 @@ async function sendReportEmail({ toEmail, firstName, lastName, reportUrl, report
 
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
 function escapeAttr(s) { return escapeHtml(s); }
+
+// Mandrill (Mailchimp Transactional) send helper
+async function sendViaMandrill({ apiKey, fromEmail, toEmail, subject, text, html }) {
+  try {
+    const payload = {
+      key: apiKey,
+      message: {
+        from_email: fromEmail,
+        to: [{ email: toEmail, type: 'to' }],
+        subject,
+        text,
+        html
+      }
+    };
+    await axios.post('https://mandrillapp.com/api/1.0/messages/send.json', payload, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (err) {
+    console.error('Mandrill send error:', err.response?.data || err.message || err);
+    throw err;
+  }
+}
 
 // Legacy endpoint - redirect to basic reports
 app.get('/api/reports', async (req, res) => {
