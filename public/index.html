@@ -236,13 +236,7 @@
             e.preventDefault();
             if (isSubmitting) return;
             isSubmitting = true;
-            
-            // Show loading state
-            submitBtn.disabled = true;
-            loading.style.display = 'block';
             messageDiv.innerHTML = '';
-            const allControls = form.querySelectorAll('input, select, textarea, button');
-            allControls.forEach(el => { el.disabled = true; });
 
             // Get form data
             const formData = new FormData(form);
@@ -265,6 +259,12 @@
                 email: getOrNull(formData.get('email'))
             };
 
+            // Now show loading state and disable controls to prevent double submit
+            const allControls = form.querySelectorAll('input, select, textarea, button');
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            allControls.forEach(el => { el.disabled = true; });
+
             // Backend requires agentName; set a safe default in customer mode
             if (isCustomerMode && (!data.agentName || data.agentName.length === 0)) {
                 data.agentName = 'Waterfront Properties';
@@ -282,25 +282,11 @@
                 const result = await response.json();
 
                 if (response.status === 409) {
-                    const existingUrl = result.reportUrl || '';
-                    if (existingUrl) {
-                        const reportHref = `${PUBLIC_BASE}${existingUrl}`;
-                        const fullUrl = `${window.location.origin}${reportHref}`;
-                        continueBtn.href = reportHref;
-                        reportLinkAnchor.href = reportHref;
-                        reportLinkAnchor.textContent = fullUrl;
-                        const stub = (existingUrl || '').split('/').pop();
-                        reportStubEl.textContent = stub ? `Your Report ID is: ${stub}` : '';
-                        const successTitle = document.getElementById('successTitle');
-                        if (successTitle) successTitle.textContent = 'You already have a report';
-                        overlay.style.display = 'flex';
-                    } else {
-                        messageDiv.innerHTML = `
-                            <div class="form-message error">
-                                An account already exists for this email. Try Retrieve by Email instead.
-                            </div>
-                        `;
-                    }
+                    messageDiv.innerHTML = `
+                        <div class="form-message error">
+                            An account already exists for this email. Use the <a href="${PUBLIC_BASE}/retrieve" style="text-decoration:underline;">Retrieve page</a> to access your report.
+                        </div>
+                    `;
                     return;
                 }
 

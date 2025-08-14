@@ -541,12 +541,10 @@ app.post('/api/reports/create', async (req, res) => {
       try {
         const existing = await dbQueries.getLatestReportByEmail(normalizedEmail, 1);
         if (existing && existing.rowCount > 0) {
-          const row = existing.rows[0];
           return res.status(409).json({
             success: false,
             error: 'An account already exists for this email',
-            reportUrl: row.report_url,
-            reportId: row.report_id
+            // Intentionally not returning report link or ID to avoid disclosure
           });
         }
       } catch (lookupErr) {
