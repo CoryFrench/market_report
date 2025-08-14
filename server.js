@@ -636,20 +636,30 @@ app.post('/api/reports/retrieve-by-email', async (req, res) => {
 // Helper to send email (optional nodemailer)
 async function sendReportEmail({ toEmail, firstName, lastName, reportUrl, reportId }) {
   const origin = process.env.PUBLIC_ORIGIN || '';
-  const fullUrl = `${origin}${reportUrl}`;
+  const isAbsolute = typeof reportUrl === 'string' && /^(https?:)?\/\//i.test(reportUrl);
+  const fullUrl = isAbsolute ? String(reportUrl) : `${origin}${reportUrl || ''}`;
+  const stub = String(reportUrl || '').split('/').pop() || String(reportId || '');
 
-  const subject = 'Your Area Analysis Report Link';
-  const plain = `Hello ${firstName || lastName || ''},\n\nYour area analysis is ready.\n\nReport ID: ${reportId}\nLink: ${fullUrl}\n\nTip: Bookmark this link (Ctrl+D on Windows, Cmd+D on Mac).\n\n— Waterfront Properties`;
+  const subject = 'Your Area Analysis is Ready';
+  const plain = `Hello ${firstName || lastName || ''},\n\nYour area analysis is ready.\n\nReport ID: ${stub}\nLink: ${fullUrl}\n\nIf you did not request this report, you can safely ignore this email.\n\nTip: Bookmark this link so you can return later (Ctrl+D on Windows, Cmd+D on Mac).\n\n— Waterfront Properties Area Insights Team`;
   const html = `
-    <div style="font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #1a202c;">
-      <h2 style="color:#1a365d;">Your Area Analysis is Ready</h2>
-      <p>Hello ${escapeHtml(firstName || lastName || '')},</p>
-      <p>Report ID: <strong>${escapeHtml(String(reportId))}</strong></p>
-      <p>
-        Link: <a href="${escapeAttr(fullUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(fullUrl)}</a>
-      </p>
-      <p style="color:#4a5568;">Tip: Bookmark this link so you can return later (Ctrl+D on Windows, Cmd+D on Mac).</p>
-      <p>— Waterfront Properties</p>
+    <div style="background:#f7fafc;padding:24px 0;">
+      <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;font-family:-apple-system, Segoe UI, Roboto, Arial, sans-serif;color:#1a202c;">
+        <div style="border-top:5px solid #ccb27a;padding:24px 24px 12px;">
+          <h2 style="margin:0 0 8px 0;color:#1a365d;font-size:22px;">Your Area Analysis is Ready</h2>
+          <p style="margin:0 0 12px 0;">Hello ${escapeHtml(firstName || lastName || '')},</p>
+          <p style="margin:0 0 10px 0;color:#4a5568;">Report ID: <strong style="color:#1a365d;">${escapeHtml(String(stub))}</strong></p>
+          <div style="margin:16px 0 8px;">
+            <a href="${escapeAttr(fullUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#1a365d;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700;">View Report</a>
+          </div>
+          <p style="margin:10px 0 0 0;color:#4a5568;">Link: <a href="${escapeAttr(fullUrl)}" target="_blank" rel="noopener noreferrer" style="color:#1a365d;text-decoration:underline;">${escapeHtml(fullUrl)}</a></p>
+          <p style="margin:14px 0 0 0;color:#718096;font-size:14px;">If you did not request this report, you can safely ignore this email.</p>
+          <p style="margin:8px 0 0 0;color:#718096;font-size:14px;">Tip: Bookmark this link so you can return later (Ctrl+D on Windows, Cmd+D on Mac).</p>
+        </div>
+        <div style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#4a5568;font-size:14px;">
+          — Waterfront Properties Area Insights Team
+        </div>
+      </div>
     </div>
   `;
 
