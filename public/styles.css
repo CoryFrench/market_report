@@ -557,6 +557,37 @@ body {
 .bookmark-hint { color: #4a5568; font-size: 0.95em; margin-top: 10px; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
 
+.retrieve-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.retrieve-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+}
+
+.retrieve-card h3 { color: #1a365d; margin-bottom: 6px; }
+.retrieve-card .muted { color: #718096; margin-bottom: 12px; font-size: 0.95em; }
+
+.retrieve-toggle { display: inline-flex; gap: 8px; margin-bottom: 16px; }
+.toggle-btn {
+    background: #edf2f7;
+    color: #1a365d;
+    border: 1px solid #cbd5e0;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.toggle-btn.active { background: #1a365d; color: #ffffff; border-color: #1a365d; }
+.retrieve-panel { margin-bottom: 12px; }
+.switch-hint { margin-top: 10px; color: #4a5568; font-size: 0.95em; }
+
 .link-display {
     display: inline-flex;
     align-items: center;

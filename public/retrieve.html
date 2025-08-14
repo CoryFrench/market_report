@@ -7,54 +7,122 @@
 	<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-	<div class="container">
-		<div class="letterhead">
-			<div class="report-title"><img src="logo.png" alt="Waterfront Properties" class="report-logo"></div>
-		</div>
-		<div class="form-container">
-			<div class="form-header">
-				<h1>Find Your Report</h1>
-				<p>Enter your last name and report ID to view your analysis.</p>
-			</div>
-			<form id="retrieveForm">
-				<div class="form-group">
-					<label for="lastName">Last Name *</label>
-					<input type="text" id="lastName" name="lastName" required>
-				</div>
-				<div class="form-group">
-					<label for="reportId">Report ID *</label>
-					<input type="text" id="reportId" name="reportId" required>
-				</div>
-				<div class="form-group">
-					<label for="email">Email (optional, to resend the link)</label>
-					<input type="text" id="email" name="email" placeholder="you@example.com">
-				</div>
-				<button type="submit" class="form-submit">Open Report</button>
-			</form>
-			<div id="message"></div>
-		</div>
-	</div>
+    <div class="container">
+        <div class="letterhead">
+            <div class="report-title"><img src="logo.png" alt="Waterfront Properties" class="report-logo"></div>
+        </div>
+        <div class="form-container">
+            <div class="form-header">
+                <h1>Retrieve Your Report</h1>
+                <p>Enter your Reference ID or retrieve it by email.</p>
+            </div>
+            <div class="retrieve-toggle">
+                <button id="toggleId" class="toggle-btn active" type="button">Use Reference ID</button>
+                <button id="toggleEmail" class="toggle-btn" type="button">Retrieve by Email</button>
+            </div>
+
+            <div id="panelId" class="retrieve-panel">
+                <div class="retrieve-card">
+                    <h3>Have your Reference ID?</h3>
+                    <p class="muted">Example: smith-24</p>
+                    <form id="retrieveByIdForm">
+                        <div class="form-group">
+                            <label for="referenceId">Reference ID</label>
+                            <input type="text" id="referenceId" name="referenceId" placeholder="lastname-id" required>
+                        </div>
+                        <button type="submit" class="form-submit">Open Report</button>
+                    </form>
+                    <p class="switch-hint">Forgot your Reference ID? <button id="switchToEmail" class="link-btn" type="button">Retrieve by email</button></p>
+                </div>
+            </div>
+
+            <div id="panelEmail" class="retrieve-panel" style="display:none;">
+                <div class="retrieve-card">
+                    <h3>Forgot your Reference ID?</h3>
+                    <p class="muted">Enter your email. If we have it on file, we’ll send your link.</p>
+                    <form id="retrieveByEmailForm">
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="text" id="email" name="email" placeholder="you@example.com" required>
+                        </div>
+                        <button type="submit" class="form-submit">Email Me My Link</button>
+                    </form>
+                    <p class="switch-hint">Have your Reference ID? <button id="switchToId" class="link-btn" type="button">Use reference ID</button></p>
+                </div>
+            </div>
+
+            <div id="message" class="form-message" style="display:none;"></div>
+        </div>
+    </div>
 
 	<script>
-		const form = document.getElementById('retrieveForm');
-		const messageDiv = document.getElementById('message');
-		form.addEventListener('submit', async (e) => {
-			e.preventDefault();
-			messageDiv.innerHTML = '';
-			const lastName = String(document.getElementById('lastName').value || '').trim();
-			const reportId = String(document.getElementById('reportId').value || '').trim();
-			const email = String(document.getElementById('email').value || '').trim();
-			if (!lastName || !reportId) return;
-			const cleanLast = lastName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-			const slug = `${cleanLast}-${reportId}`;
-			const url = `/reports/${slug}`;
-			if (email) {
-				try {
-					await fetch('/api/reports/resend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lastName, reportId, email }) });
-				} catch (_) {}
-			}
-			window.location.href = url;
-		});
+    const byIdForm = document.getElementById('retrieveByIdForm');
+    const byEmailForm = document.getElementById('retrieveByEmailForm');
+    const messageDiv = document.getElementById('message');
+    const panelId = document.getElementById('panelId');
+    const panelEmail = document.getElementById('panelEmail');
+    const toggleId = document.getElementById('toggleId');
+    const toggleEmail = document.getElementById('toggleEmail');
+    const switchToEmail = document.getElementById('switchToEmail');
+    const switchToId = document.getElementById('switchToId');
+
+    function showId() {
+        panelId.style.display = 'block';
+        panelEmail.style.display = 'none';
+        toggleId.classList.add('active');
+        toggleEmail.classList.remove('active');
+        messageDiv.style.display = 'none';
+    }
+    function showEmail() {
+        panelId.style.display = 'none';
+        panelEmail.style.display = 'block';
+        toggleId.classList.remove('active');
+        toggleEmail.classList.add('active');
+        messageDiv.style.display = 'none';
+    }
+
+    toggleId.addEventListener('click', showId);
+    toggleEmail.addEventListener('click', showEmail);
+    switchToEmail.addEventListener('click', showEmail);
+    switchToId.addEventListener('click', showId);
+
+    byIdForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        messageDiv.style.display = 'none';
+        messageDiv.className = 'form-message';
+        const ref = String(document.getElementById('referenceId').value || '').trim();
+        if (!ref) return;
+        const clean = ref.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        window.location.href = `/reports/${clean}`;
+    });
+
+    byEmailForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        messageDiv.style.display = 'none';
+        messageDiv.className = 'form-message';
+        const email = String(document.querySelector('#retrieveByEmailForm #email').value || '').trim();
+        if (!email) return;
+        try {
+            const resp = await fetch('/api/reports/retrieve-by-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            const json = await resp.json();
+            if (resp.ok && json.success) {
+                messageDiv.className = 'form-message success';
+                messageDiv.textContent = 'If an email is on file, a link has been sent.';
+            } else {
+                messageDiv.className = 'form-message error';
+                messageDiv.textContent = json.error || 'No report found for this email.';
+            }
+        } catch (err) {
+            messageDiv.className = 'form-message error';
+            messageDiv.textContent = 'Failed to process request. Please try again later.';
+        } finally {
+            messageDiv.style.display = 'block';
+        }
+    });
 	</script>
 </body>
 </html>
