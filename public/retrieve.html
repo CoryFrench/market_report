@@ -16,38 +16,40 @@
                 <h1>Retrieve Your Report</h1>
                 <p>Enter your Reference ID or retrieve it by email.</p>
             </div>
-            <div class="retrieve-toggle">
-                <button id="toggleId" class="toggle-btn active" type="button">Use Reference ID</button>
-                <button id="toggleEmail" class="toggle-btn" type="button">Retrieve by Email</button>
+            <div class="retrieve-toggle tabs" role="tablist" aria-label="Retrieve options">
+                <button id="toggleId" class="toggle-btn tab active" role="tab" aria-selected="true" aria-controls="panelId" type="button">Use Reference ID</button>
+                <button id="toggleEmail" class="toggle-btn tab" role="tab" aria-selected="false" aria-controls="panelEmail" type="button">Retrieve by Email</button>
             </div>
 
-            <div id="panelId" class="retrieve-panel">
-                <div class="retrieve-card">
+            <div id="panelId" class="retrieve-panel" role="tabpanel" aria-labelledby="toggleId">
+                <div class="retrieve-card integrated">
                     <h3>Have your Reference ID?</h3>
-                    <p class="muted">Example: smith-24</p>
+                    <p class="muted">Example format: lastname-id (e.g., smith-24)</p>
                     <form id="retrieveByIdForm">
                         <div class="form-group">
                             <label for="referenceId">Reference ID</label>
-                            <input type="text" id="referenceId" name="referenceId" placeholder="lastname-id" required>
+                            <input type="text" id="referenceId" name="referenceId" placeholder="lastname-id" required aria-invalid="false" aria-describedby="refError">
+                            <div id="refError" class="field-error" aria-live="polite"></div>
                         </div>
-                        <button type="submit" class="form-submit">Open Report</button>
+                        <button type="submit" class="form-submit">OPEN REPORT</button>
                     </form>
-                    <p class="switch-hint">Forgot your Reference ID? <button id="switchToEmail" class="link-btn" type="button">Retrieve by email</button></p>
+                    <p class="muted small-hint">Don’t have your ID? Use the “Retrieve by Email” tab above.</p>
                 </div>
             </div>
 
-            <div id="panelEmail" class="retrieve-panel" style="display:none;">
-                <div class="retrieve-card">
+            <div id="panelEmail" class="retrieve-panel" role="tabpanel" aria-labelledby="toggleEmail" style="display:none;">
+                <div class="retrieve-card integrated">
                     <h3>Forgot your Reference ID?</h3>
-                    <p class="muted">Enter your email. If we have it on file, we’ll send your link.</p>
+                    <p class="muted">We’ll email your report link to the address we have on file.</p>
                     <form id="retrieveByEmailForm">
                         <div class="form-group">
                             <label for="email">Email</label>
-                            <input type="text" id="email" name="email" placeholder="you@example.com" required>
+                            <input type="text" id="email" name="email" placeholder="you@example.com" required aria-invalid="false" aria-describedby="emailError">
+                            <div id="emailError" class="field-error" aria-live="polite"></div>
                         </div>
-                        <button type="submit" class="form-submit">Email Me My Link</button>
+                        <button type="submit" class="form-submit">EMAIL ME MY LINK</button>
                     </form>
-                    <p class="switch-hint">Have your Reference ID? <button id="switchToId" class="link-btn" type="button">Use reference ID</button></p>
+                    <p class="muted small-hint">Already have your ID? Switch to the “Use Reference ID” tab above.</p>
                 </div>
             </div>
 
@@ -63,14 +65,14 @@
     const panelEmail = document.getElementById('panelEmail');
     const toggleId = document.getElementById('toggleId');
     const toggleEmail = document.getElementById('toggleEmail');
-    const switchToEmail = document.getElementById('switchToEmail');
-    const switchToId = document.getElementById('switchToId');
 
     function showId() {
         panelId.style.display = 'block';
         panelEmail.style.display = 'none';
         toggleId.classList.add('active');
         toggleEmail.classList.remove('active');
+        toggleId.setAttribute('aria-selected', 'true');
+        toggleEmail.setAttribute('aria-selected', 'false');
         messageDiv.style.display = 'none';
     }
     function showEmail() {
@@ -78,29 +80,79 @@
         panelEmail.style.display = 'block';
         toggleId.classList.remove('active');
         toggleEmail.classList.add('active');
+        toggleId.setAttribute('aria-selected', 'false');
+        toggleEmail.setAttribute('aria-selected', 'true');
         messageDiv.style.display = 'none';
     }
 
     toggleId.addEventListener('click', showId);
     toggleEmail.addEventListener('click', showEmail);
-    switchToEmail.addEventListener('click', showEmail);
-    switchToId.addEventListener('click', showId);
+
+    // Real-time validation for reference ID (keep data on tab switch)
+    const refInput = document.getElementById('referenceId');
+    const refError = document.getElementById('refError');
+    const refPattern = /^[a-z0-9]+-[0-9]+$/;
+    refInput.addEventListener('input', () => {
+        const v = String(refInput.value || '').trim().toLowerCase();
+        if (v.length === 0) {
+            refError.textContent = '';
+            refInput.setAttribute('aria-invalid', 'false');
+            return;
+        }
+        if (!refPattern.test(v)) {
+            refError.textContent = 'Use format lastname-id (e.g., smith-24).';
+            refInput.setAttribute('aria-invalid', 'true');
+        } else {
+            refError.textContent = '';
+            refInput.setAttribute('aria-invalid', 'false');
+        }
+    });
 
     byIdForm.addEventListener('submit', (e) => {
         e.preventDefault();
         messageDiv.style.display = 'none';
         messageDiv.className = 'form-message';
-        const ref = String(document.getElementById('referenceId').value || '').trim();
+        const ref = String(refInput.value || '').trim().toLowerCase();
+        if (!refPattern.test(ref)) {
+            refError.textContent = 'Use format lastname-id (e.g., smith-24).';
+            refInput.setAttribute('aria-invalid', 'true');
+            return;
+        }
         if (!ref) return;
-        const clean = ref.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        const clean = ref.replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
         window.location.href = `/reports/${clean}`;
+    });
+
+    // Real-time validation for email
+    const emailInput = document.querySelector('#retrieveByEmailForm #email');
+    const emailError = document.getElementById('emailError');
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    emailInput.addEventListener('input', () => {
+        const v = String(emailInput.value || '').trim();
+        if (v.length === 0) {
+            emailError.textContent = '';
+            emailInput.setAttribute('aria-invalid', 'false');
+            return;
+        }
+        if (!emailPattern.test(v)) {
+            emailError.textContent = 'Enter a valid email address.';
+            emailInput.setAttribute('aria-invalid', 'true');
+        } else {
+            emailError.textContent = '';
+            emailInput.setAttribute('aria-invalid', 'false');
+        }
     });
 
     byEmailForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         messageDiv.style.display = 'none';
         messageDiv.className = 'form-message';
-        const email = String(document.querySelector('#retrieveByEmailForm #email').value || '').trim();
+        const email = String(emailInput.value || '').trim();
+        if (!emailPattern.test(email)) {
+            emailError.textContent = 'Enter a valid email address.';
+            emailInput.setAttribute('aria-invalid', 'true');
+            return;
+        }
         if (!email) return;
         try {
             const resp = await fetch('/api/reports/retrieve-by-email', {
@@ -111,7 +163,7 @@
             const json = await resp.json();
             if (resp.ok && json.success) {
                 messageDiv.className = 'form-message success';
-                messageDiv.textContent = 'If an email is on file, a link has been sent.';
+                messageDiv.textContent = 'We’ll email your report link to the address we have on file.';
             } else {
                 messageDiv.className = 'form-message error';
                 messageDiv.textContent = json.error || 'No report found for this email.';

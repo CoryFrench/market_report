@@ -564,29 +564,56 @@ body {
 }
 
 .retrieve-card {
-    background: #ffffff;
+    background: #fcfdfd;
     border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 20px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
 }
 
 .retrieve-card h3 { color: #1a365d; margin-bottom: 6px; }
 .retrieve-card .muted { color: #718096; margin-bottom: 12px; font-size: 0.95em; }
 
-.retrieve-toggle { display: inline-flex; gap: 8px; margin-bottom: 16px; }
-.toggle-btn {
-    background: #edf2f7;
-    color: #1a365d;
-    border: 1px solid #cbd5e0;
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-weight: 600;
+.retrieve-toggle.tabs { display: inline-flex; gap: 0; margin-bottom: 0; border-bottom: 2px solid #e2e8f0; }
+.toggle-btn.tab {
+    background: transparent;
+    color: #4a5568;
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 10px 16px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
     cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
 }
-.toggle-btn.active { background: #1a365d; color: #ffffff; border-color: #1a365d; }
+.toggle-btn.tab.active { color: #1a365d; border-bottom-color: #c6a96a; }
+.toggle-btn.tab:hover { color: #2d3748; }
 .retrieve-panel { margin-bottom: 12px; }
 .switch-hint { margin-top: 10px; color: #4a5568; font-size: 0.95em; }
+
+.retrieve-card.integrated { border-top-left-radius: 0; border-top-right-radius: 12px; }
+.retrieve-toggle + .retrieve-panel .retrieve-card.integrated { border-top-left-radius: 12px; }
+.small-hint { font-size: 0.9em; color: #718096; margin-top: 6px; }
+
+/* Inputs focus states */
+.form-group input[type="text"]:focus { outline: none; box-shadow: 0 0 0 3px rgba(198,169,106,0.18); border-color: #c6a96a; }
+
+/* Inline field errors */
+.field-error { color: #c53030; font-size: 0.9em; margin-top: 6px; min-height: 18px; }
+
+/* Primary form buttons micro-interactions */
+.form-submit { padding: 20px 26px; box-shadow: 0 8px 22px rgba(26,54,93,0.16); letter-spacing: 0.04em; }
+.form-submit:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(26,54,93,0.2); }
+.form-submit:active { transform: translateY(0); box-shadow: 0 6px 16px rgba(26,54,93,0.14); }
+
+/* Mobile tabs: stack vertically if needed */
+@media (max-width: 420px) {
+  .retrieve-toggle.tabs { display: grid; grid-template-columns: 1fr; gap: 6px; border-bottom: none; }
+  .toggle-btn.tab { border-bottom: 2px solid #e2e8f0; border-radius: 10px; text-align: left; }
+  .toggle-btn.tab.active { border-bottom-color: #c6a96a; }
+}
 
 .link-display {
     display: inline-flex;
