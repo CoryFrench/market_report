@@ -94,7 +94,7 @@
             <div id="successOverlay" class="overlay" style="display:none;">
                 <div class="overlay-content">
                     <button id="closeOverlayX" type="button" class="overlay-close" aria-label="Close">×</button>
-                    <h2>Your Custom Area Analysis is Ready</h2>
+                    <h2 id="successTitle">Your Custom Area Analysis is Ready</h2>
                     <div class="overlay-actions">
                         <a id="continueToAnalysis" class="primary-btn" href="#" target="_blank" rel="noopener noreferrer">View Report</a>
                     </div>
@@ -280,6 +280,29 @@
                 });
 
                 const result = await response.json();
+
+                if (response.status === 409) {
+                    const existingUrl = result.reportUrl || '';
+                    if (existingUrl) {
+                        const reportHref = `${PUBLIC_BASE}${existingUrl}`;
+                        const fullUrl = `${window.location.origin}${reportHref}`;
+                        continueBtn.href = reportHref;
+                        reportLinkAnchor.href = reportHref;
+                        reportLinkAnchor.textContent = fullUrl;
+                        const stub = (existingUrl || '').split('/').pop();
+                        reportStubEl.textContent = stub ? `Your Report ID is: ${stub}` : '';
+                        const successTitle = document.getElementById('successTitle');
+                        if (successTitle) successTitle.textContent = 'You already have a report';
+                        overlay.style.display = 'flex';
+                    } else {
+                        messageDiv.innerHTML = `
+                            <div class="form-message error">
+                                An account already exists for this email. Try Retrieve by Email instead.
+                            </div>
+                        `;
+                    }
+                    return;
+                }
 
                 if (response.ok && result.success) {
                     // Centered overlay confirmation
