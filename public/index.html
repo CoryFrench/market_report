@@ -107,9 +107,6 @@
                         <button id="copyLinkBtn" type="button" class="secondary-btn">Copy</button>
                         <span id="copyFeedback" class="copy-feedback" role="status" aria-live="polite"></span>
                     </div>
-                    <div class="bookmark-hint">
-                        <p><span class="icon" aria-hidden="true">ℹ️</span> Save this link for easy access later — press Ctrl+D (Windows) or Cmd+D (Mac).</p>
-                    </div>
                 </div>
             </div>
         </div>
@@ -233,13 +230,19 @@
         // Initial load
         loadDevelopments();
 
+        let isSubmitting = false;
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (isSubmitting) return;
+            isSubmitting = true;
             
             // Show loading state
             submitBtn.disabled = true;
             loading.style.display = 'block';
             messageDiv.innerHTML = '';
+            const allControls = form.querySelectorAll('input, select, textarea, button');
+            allControls.forEach(el => { el.disabled = true; });
 
             // Get form data
             const formData = new FormData(form);
@@ -328,6 +331,8 @@
                 // Hide loading state
                 submitBtn.disabled = false;
                 loading.style.display = 'none';
+                allControls.forEach(el => { el.disabled = false; });
+                isSubmitting = false;
             }
         });
 
