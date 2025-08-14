@@ -635,13 +635,15 @@ app.post('/api/reports/retrieve-by-email', async (req, res) => {
 
 // Helper to send email (optional nodemailer)
 async function sendReportEmail({ toEmail, firstName, lastName, reportUrl, reportId }) {
-  const origin = process.env.PUBLIC_ORIGIN || '';
+  const origin = (process.env.PUBLIC_ORIGIN && process.env.PUBLIC_ORIGIN.trim().length > 0)
+    ? process.env.PUBLIC_ORIGIN.trim()
+    : 'https://services.waterfront-ai.com/report';
   const isAbsolute = typeof reportUrl === 'string' && /^(https?:)?\/\//i.test(reportUrl);
   const fullUrl = isAbsolute ? String(reportUrl) : `${origin}${reportUrl || ''}`;
   const stub = String(reportUrl || '').split('/').pop() || String(reportId || '');
 
   const subject = 'Your Area Analysis is Ready';
-  const plain = `Hello ${firstName || lastName || ''},\n\nYour area analysis is ready.\n\nReport ID: ${stub}\nLink: ${fullUrl}\n\nIf you did not request this report, you can safely ignore this email.\n\nTip: Bookmark this link so you can return later (Ctrl+D on Windows, Cmd+D on Mac).\n\n— Waterfront Properties Area Insights Team`;
+  const plain = `Hello ${firstName || lastName || ''},\n\nYour area analysis is ready.\n\nReport ID: ${stub}\nLink: ${fullUrl}\n\nIf you did not request this report, you can safely ignore this email.\n\n— Waterfront Properties Area Insights Team`;
   const html = `
     <div style="background:#f7fafc;padding:24px 0;">
       <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;font-family:-apple-system, Segoe UI, Roboto, Arial, sans-serif;color:#1a202c;">
@@ -654,7 +656,6 @@ async function sendReportEmail({ toEmail, firstName, lastName, reportUrl, report
           </div>
           <p style="margin:10px 0 0 0;color:#4a5568;">Link: <a href="${escapeAttr(fullUrl)}" target="_blank" rel="noopener noreferrer" style="color:#1a365d;text-decoration:underline;">${escapeHtml(fullUrl)}</a></p>
           <p style="margin:14px 0 0 0;color:#718096;font-size:14px;">If you did not request this report, you can safely ignore this email.</p>
-          <p style="margin:8px 0 0 0;color:#718096;font-size:14px;">Tip: Bookmark this link so you can return later (Ctrl+D on Windows, Cmd+D on Mac).</p>
         </div>
         <div style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#4a5568;font-size:14px;">
           — Waterfront Properties Area Insights Team
