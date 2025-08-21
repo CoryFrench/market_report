@@ -8,6 +8,73 @@
     <!-- Chart.js for interactive charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script>
+        // Improve canvas rendering quality on mobile by ensuring a reasonable device pixel ratio
+        (function() {
+            if (window.Chart) {
+                Chart.defaults.responsive = true;
+                Chart.defaults.maintainAspectRatio = false;
+                // Cap DPR to avoid massive buffers, but keep crispness to prevent pixelation
+                Chart.defaults.devicePixelRatio = function() { return Math.min(window.devicePixelRatio || 1, 2); };
+                // Debug plugin removed; disable chart layout logging
+            }
+        })();
+
+        // Dynamic container sizing using ResizeObserver (prevents clipping without fixed heights)
+        function computeChartHeight(containerEl) {
+            const width = containerEl.clientWidth || window.innerWidth;
+            const vh = window.innerHeight || 360;
+            const landscape = window.innerWidth > window.innerHeight;
+            const isMobile = window.innerWidth <= 768;
+            const ratio = isMobile ? (landscape ? 2.2 : 1.45) : (landscape ? 1.8 : 1.6); // width / height
+            const byWidth = Math.round(width / ratio);
+            const byViewport = Math.round(vh * (isMobile ? (landscape ? 0.55 : 0.50) : (landscape ? 0.60 : 0.65)));
+            const height = Math.max(180, Math.min(byWidth, byViewport));
+            // debug disabled
+            return height;
+        }
+
+        function sizeChartContainer(container) {
+            if (!container) return;
+            const newHeight = computeChartHeight(container);
+            container.style.height = newHeight + 'px';
+            // debug disabled
+        }
+
+        function getNationalWrappers() {
+            const left = document.getElementById('leftChart');
+            const right = document.getElementById('rightChart');
+            return [left && left.parentElement, right && right.parentElement].filter(Boolean);
+        }
+
+        function updateChartContainers() {
+            try {
+                const targets = [
+                    document.getElementById('comparison-chart-container'),
+                    document.getElementById('dev-comparison-chart-container'),
+                    ...getNationalWrappers()
+                ].filter(Boolean);
+                targets.forEach(sizeChartContainer);
+                // Ask charts to reflow
+                [window.leftChartInstance, window.rightChartInstance, window.comparisonChartInstance, window.developmentChart]
+                    .forEach(c => { if (c && c.resize) c.resize(); });
+            } catch {}
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateChartContainers();
+            const ro = new ResizeObserver(() => updateChartContainers());
+            const watchEls = [
+                document.getElementById('comparison-chart-container'),
+                document.getElementById('dev-comparison-chart-container'),
+                ...getNationalWrappers()
+            ].filter(Boolean);
+            watchEls.forEach(el => ro.observe(el));
+            window.addEventListener('resize', () => {
+                updateChartContainers();
+            });
+        });
+    </script>
     <!-- Leaflet CSS and JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -397,6 +464,8 @@
                                         <h3 id="dev-chart-title">Development Sales Comparison</h3>
                                         <p id="dev-chart-subtitle">Comparative analysis of sales volume and pricing across selected developments</p>
                                     </div>
+                                    <!-- Custom HTML legend lives OUTSIDE the chart container so it doesn't consume canvas height -->
+                                    <div id="devLegend" class="dev-legend-bar"></div>
                                     <div id="development-chart-controls" style="display: none; text-align: center; margin-bottom: 20px;">
                                         <label for="development-chart-type-select" style="margin-right: 10px; font-weight: bold;">Chart Type:</label>
                                         <select id="development-chart-type-select" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer; min-width: 150px;">
@@ -406,8 +475,7 @@
                                         </select>
                                     </div>
                                     <div id="dev-comparison-chart-container" style="position: relative; height: 500px; width: 100%;">
-                                        <div id="devLegend"></div>
-                                        <canvas id="dev-comparison-chart" class="fred-chart"></canvas>
+                                        <canvas id="dev-comparison-chart"></canvas>
                                         <div id="dev-chart-loading" class="chart-loading-message" style="display: none;">
                                             <div class="loading-spinner-small"></div>
                                             <p id="dev-chart-loading-text">Generating development comparison analysis...</p>
@@ -427,7 +495,7 @@
                     <div class="section-content">
                         <div id="chartsContent">
                             <!-- Premium FRED Comparison Interface -->
-                            <div class="fred-comparison-container">
+                            <div class="fred-comparison-container" style="width: 100%;">
                                 <div class="comparison-controls" id="controls-section">
                                     <div class="control-group">
                                         <label for="series-select">Economic Indicator Selection</label>
@@ -467,7 +535,7 @@
                                         <h3>Comparative Market Analysis</h3>
                                     </div>
                                     <div id="comparison-chart-container" style="position: relative; height: 500px; width: 100%;">
-                                        <canvas id="comparison-chart" class="fred-chart"></canvas>
+                                        <canvas id="comparison-chart"></canvas>
                                         <div id="chart-loading" class="chart-loading-message" style="display: none;">
                                             <div class="loading-spinner-small"></div>
                                             <p>Generating comprehensive market analysis...</p>
@@ -475,9 +543,9 @@
                                         <div id="chart-error" class="chart-error-message" style="display: none;">
                                             <p>Analysis temporarily unavailable. Please verify your selections and try again.</p>
                                         </div>
-                                        <div id="data-availability-notice" class="data-notice" style="display: none;">
-                                            <!-- Professional notice for unavailable data will be inserted here -->
-                                        </div>
+                                    </div>
+                                    <div id="data-availability-notice" class="data-notice" style="display: none;">
+                                        <!-- Professional notice for unavailable data will be inserted here -->
                                     </div>
                                 </div>
                             </div>
@@ -1098,6 +1166,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: { padding: { left: 16, right: 16, top: 8, bottom: 12 } },
                     plugins: {
                         legend: {
                             display: false
@@ -1617,8 +1686,8 @@
                         pointBackgroundColor: color,
                         pointBorderColor: '#ffffff',
                         pointBorderWidth: 2,
-                        pointRadius: 0,
-                        pointHoverRadius: 6,
+                        pointRadius: (window.innerWidth <= 768 ? 0 : 3),
+                        pointHoverRadius: (window.innerWidth <= 768 ? 0 : 6),
                         pointHoverBackgroundColor: color,
                         pointHoverBorderColor: '#ffffff'
                     }]
@@ -2356,7 +2425,7 @@
                     label: countyName.replace(' County', ''),
                     data: countyData.map(d => ({
                         x: d.date,
-                        y: d.value
+                        y: (d.value == null || d.value === 0 || isNaN(d.value)) ? null : d.value
                     })),
                     backgroundColor: color + '20', // 20% opacity for fill
                     borderColor: color,
@@ -2369,12 +2438,21 @@
                     pointRadius: 0,
                     pointHoverRadius: 6,
                     pointHoverBackgroundColor: color,
-                    pointHoverBorderColor: '#ffffff'
+                    pointHoverBorderColor: '#ffffff',
+                    clip: 0
                 };
             });
             
             const ctx = canvas.getContext('2d');
             
+            // Compute y padding so series do not hug edges
+            const flatValues = datasets.flatMap(ds => (ds.data || []).map(d => d && d.y).filter(v => v != null && !isNaN(v)));
+            const yMin = flatValues.length ? Math.min(...flatValues) : 0;
+            const yMax = flatValues.length ? Math.max(...flatValues) : 1;
+            const yPad = (yMax - yMin) * 0.08;
+            const suggestedMin = Math.max(0, yMin - yPad);
+            const suggestedMax = yMax + yPad * 0.5;
+
             // Create Chart.js configuration
             const config = {
                 type: 'line',
@@ -2384,6 +2462,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: { padding: { left: 16, right: 16, top: 8, bottom: 12 } },
                     plugins: {
                         title: {
                             display: true,
@@ -2430,6 +2509,7 @@
                                     month: 'MMM yyyy'
                                 }
                             },
+                            offset: true,
                             grid: {
                                 display: true,
                                 color: '#f0f0f0'
@@ -2442,6 +2522,8 @@
                             }
                         },
                         y: {
+                            suggestedMin: suggestedMin,
+                            suggestedMax: suggestedMax,
                             grid: {
                                 display: true,
                                 color: '#f0f0f0'
@@ -2463,6 +2545,11 @@
                     elements: {
                         line: {
                             tension: 0.4
+                        },
+                        point: {
+                            radius: (window.innerWidth <= 768 ? 0 : 3),
+                            hitRadius: (window.innerWidth <= 768 ? 4 : 6),
+                            hoverRadius: (window.innerWidth <= 768 ? 0 : 4)
                         }
                     }
                 }
@@ -4434,11 +4521,9 @@
                 // Prefer label-keyed data (handles identical names across types)
                 const dataKeyForEntity = data[label] || data[entity.name] || {};
                 const developmentData = years.map(year => {
-                    const yearData = dataKeyForEntity[year] ? dataKeyForEntity[year][dataKey] : 0;
-                    // For price per sqft, only show data points where we have valid calculations
-                    if (chartType === 'price_per_sqft' && yearData === 0) {
-                        return null; // This will create gaps in the chart for missing data
-                    }
+                    const yearData = dataKeyForEntity[year] ? dataKeyForEntity[year][dataKey] : null;
+                    // Treat 0/undefined as missing to avoid drawing along axes
+                    if (yearData == null || yearData === 0 || isNaN(yearData)) return null;
                     return yearData;
                 });
                 
@@ -4467,14 +4552,23 @@
                     pointBackgroundColor: colors[index % colors.length],
                     pointBorderColor: '#ffffff',
                     pointBorderWidth: 2,
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
+                    pointRadius: (window.innerWidth <= 768 ? 0 : 5),
+                    pointHoverRadius: (window.innerWidth <= 768 ? 0 : 7),
                     pointHoverBackgroundColor: colors[index % colors.length],
-                    pointHoverBorderColor: '#ffffff'
+                    pointHoverBorderColor: '#ffffff',
+                    clip: 0
                 };
             });
             
             // Create Chart.js configuration
+            // Compute y padding to avoid clipping at edges
+            const flatValues = datasets.flatMap(ds => (ds.data || []).filter(v => v != null && !isNaN(v)));
+            const yMin = flatValues.length ? Math.min(...flatValues) : 0;
+            const yMax = flatValues.length ? Math.max(...flatValues) : 1;
+            const yPad = (yMax - yMin) * 0.08;
+            const suggestedMin = Math.max(0, yMin - yPad);
+            const suggestedMax = yMax + yPad * 0.5;
+
             const config = {
                 type: 'line',
                 data: {
@@ -4484,6 +4578,13 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    elements: {
+                        point: {
+                            radius: (window.innerWidth <= 768 ? 0 : 3),
+                            hitRadius: (window.innerWidth <= 768 ? 4 : 6),
+                            hoverRadius: (window.innerWidth <= 768 ? 0 : 4)
+                        }
+                    },
                     plugins: {
                         title: {
                             display: true,
@@ -4520,6 +4621,7 @@
                     },
                     scales: {
                         x: {
+                            offset: true,
                             title: {
                                 display: true,
                                 text: 'Year'
@@ -4531,6 +4633,8 @@
                             }
                         },
                         y: {
+                            suggestedMin: suggestedMin,
+                            suggestedMax: suggestedMax,
                             title: {
                                 display: true,
                                 text: yAxisLabel
