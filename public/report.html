@@ -303,8 +303,15 @@
                     <div class="section-content">
                         <div id="fredChartsContent" style="display: flex; gap: 20px; flex-wrap: wrap;">
                             <div class="chart-container" style="flex: 1; min-width: 300px; border: 1px solid #ddd; border-radius: 8px; padding: 15px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                    <h3 style="margin: 0; color: #333; font-size: 20px;" id="leftChartTitle">Housing Price Index (Source: FRED)</h3>
+                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                    <h3 style="margin: 0; color: #333; font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;" id="leftChartTitle"><span id="leftChartTitleText">Housing Price Index</span><div id="leftChartSubtitle" class="chart-subtitle">Source: Federal Reserve</div></h3>
+                                    <button id="leftInfoIcon" class="chart-info-button" aria-label="What does this mean?">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                                            <line x1="12" y1="8" x2="12" y2="8"></line>
+                                        </svg>
+                                    </button>
                                     
                                     <select id="leftChartSelect" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px;">
                                         <option value="DGS2">2-Year Treasury</option>
@@ -337,11 +344,19 @@
                                         <p style="margin-top: 10px; color: #666;">Loading chart data...</p>
                                     </div>
                                 </div>
+                                <div id="leftChartDescription" style="display: none;"></div>
                             </div>
                             
                             <div class="chart-container" style="flex: 1; min-width: 300px; border: 1px solid #ddd; border-radius: 8px; padding: 15px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                    <h3 style="margin: 0; color: #333; font-size: 20px;" id="rightChartTitle">Dow Jones Industrial Average (Source: FRED)</h3>
+                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                    <h3 style="margin: 0; color: #333; font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;" id="rightChartTitle"><span id="rightChartTitleText">Dow Jones Industrial Average</span><div id="rightChartSubtitle" class="chart-subtitle">Source: Federal Reserve</div></h3>
+                                    <button id="rightInfoIcon" class="chart-info-button" aria-label="What does this mean?">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                                            <line x1="12" y1="8" x2="12" y2="8"></line>
+                                        </svg>
+                                    </button>
                                     <select id="rightChartSelect" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px;">
                                         <option value="DGS2">2-Year Treasury</option>
                                         <option value="DGS10">10-Year Treasury</option>
@@ -373,6 +388,7 @@
                                         <p style="margin-top: 10px; color: #666;">Loading chart data...</p>
                                     </div>
                                 </div>
+                                <div id="rightChartDescription" style="display: none;"></div>
                             </div>
                         </div>
                     </div>
@@ -677,6 +693,7 @@
             
             // FRED Charts - Load the charts after displaying the report
             loadFredCharts(data.report_id);
+            setupNationalInfoToggles();
         }
         
         function displayHomeStats(data) {
@@ -1486,6 +1503,147 @@
             'DJIA': 'Dow Jones Industrial Average'
         };
 
+        // National chart explanations (1–2 sentences each)
+        const FRED_SERIES_DESCRIPTIONS = {
+            'GDP': 'Total output of the U.S. economy. Rising GDP signals economic expansion; declines can indicate slowdowns or recessions.',
+            'CPIAUCSL': 'Consumer price index measuring average price changes for urban consumers. Higher CPI indicates stronger inflation.',
+            'PPIACO': 'Producer Price Index for all commodities. Tracks prices received by domestic producers and can lead consumer inflation.',
+            'FEDFUNDS': 'Effective federal funds rate targeted by the Federal Reserve. Influences borrowing costs across the economy.',
+            'MORTGAGE30US': 'Average interest rate on 30‑year fixed mortgages. Affects home affordability and buyer demand.',
+            'MORTGAGE15US': 'Average interest rate on 15‑year fixed mortgages. Lower terms often have lower rates than 30‑year loans.',
+            'RHVRUSQ156N': 'National rental vacancy rate. Higher values suggest looser rental markets; lower values indicate tighter supply.',
+            'LREM64TTUSM156S': 'Total U.S. employment level. Growth points to a strengthening labor market and economy.',
+            'POPTHM': 'Estimated U.S. population. Long‑term growth supports housing demand and economic activity.',
+            'M2REAL': 'Inflation‑adjusted broad money supply (Real M2). Changes can reflect liquidity conditions in the economy.',
+            'FPCPITOTLZGUSA': 'Annual consumer price inflation (World Bank). Indicates the pace of general price increases.',
+            'GFDEBTN': 'Total U.S. federal public debt outstanding. Useful for context on fiscal conditions and interest costs.',
+            'DGS10': '10‑year U.S. Treasury yield. Key benchmark for long‑term borrowing costs and mortgage rates.',
+            'DGS2': '2‑year U.S. Treasury yield. Closely tracks expectations for Fed policy over the near term.',
+            'ACTLISCOUUS': 'Number of homes actively listed for sale nationwide. Lower inventory often supports price growth.',
+            'MSPUS': 'Median sale price of U.S. homes. Reflects typical transaction prices and market trends.',
+            'NEWLISCOUUS': 'New residential listings entering the market. A gauge of seller activity and fresh supply.',
+            'MEDDAYONMARUS': 'Median number of days homes spend on the market. Fewer days indicate stronger buyer demand.',
+            'USSTHPI': 'FHFA national home price index. Measures changes in single‑family home values over time.',
+            'UNRATE': 'U.S. unemployment rate. Lower rates indicate a tighter labor market and stronger economy.',
+            'DJIA': 'Dow Jones Industrial Average stock index. A snapshot of large U.S. companies and market sentiment.'
+        };
+
+        function getSeriesDescription(seriesId) {
+            return FRED_SERIES_DESCRIPTIONS[seriesId] || '';
+        }
+
+        function updateNationalChartUI() {
+            try {
+                const leftId = document.getElementById('leftChartSelect')?.value;
+                const rightId = document.getElementById('rightChartSelect')?.value;
+                const leftTitleEl = document.getElementById('leftChartTitleText');
+                const rightTitleEl = document.getElementById('rightChartTitleText');
+                const leftInfoIcon = document.getElementById('leftInfoIcon');
+                const rightInfoIcon = document.getElementById('rightInfoIcon');
+                const leftDescEl = document.getElementById('leftChartDescription');
+                const rightDescEl = document.getElementById('rightChartDescription');
+
+                if (leftId && leftTitleEl) leftTitleEl.textContent = (FRED_SERIES[leftId] || leftId);
+                if (rightId && rightTitleEl) rightTitleEl.textContent = (FRED_SERIES[rightId] || rightId);
+                const leftSub = document.getElementById('leftChartSubtitle');
+                const rightSub = document.getElementById('rightChartSubtitle');
+                if (leftSub) leftSub.textContent = 'Source: Federal Reserve';
+                if (rightSub) rightSub.textContent = 'Source: Federal Reserve';
+
+                const leftDesc = leftId ? getSeriesDescription(leftId) : '';
+                const rightDesc = rightId ? getSeriesDescription(rightId) : '';
+                // Do not set native title to avoid hover popups
+                // Close any open popovers when changing series
+                if (leftInfoIcon && leftInfoIcon._popover) { leftInfoIcon._popover.remove(); leftInfoIcon._popover = null; }
+                if (rightInfoIcon && rightInfoIcon._popover) { rightInfoIcon._popover.remove(); rightInfoIcon._popover = null; }
+                if (leftDescEl) leftDescEl.textContent = leftDesc;
+                if (rightDescEl) rightDescEl.textContent = rightDesc;
+            } catch {}
+        }
+
+        function setupNationalInfoToggles() {
+            try {
+                const leftIcon = document.getElementById('leftInfoIcon');
+                const rightIcon = document.getElementById('rightInfoIcon');
+                const leftDescEl = document.getElementById('leftChartDescription');
+                const rightDescEl = document.getElementById('rightChartDescription');
+
+                const createPopover = (anchorEl, content, side = 'bottom') => {
+                    // Remove an existing popover first
+                    const existing = anchorEl._popover;
+                    if (existing) { existing.remove(); anchorEl._popover = null; }
+                    // Create popover container
+                    const pop = document.createElement('div');
+                    pop.className = 'chart-popover';
+                    pop.setAttribute('data-side', side);
+                    pop.textContent = content;
+                    const arrow = document.createElement('div');
+                    arrow.className = 'chart-popover-arrow';
+                    pop.appendChild(arrow);
+                    document.body.appendChild(pop);
+                    // Positioning
+                    const rect = anchorEl.getBoundingClientRect();
+                    const popRect = pop.getBoundingClientRect();
+                    let top = rect.bottom + window.scrollY + 8;
+                    let left = rect.left + window.scrollX + Math.round(rect.width / 2 - popRect.width / 2);
+                    // Clamp within viewport with 8px margin
+                    const margin = 8;
+                    const maxLeft = window.scrollX + document.documentElement.clientWidth - popRect.width - margin;
+                    const minLeft = window.scrollX + margin;
+                    left = Math.max(minLeft, Math.min(maxLeft, left));
+                    const maxTop = window.scrollY + document.documentElement.clientHeight - popRect.height - margin;
+                    const minTop = window.scrollY + margin;
+                    top = Math.max(minTop, Math.min(maxTop, top));
+                    pop.style.top = `${top}px`;
+                    pop.style.left = `${left}px`;
+                    // Position arrow relative to anchor center but within pop width
+                    const anchorCenter = rect.left + window.scrollX + rect.width / 2;
+                    let arrowLeft = Math.round(anchorCenter - left - 5);
+                    arrowLeft = Math.max(6, Math.min(popRect.width - 16, arrowLeft));
+                    arrow.style.top = `-5px`;
+                    arrow.style.left = `${arrowLeft}px`;
+                    anchorEl._popover = pop;
+                    // Dismiss on outside click or Escape
+                    const onDocClick = (e) => {
+                        if (!pop.contains(e.target) && e.target !== anchorEl) {
+                            destroyPopover(anchorEl);
+                            document.removeEventListener('click', onDocClick);
+                        }
+                    };
+                    setTimeout(() => document.addEventListener('click', onDocClick), 0);
+                    const onKey = (e) => { if (e.key === 'Escape') destroyPopover(anchorEl); };
+                    document.addEventListener('keydown', onKey, { once: true });
+                };
+
+                const destroyPopover = (anchorEl) => {
+                    if (anchorEl && anchorEl._popover) {
+                        anchorEl._popover.remove();
+                        anchorEl._popover = null;
+                    }
+                };
+
+                const makeInteractive = (iconEl, descEl) => {
+                    if (!iconEl || !descEl) return;
+                    iconEl.setAttribute('tabindex', '0');
+                    const show = () => createPopover(iconEl, descEl.textContent || iconEl.title || '');
+                    const hide = () => destroyPopover(iconEl);
+                    iconEl.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (iconEl._popover) hide(); else show();
+                    });
+                    iconEl.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            if (iconEl._popover) hide(); else show();
+                        }
+                    });
+                };
+
+                makeInteractive(leftIcon, leftDescEl);
+                makeInteractive(rightIcon, rightDescEl);
+            } catch {}
+        }
+
         // Function to fetch and display FRED charts
         async function loadFredCharts(reportId) {
             let leftSeriesId = 'USSTHPI';  // Default
@@ -1510,17 +1668,16 @@
                 // Continue with defaults
             }
             
-            // Set dropdown values and titles
+            // Set dropdown values and titles/descriptions
             document.getElementById('leftChartSelect').value = leftSeriesId;
             document.getElementById('rightChartSelect').value = rightSeriesId;
-            document.getElementById('leftChartTitle').textContent = (FRED_SERIES[leftSeriesId] || leftSeriesId) + ' (Source: Federal Reserve)';
-            document.getElementById('rightChartTitle').textContent = (FRED_SERIES[rightSeriesId] || rightSeriesId) + ' (Source: Federal Reserve)';
+            updateNationalChartUI();
             
             // Setup dropdown event listeners with save functionality
             document.getElementById('leftChartSelect').addEventListener('change', async function() {
                 const seriesId = this.value;
                 const title = FRED_SERIES[seriesId] || seriesId;
-                document.getElementById('leftChartTitle').textContent = title + ' (Source: FRED)';
+                updateNationalChartUI();
                 loadChartData('leftChart', seriesId, '#2E8B57');
                 
                 // Save to database
@@ -1530,7 +1687,7 @@
             document.getElementById('rightChartSelect').addEventListener('change', async function() {
                 const seriesId = this.value;
                 const title = FRED_SERIES[seriesId] || seriesId;
-                document.getElementById('rightChartTitle').textContent = title + ' (Source: FRED)';
+                updateNationalChartUI();
                 loadChartData('rightChart', seriesId, '#1E90FF');
                 
                 // Save to database
@@ -1578,6 +1735,9 @@
             
             const title = FRED_SERIES[seriesId] || seriesId;
             loadFredChart(seriesId, containerId, startDate, endDate, title, color);
+
+            // Update inline descriptions and tooltips after data load trigger
+            updateNationalChartUI();
         }
 
         // Function to load individual FRED chart

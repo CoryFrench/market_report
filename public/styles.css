@@ -145,6 +145,76 @@ body {
 .section-content {
     flex: 1;
 }
+.chart-subtitle {
+    margin-top: 2px;
+    font-size: 12px;
+    line-height: 1.2;
+    color: #6b7280;
+    font-weight: 400;
+    white-space: normal;
+}
+/* Chart info button (question mark) */
+.chart-info-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid #e5e7eb;
+    border-radius: 9999px;
+    background: #ffffff;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    flex: 0 0 auto;
+}
+.chart-info-button:hover { background: #f9fafb; border-color: #d1d5db; }
+.chart-info-button:focus { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+/* Popover bubble for chart descriptions */
+.chart-popover {
+    position: absolute;
+    z-index: 9999;
+    max-width: 320px;
+    background: #111827;
+    color: #f9fafb;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.4;
+}
+.chart-popover[data-side="bottom"] { transform: translateY(8px); }
+.chart-popover-arrow {
+    position: absolute;
+    width: 10px; height: 10px;
+    background: #111827;
+    transform: rotate(45deg);
+}
+
+/* Ensure section content stretches full width on mobile */
+@media (max-width: 768px) {
+    .section-content { width: 100% !important; max-width: 100% !important; }
+}
+
+/* Wide-phone landscape fallback (e.g., large devices like S24 Ultra) */
+@media (max-width: 1024px) and (orientation: landscape) {
+    /* Ensure Home Stats stacks into two rows on large phones */
+    #homeStatsContent {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 16px !important;
+    }
+    #homeStatsContent > * {
+        flex: none !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Only one National chart on large-phone landscape */
+    #fredChartsContent .chart-container:nth-child(n+2) {
+        display: none !important;
+    }
+}
 
 .client-summary {
     background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
@@ -700,6 +770,7 @@ body {
     padding: 40px;
     border-radius: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    width: 100%;
 }
 
 .comparison-controls {
@@ -991,6 +1062,7 @@ body {
     position: relative;
     display: flex;
     flex-direction: column;
+    overflow: clip; /* prevent canvas and legend from bleeding past rounded corners without creating new formatting context */
 }
 
 .chart-section::before {
@@ -1004,17 +1076,94 @@ body {
     border-radius: 12px 12px 0 0;
 }
 
+/* Ensure chart canvases and containers are clipped to card radius */
+.chart-container { overflow: clip; }
+
+#comparison-chart-container,
+#dev-comparison-chart-container { overflow: clip; border-radius: inherit; max-width: 100%; box-sizing: border-box; }
+
+/* Ensure county/development chart containers take full width */
+#chartsContent .fred-comparison-container,
+#chartsContent #comparison-chart-container,
+#dev-comparison-chart-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    display: block;
+}
+
+/* Allow chart containers to grow to fit content but never overflow horizontally */
+#comparison-chart-container,
+#dev-comparison-chart-container,
+#fredChartsContent > .chart-container > div {
+    width: 100%;
+    max-width: 100%;
+}
+
+/* Ensure canvas respects parent clipping */
+#comparison-chart,
+#dev-comparison-chart {
+    display: block;
+    max-width: 100%;
+}
+
+/* Development legend bar placed above chart */
+.dev-legend-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    align-items: center;
+    margin: 10px 0 12px 0;
+}
+.dev-legend-bar .legend-item { display: inline-flex; flex-direction: column; gap: 4px; }
+.dev-legend-bar .legend-name { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.dev-legend-bar .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.dev-legend-bar .legend-actions a { color: #1a365d; text-decoration: none; font-weight: 600; }
+.dev-legend-bar .legend-actions a:hover { text-decoration: underline; }
+
+/* Final enforcement for mobile-specific layout requirements */
+@media (max-width: 768px) {
+    /* Ensure only ONE National chart is visible on mobile */
+    body #reportContent #fredChartsContent > .chart-container:nth-child(n+2) { 
+        display: none !important; 
+    }
+
+    /* Force Home Stats to stack into two rows on mobile */
+    body #homeStatsContent {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 16px !important;
+        min-height: auto !important;
+    }
+    body #homeStatsContent > * {
+        flex: none !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Explicitly target the inline-styled two columns in Home Stats */
+    body #homeStatsContent > div[style*="flex: 1"],
+    body #homeStatsContent > div[style*="min-height"] {
+        display: block !important;
+        width: 100% !important;
+        flex: none !important;
+        max-width: 100% !important;
+    }
+
+    /* Ensure address/info block wraps and doesn't force a single line */
+    #propertyAddress { white-space: normal !important; }
+}
+
 #comparison-chart-container {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 450px;
 }
 
+/* Keep national chart styling lightweight; county/dev will use default canvas sizing */
 .fred-chart {
     width: 100%;
     flex: 1;
-    min-height: 450px;
     border-radius: 8px;
     background: #ffffff;
     box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.02);
@@ -1318,6 +1467,13 @@ body {
         max-width: 100% !important;
         box-sizing: border-box !important;
     }
+
+    /* Ensure the County section chart container doesn't get constrained by grid */
+    #chartsContent .chart-section,
+    #chartsContent #comparison-chart-container {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
     
     .chart-container h3 {
         font-size: 16px !important;
@@ -1434,9 +1590,7 @@ body {
         font-size: 16px;
     }
     
-    .fred-chart {
-        min-height: 300px;
-    }
+    .fred-chart { }
     
     /* Development comparison mobile styles */
     #dev-controls-section,
@@ -1750,15 +1904,12 @@ body {
 
 /* Ensure charts are responsive */
 @media (max-width: 768px) {
-    canvas,
     .chart-container canvas,
     #leftChart,
     #rightChart,
     #comparison-chart,
     #dev-comparison-chart {
         max-width: 100% !important;
-        height: auto !important;
-        min-height: 250px !important;
     }
 }
 
@@ -1808,4 +1959,89 @@ svg .legend text {
 .fred-chart text {
     font-size: 16px !important;
     font-family: 'Source Sans Pro', sans-serif !important;
+}
+
+/* Mobile refinements */
+@media (max-width: 768px) {
+    /* Show only one National Chart on mobile */
+    #fredChartsContent .chart-container:nth-child(n+2) {
+        display: none !important;
+    }
+
+    /* Reduce chart container heights to fit mobile */
+    #comparison-chart-container,
+    #dev-comparison-chart-container {
+        height: 45vh !important;
+        max-height: 320px !important;
+        min-height: 200px !important;
+    }
+
+    /* Always show brief description under the visible national chart on mobile */
+    #leftChartDescription, #rightChartDescription { display: none !important; }
+}
+
+/* Mobile landscape optimizations (primary usage) */
+@media (orientation: landscape) and (max-height: 500px) {
+    .content {
+        padding: 24px 16px 24px 12px;
+    }
+
+    /* Split Home Info and Development Stats onto two lines */
+    #homeStatsContent {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 16px !important;
+        min-height: auto !important;
+    }
+    #homeStatsContent > * {
+        flex: none !important;
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    /* Only one National Chart in landscape mobile as well */
+    #fredChartsContent {
+        flex-direction: column !important;
+        gap: 16px !important;
+        flex-wrap: nowrap !important;
+    }
+    #fredChartsContent .chart-container:nth-child(n+2) {
+        display: none !important;
+    }
+
+    /* Scale charts for short viewports without forcing canvas height (prevents pixelation) */
+    .chart-container canvas,
+    #leftChart,
+    #rightChart,
+    #comparison-chart,
+    #dev-comparison-chart {
+        max-width: 100% !important;
+    }
+
+    #comparison-chart-container,
+    #dev-comparison-chart-container {
+        height: 32vh !important;
+        max-height: 240px !important;
+        min-height: 160px !important;
+    }
+
+    /* Ensure canvases fill the container without CSS upscaling */
+    #comparison-chart,
+    #dev-comparison-chart {
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    /* Map modal sizing for landscape */
+    #mapModal > div {
+        width: 96% !important;
+        height: 86% !important;
+        margin: 2% auto !important;
+        padding: 16px !important;
+    }
+    #developmentMap {
+        height: 55vh !important;
+        min-height: 200px !important;
+        max-height: 380px !important;
+    }
 }
