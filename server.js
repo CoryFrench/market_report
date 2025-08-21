@@ -517,6 +517,7 @@ app.post('/api/reports/create', async (req, res) => {
       addressLine2, 
       city, 
       state, 
+      county,
       zipCode, 
       development, 
       subdivision,
@@ -524,11 +525,11 @@ app.post('/api/reports/create', async (req, res) => {
     } = req.body;
     
     // Validate required fields
-    if (!agentName || !firstName || !lastName || !addressLine1 || !city || !state || !zipCode) {
+    if (!agentName || !firstName || !lastName || !addressLine1 || !city || !state || !county || !zipCode) {
       return res.status(400).json({
         success: false,
         error: 'Missing required fields',
-        required: ['agentName', 'firstName', 'lastName', 'addressLine1', 'city', 'state', 'zipCode']
+        required: ['agentName', 'firstName', 'lastName', 'addressLine1', 'city', 'state', 'county', 'zipCode']
       });
     }
     
@@ -562,6 +563,7 @@ app.post('/api/reports/create', async (req, res) => {
       addressLine2: addressLine2 ? addressLine2.trim() : null,
       city: city.trim(),
       state: state.trim(),
+      county: county.trim(),
       zipCode: zipCode.trim(),
       development: development ? development.trim() : null,
       subdivision: subdivision ? subdivision.trim() : null,

@@ -60,6 +60,11 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="county">County *</label>
+                    <input type="text" id="county" name="county" required>
+                </div>
+
+                <div class="form-group">
                     <label for="zipCode">ZIP Code *</label>
                     <input type="text" id="zipCode" name="zipCode" placeholder="12345 or 12345-6789" required>
                 </div>
@@ -253,6 +258,7 @@
                 addressLine2: getOrNull(formData.get('addressLine2')),
                 city: String(formData.get('city') || '').trim(),
                 state: String(formData.get('state') || '').trim(),
+                county: String(formData.get('county') || '').trim(),
                 zipCode: String(formData.get('zipCode') || '').trim(),
                 development: getOrNull(formData.get('development')),
                 subdivision: getOrNull(formData.get('subdivision')),

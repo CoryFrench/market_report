@@ -66,7 +66,7 @@ const dbQueries = {
   // Get report home info
   getReportHomeInfo: async (reportId = null) => {
     const baseQuery = `
-      SELECT report_id, address_line_1, address_line_2, city, state, zip_code, development, subdivision
+      SELECT report_id, address_line_1, address_line_2, city, state, zip_code, development, subdivision, county
       FROM customer.report_home_info
     `;
     
@@ -108,6 +108,7 @@ const dbQueries = {
         rhi.zip_code,
         rhi.development,
         rhi.subdivision,
+        rhi.county,
         -- Aggregate non-FRED charts from new tables
         (
           SELECT (
@@ -172,7 +173,7 @@ const dbQueries = {
       GROUP BY rb.report_id, rb.created_at, rb.last_updated, rb.report_url, 
                rb.agent_name, rb.first_name, rb.last_name, rb.email,
                rhi.address_line_1, rhi.address_line_2, rhi.city, rhi.state, 
-               rhi.zip_code, rhi.development, rhi.subdivision
+               rhi.zip_code, rhi.development, rhi.subdivision, rhi.county
     `;
     
     return await query(queryText, [reportId]);
@@ -200,6 +201,7 @@ const dbQueries = {
         rhi.zip_code,
         rhi.development,
         rhi.subdivision,
+        rhi.county,
         (
           SELECT (
             COALESCE(county_data.county_json, '[]'::jsonb) || COALESCE(neigh_data.neigh_json, '[]'::jsonb)
@@ -262,7 +264,7 @@ const dbQueries = {
       GROUP BY rb.report_id, rb.created_at, rb.last_updated, rb.report_url, 
                rb.agent_name, rb.first_name, rb.last_name, rb.email,
                rhi.address_line_1, rhi.address_line_2, rhi.city, rhi.state, 
-               rhi.zip_code, rhi.development, rhi.subdivision
+               rhi.zip_code, rhi.development, rhi.subdivision, rhi.county
     `;
     
     return await query(queryText, [expectedUrl]);
@@ -295,8 +297,8 @@ const dbQueries = {
       // Insert into report_home_info using the generated report_id
       const homeInfoInsertQuery = `
         INSERT INTO customer.report_home_info (
-          report_id, address_line_1, address_line_2, city, state, zip_code, development, subdivision
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          report_id, address_line_1, address_line_2, city, state, county, zip_code, development, subdivision
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `;
       
       await client.query(homeInfoInsertQuery, [
@@ -305,6 +307,7 @@ const dbQueries = {
         reportData.addressLine2,
         reportData.city,
         reportData.state,
+        reportData.county,
         reportData.zipCode,
         reportData.development,
         reportData.subdivision
