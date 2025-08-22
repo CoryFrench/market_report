@@ -538,7 +538,10 @@
                                     </button>
                                 </div>
                             </div>
-                            <div id="county-insights-chart-container" style="position: relative; height: 420px; width: 100%;">
+                            <div class="chart-controls" id="ci-chart-controls" style="display:none; margin-bottom: 8px;">
+                                <button id="ci-back-to-controls-btn" class="back-to-controls-btn">← Change Counties</button>
+                            </div>
+                            <div id="county-insights-chart-container" style="position: relative; height: 420px; width: 100%; display: none;">
                                 <canvas id="county-insights-chart"></canvas>
                                 <div id="county-insights-loading" class="chart-loading-message" style="display: none;">
                                     <div class="loading-spinner-small"></div>
@@ -3751,6 +3754,17 @@
                     return list;
                 }
 
+                function ciShowControlsView() {
+                    document.getElementById('ci-controls-section').style.display = 'block';
+                    document.getElementById('ci-chart-controls').style.display = 'none';
+                    document.getElementById('county-insights-chart-container').style.display = 'none';
+                }
+                function ciShowChartView() {
+                    document.getElementById('ci-controls-section').style.display = 'none';
+                    document.getElementById('ci-chart-controls').style.display = 'block';
+                    document.getElementById('county-insights-chart-container').style.display = 'block';
+                }
+
                 async function updateCiCounties(idx) {
                     const stateSelect = document.getElementById(`ci-state-select-${idx}`);
                     const countySelect = document.getElementById(`ci-county-select-${idx}`);
@@ -3847,6 +3861,7 @@
                         const title = `${rows[0].county_name || 'County'} (${rows[0].state_id || ''})`;
                         const series = [{ key: metric, label: metricLabel(metric), data: rows.map(r => ({ x: parseYyyymmToDate(r.month_date_yyyymm), y: toNumberOrNull(r[metric]) })) }];
                         renderCountyInsightsChart(series, title);
+                        ciShowChartView();
                         loadingEl.style.display = 'none';
                     } catch (err) {
                         console.warn('County insights error:', err);
@@ -3876,6 +3891,7 @@
                         }
                         const series = Object.keys(byCounty).map((id) => ({ key: metric, label: `${names[id]}`, data: byCounty[id] }));
                         renderCountyInsightsChart(series, metricLabel(metric));
+                        ciShowChartView();
                         loadingEl.style.display = 'none';
                     } catch (e) {
                         console.warn('County insights comparison error:', e);
@@ -3903,6 +3919,8 @@
                         await fetchAndRender();
                     }
                 });
+                const ciBackBtn = document.getElementById('ci-back-to-controls-btn');
+                ciBackBtn.addEventListener('click', ciShowControlsView);
                 await fetchAndRender();
             } catch (e) {
                 console.warn('initCountyInsights failed:', e);
