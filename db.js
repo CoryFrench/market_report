@@ -55,6 +55,249 @@ const dbQueries = {
     return await query(baseQuery);
   },
 
+  // Resolve primary county FIPS by ZIP (uses otherdata.zip_city_county_xref)
+  getPrimaryCountyFipsByZip: async (zip) => {
+    const queryText = `
+      SELECT DISTINCT
+        LPAD(zip::text, 5, '0') AS zip5,
+        LPAD(county_fips::text, 5, '0') AS fips,
+        county_name,
+        state_id,
+        state_name
+      FROM otherdata.zip_city_county_xref
+      WHERE LPAD(zip::text, 5, '0') = LPAD($1::text, 5, '0')
+      LIMIT 1
+    `;
+    return await query(queryText, [ String(zip || '').trim() ]);
+  },
+  
+  // Resolve a county FIPS from county name and state input (2-letter or full name)
+  getCountyFipsByNameState: async (countyName, stateInput) => {
+    const normalizedCounty = String(countyName || '').trim().replace(/\s+county$/i, '');
+    const stateParam = stateInput ? String(stateInput).trim() : null;
+
+    // Primary: IRS crosswalk, matching contains and handling state resolution from 2-letter code
+    const primaryQuery = `
+      WITH state_resolved AS (
+        SELECT 
+          CASE 
+            WHEN COALESCE($2::text, '') = '' THEN NULL
+            WHEN length(trim($2::text)) = 2 THEN (
+              SELECT DISTINCT state_name 
+              FROM otherdata.zip_city_county_xref 
+              WHERE upper(state_id) = upper($2::text)
+              LIMIT 1
+            )
+            ELSE $2::text
+          END AS state_name
+      )
+      SELECT DISTINCT 
+        LPAD(c.countyfips::text, 3, '0') AS countyfips,
+        LPAD(c.statefips::text, 2, '0') AS statefips,
+        LPAD(c.statefips::text, 2, '0') || LPAD(c.countyfips::text, 3, '0') AS fips,
+        c.countyname,
+        c.state AS state_name
+      FROM irs.county_fips_xref c
+      CROSS JOIN state_resolved s
+      WHERE c.countyname ILIKE ('%' || $1 || '%')
+        AND (
+          s.state_name IS NULL
+          OR c.state = s.state_name
+          OR c.state ILIKE s.state_name
+        )
+      ORDER BY c.countyname ASC, c.state ASC
+      LIMIT 1
+    `;
+    const primary = await query(primaryQuery, [ normalizedCounty, stateParam ]);
+    if (primary.rowCount > 0) return primary;
+
+    // Fallback: use ZIP/County xref (distinct county_fips by name/state)
+    const fallbackQuery = `
+      WITH state_resolved AS (
+        SELECT 
+          CASE 
+            WHEN COALESCE($2::text, '') = '' THEN NULL
+            WHEN length(trim($2::text)) = 2 THEN (
+              SELECT DISTINCT state_name 
+              FROM otherdata.zip_city_county_xref 
+              WHERE upper(state_id) = upper($2::text)
+              LIMIT 1
+            )
+            ELSE $2::text
+          END AS state_name
+      )
+      SELECT DISTINCT 
+        LPAD(z.county_fips::text, 5, '0') AS fips,
+        z.county_name AS countyname,
+        z.state_name
+      FROM otherdata.zip_city_county_xref z
+      CROSS JOIN state_resolved s
+      WHERE z.county_name ILIKE ('%' || $1 || '%')
+        AND (
+          s.state_name IS NULL
+          OR z.state_name = s.state_name
+          OR z.state_name ILIKE s.state_name
+        )
+      ORDER BY z.county_name ASC, z.state_name ASC
+      LIMIT 1
+    `;
+    const fallback = await query(fallbackQuery, [ normalizedCounty, stateParam ]);
+    return fallback;
+  },
+
+  // County time series aggregated from otherdata.realtor_historic by county FIPS
+  getCountySeriesByFips: async (countyFips, months = 24) => {
+    const queryText = `
+      WITH params AS (
+        SELECT 
+          LPAD($1::text, 5, '0') AS county_fips,
+          GREATEST(1, LEAST(120, $2::int)) AS months_back,
+          to_char(date_trunc('month', now()) - ($2::int || ' months')::interval, 'YYYYMM')::int AS min_yyyymm
+      ), zx AS (
+        SELECT LPAD(zip::text, 5, '0') AS zip5, county_fips, county_name, state_id
+        FROM otherdata.zip_city_county_xref
+      ), rh AS (
+        SELECT 
+          month_date_yyyymm::int AS yyyymm,
+          LPAD(postal_code::text, 5, '0') AS zip5,
+          NULLIF(average_listing_price, -1) AS avg_listing_price,
+          NULLIF(median_listing_price, -1) AS med_listing_price,
+          NULLIF(median_days_on_market, -1) AS median_days_on_market,
+          NULLIF(median_listing_price_per_square_foot, -1) AS median_price_per_sqft,
+          GREATEST(COALESCE(NULLIF(total_listing_count, -1), 0), 0) AS total_listing_count,
+          GREATEST(COALESCE(NULLIF(active_listing_count, -1), 0), 0) AS active_listing_count,
+          GREATEST(COALESCE(NULLIF(new_listing_count, -1), 0), 0) AS new_listing_count,
+          GREATEST(COALESCE(NULLIF(pending_listing_count, -1), 0), 0) AS pending_listing_count,
+          GREATEST(COALESCE(NULLIF(price_increased_count, -1), 0), 0) AS price_increased_count,
+          GREATEST(COALESCE(NULLIF(price_reduced_count, -1), 0), 0) AS price_reduced_count,
+          quality_flag
+        FROM otherdata.realtor_historic
+      ), joined AS (
+        SELECT 
+          rh.*, zx.county_fips AS zx_fips, zx.county_name, zx.state_id
+        FROM rh
+        JOIN zx USING (zip5)
+      )
+      SELECT 
+        j.zx_fips AS county_fips,
+        MIN(j.county_name) AS county_name,
+        MIN(j.state_id) AS state_id,
+        j.yyyymm AS month_date_yyyymm,
+        SUM(j.active_listing_count) AS active_listing_count,
+        SUM(j.new_listing_count) AS new_listing_count,
+        SUM(j.pending_listing_count) AS pending_listing_count,
+        SUM(j.total_listing_count) AS total_listing_count,
+        SUM(j.price_increased_count) AS price_increased_count,
+        SUM(j.price_reduced_count) AS price_reduced_count,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(COALESCE(j.avg_listing_price, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS avg_listing_price,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(COALESCE(j.med_listing_price, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS median_listing_price_proxy,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(COALESCE(j.median_days_on_market, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS avg_days_on_market,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(COALESCE(j.median_price_per_sqft, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS avg_price_per_sqft,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(j.pending_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS pending_ratio,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(j.price_increased_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS price_increased_share,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(j.price_reduced_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS price_reduced_share
+      FROM joined j, params p
+      WHERE j.zx_fips = p.county_fips
+        AND j.quality_flag = 1
+        AND j.yyyymm >= p.min_yyyymm
+      GROUP BY j.zx_fips, j.yyyymm
+      ORDER BY j.yyyymm ASC
+    `;
+    return await query(queryText, [ String(countyFips || '').trim(), Number(months || 24) ]);
+  },
+
+  // Multi-county comparison: time series for an array of county FIPS
+  getCountySeriesMultiByFips: async (countyFipsArray, months = 24) => {
+    const queryText = `
+      WITH params AS (
+        SELECT 
+          ARRAY(SELECT DISTINCT LPAD(TRIM(x)::text, 5, '0') FROM unnest($1::text[]) x) AS fips_list,
+          GREATEST(1, LEAST(120, $2::int)) AS months_back,
+          to_char(date_trunc('month', now()) - ($2::int || ' months')::interval, 'YYYYMM')::int AS min_yyyymm
+      ), zx AS (
+        SELECT LPAD(zip::text, 5, '0') AS zip5, county_fips, county_name, state_id
+        FROM otherdata.zip_city_county_xref
+      ), rh AS (
+        SELECT 
+          month_date_yyyymm::int AS yyyymm,
+          LPAD(postal_code::text, 5, '0') AS zip5,
+          NULLIF(average_listing_price, -1) AS avg_listing_price,
+          NULLIF(median_listing_price, -1) AS med_listing_price,
+          NULLIF(median_days_on_market, -1) AS median_days_on_market,
+          NULLIF(median_listing_price_per_square_foot, -1) AS median_price_per_sqft,
+          GREATEST(COALESCE(NULLIF(total_listing_count, -1), 0), 0) AS total_listing_count,
+          GREATEST(COALESCE(NULLIF(active_listing_count, -1), 0), 0) AS active_listing_count,
+          GREATEST(COALESCE(NULLIF(new_listing_count, -1), 0), 0) AS new_listing_count,
+          GREATEST(COALESCE(NULLIF(pending_listing_count, -1), 0), 0) AS pending_listing_count,
+          GREATEST(COALESCE(NULLIF(price_increased_count, -1), 0), 0) AS price_increased_count,
+          GREATEST(COALESCE(NULLIF(price_reduced_count, -1), 0), 0) AS price_reduced_count,
+          quality_flag
+        FROM otherdata.realtor_historic
+      ), joined AS (
+        SELECT rh.*, zx.county_fips AS zx_fips, zx.county_name, zx.state_id
+        FROM rh JOIN zx USING (zip5)
+      )
+      SELECT 
+        j.zx_fips AS county_fips,
+        MIN(j.county_name) AS county_name,
+        MIN(j.state_id) AS state_id,
+        j.yyyymm AS month_date_yyyymm,
+        SUM(j.active_listing_count) AS active_listing_count,
+        SUM(j.new_listing_count) AS new_listing_count,
+        SUM(j.pending_listing_count) AS pending_listing_count,
+        SUM(j.total_listing_count) AS total_listing_count,
+        SUM(j.price_increased_count) AS price_increased_count,
+        SUM(j.price_reduced_count) AS price_reduced_count,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(COALESCE(j.avg_listing_price, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS avg_listing_price,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(COALESCE(j.med_listing_price, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS median_listing_price_proxy,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(COALESCE(j.median_days_on_market, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS avg_days_on_market,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(COALESCE(j.median_price_per_sqft, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS avg_price_per_sqft,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(j.pending_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS pending_ratio,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(j.price_increased_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS price_increased_share,
+        CASE WHEN SUM(j.total_listing_count) > 0 THEN
+          SUM(j.price_reduced_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
+        ELSE NULL END AS price_reduced_share
+      FROM joined j, params p
+      WHERE j.zx_fips = ANY(p.fips_list)
+        AND j.quality_flag = 1
+        AND j.yyyymm >= p.min_yyyymm
+      GROUP BY j.zx_fips, j.yyyymm
+      ORDER BY j.zx_fips ASC, j.yyyymm ASC
+    `;
+    const fipsArray = Array.isArray(countyFipsArray) ? countyFipsArray : String(countyFipsArray || '').split(',');
+    const cleaned = fipsArray.map(v => String(v || '').trim()).filter(v => v.length > 0);
+    if (cleaned.length === 0) {
+      return { rows: [], rowCount: 0 };
+    }
+    return await query(queryText, [ cleaned, Number(months || 24) ]);
+  },
+
   // Get report charts data (legacy compatibility if needed)
   getReportCharts: async (reportId = null) => {
     // Return an empty set; callers now use specific tables per chart type

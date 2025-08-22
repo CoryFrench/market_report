@@ -1655,6 +1655,58 @@ app.get('/api/fred-series', async (req, res) => {
   }
 });
 
+// County-level series from realtor.com (ZIP-aggregated) — supports county_fips or county+state
+app.get('/api/county-series', async (req, res) => {
+  try {
+    const { county_fips, county, state, months, zip } = req.query;
+    let targetFips = String(county_fips || '').trim();
+
+    if (!targetFips) {
+      if (zip) {
+        const zipLookup = await dbQueries.getPrimaryCountyFipsByZip(String(zip));
+        if (!zipLookup || zipLookup.rowCount === 0) {
+          return res.status(404).json({ success: false, error: 'ZIP not found' });
+        }
+        targetFips = zipLookup.rows[0].fips;
+      } else if (county) {
+        const lookup = await dbQueries.getCountyFipsByNameState(String(county), state ? String(state) : null);
+        if (!lookup || lookup.rowCount === 0) {
+          return res.status(404).json({ success: false, error: 'County not found' });
+        }
+        const row = lookup.rows[0];
+        targetFips = row.fips || `${row.statefips || ''}${row.countyfips || ''}`;
+      } else {
+        return res.status(400).json({ success: false, error: 'county_fips or (county[,state]) or zip is required' });
+      }
+    }
+
+    const monthsBack = months ? Number(months) : 24;
+    const result = await dbQueries.getCountySeriesByFips(targetFips, monthsBack);
+
+    return res.json({ success: true, count: result.rowCount, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching county series:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch county series', message: error.message });
+  }
+});
+
+// Multi-county comparison time series — county_fips is CSV string, optional months
+app.get('/api/county-comparison', async (req, res) => {
+  try {
+    const { county_fips, months } = req.query;
+    if (!county_fips || String(county_fips).trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'county_fips (CSV) is required' });
+    }
+    const list = String(county_fips).split(',').map(s => s.trim()).filter(Boolean);
+    const monthsBack = months ? Number(months) : 24;
+    const result = await dbQueries.getCountySeriesMultiByFips(list, monthsBack);
+    return res.json({ success: true, count: result.rowCount, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching county comparison series:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch county comparison', message: error.message });
+  }
+});
+
 // Counties API endpoint for Areas of Interest comparison
 app.get('/api/counties', async (req, res) => {
   try {

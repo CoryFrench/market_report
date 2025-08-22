@@ -506,6 +506,39 @@
                     </div>
                 </div>
 
+                <!-- County Insights (realtor.com ZIP→county aggregation) - shown for non–Palm Beach -->
+                <div class="section" id="county-insights-section" style="display: none;">
+                    <h2>County Insights</h2>
+                    <div class="section-content">
+                        <div class="chart-section" id="county-insights" style="display: none;">
+                            <div class="chart-indicator-control" style="display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;">
+                                <label for="county-insights-metric-select" style="font-weight: bold; color: #333;">Metric:</label>
+                                <select id="county-insights-metric-select" class="fred-select" style="min-width: 220px;">
+                                    <option value="avg_listing_price">Average Listing Price</option>
+                                    <option value="median_listing_price_proxy">Median Listing Price (proxy)</option>
+                                    <option value="avg_price_per_sqft">Average Price per Sq Ft</option>
+                                    <option value="avg_days_on_market">Average Days on Market</option>
+                                    <option value="active_listing_count">Active Listings</option>
+                                    <option value="new_listing_count">New Listings</option>
+                                    <option value="pending_ratio">Pending Ratio</option>
+                                    <option value="price_increased_share">Price Increased Share</option>
+                                    <option value="price_reduced_share">Price Reduced Share</option>
+                                </select>
+                            </div>
+                            <div id="county-insights-chart-container" style="position: relative; height: 420px; width: 100%;">
+                                <canvas id="county-insights-chart"></canvas>
+                                <div id="county-insights-loading" class="chart-loading-message" style="display: none;">
+                                    <div class="loading-spinner-small"></div>
+                                    <p>Loading county insights…</p>
+                                </div>
+                                <div id="county-insights-error" class="chart-error-message" style="display: none;">
+                                    <p>Insights unavailable for this county at the moment.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="section">
                     <h2>County Charts</h2>
                     <div class="section-content">
@@ -694,6 +727,29 @@
             // FRED Charts - Load the charts after displaying the report
             loadFredCharts(data.report_id);
             setupNationalInfoToggles();
+
+            // County Insights: show realtor.com county series for non–Palm Beach
+            try {
+                const countyName = String(data.county || '').toLowerCase();
+                const isPalmBeach = countyName.includes('palm beach');
+                window.isPalmBeachCounty = !!isPalmBeach;
+                const section = document.getElementById('county-insights-section');
+                if (section) {
+                    if (!isPalmBeach) {
+                        section.style.display = 'flex';
+                        initCountyInsights(data);
+                    } else {
+                        section.style.display = 'none';
+                    }
+                }
+
+                // Hide Neighbourhood Charts section entirely when not Palm Beach
+                const devSectionTitle = document.getElementById('dev-comp-title');
+                if (!isPalmBeach && devSectionTitle) {
+                    const sectionEl = devSectionTitle.closest('.section');
+                    if (sectionEl) sectionEl.style.display = 'none';
+                }
+            } catch (_) {}
         }
         
         function displayHomeStats(data) {
@@ -778,6 +834,20 @@
             // Hide the development and subdivision elements since they're now in the address
             document.getElementById('propertyDevelopment').style.display = 'none';
             document.getElementById('propertySubdivision').style.display = 'none';
+
+            // Gate PB-only sections (Development/Zone comparisons & parcels) to Palm Beach only
+            try {
+                const countyName = String(data.county || '').toLowerCase();
+                const isPalmBeach = countyName.includes('palm beach');
+                const devSectionTitle = document.getElementById('dev-comp-title');
+                const devControls = document.getElementById('dev-controls-section');
+                const devChartSection = document.getElementById('dev-chart-section');
+                if (!isPalmBeach) {
+                    if (devSectionTitle) devSectionTitle.textContent = 'Neighborhood comparisons are not available in this area';
+                    if (devControls) devControls.style.display = 'none';
+                    if (devChartSection) devChartSection.style.display = 'none';
+                }
+            } catch (_) {}
             
             // Enrich Home Stats via property lookup (address → parcel → tax fields)
             (async () => {
@@ -3637,8 +3707,131 @@
             }
         }
 
+        // ----- County Insights (realtor.com) -----
+        let countyInsightsChart = null;
+        async function initCountyInsights(reportData) {
+            try {
+                const county = String(reportData.county || '').trim();
+                const state = String(reportData.home_state || '').trim();
+                if (!county) return;
+
+                const metricSelect = document.getElementById('county-insights-metric-select');
+                const chartSection = document.getElementById('county-insights');
+                const loadingEl = document.getElementById('county-insights-loading');
+                const errorEl = document.getElementById('county-insights-error');
+
+                const fetchAndRender = async () => {
+                    try {
+                        chartSection.style.display = 'block';
+                        loadingEl.style.display = 'flex';
+                        errorEl.style.display = 'none';
+
+                        // Resolve to FIPS using API if needed, then fetch series
+                        const url = new URL(`${API_BASE}/county-series`, window.location.origin);
+                        if (county) url.searchParams.set('county', county);
+                        if (state) url.searchParams.set('state', state);
+                        if (reportData.zip_code) url.searchParams.set('zip', reportData.zip_code);
+                        url.searchParams.set('months', '36');
+
+                        const resp = await fetch(url.toString().replace(window.location.origin, ''));
+                        const json = await resp.json();
+                        if (!resp.ok || !json.success || !Array.isArray(json.data) || json.data.length === 0) {
+                            throw new Error(json.error || 'No data');
+                        }
+
+                        const metric = metricSelect.value || 'avg_listing_price';
+                        const rows = json.data;
+                        const points = rows.map(r => ({
+                            x: parseYyyymmToDate(r.month_date_yyyymm),
+                            y: toNumberOrNull(r[metric])
+                        }));
+                        const label = `${rows[0].county_name || 'County'} (${rows[0].state_id || ''})`;
+
+                        renderCountyInsightsChart(points, label, metricLabel(metric));
+                        loadingEl.style.display = 'none';
+                    } catch (err) {
+                        console.warn('County insights error:', err);
+                        loadingEl.style.display = 'none';
+                        errorEl.style.display = 'flex';
+                    }
+                };
+
+                metricSelect.addEventListener('change', fetchAndRender);
+                await fetchAndRender();
+            } catch (e) {
+                console.warn('initCountyInsights failed:', e);
+            }
+        }
+
+        function renderCountyInsightsChart(points, label, title) {
+            const canvas = document.getElementById('county-insights-chart');
+            if (!canvas) return;
+            if (countyInsightsChart) {
+                countyInsightsChart.destroy();
+                countyInsightsChart = null;
+            }
+            const color = '#2c7be5';
+            const ctx = canvas.getContext('2d');
+            countyInsightsChart = new Chart(ctx, {
+                type: 'line',
+                data: { datasets: [{
+                    label,
+                    data: points,
+                    backgroundColor: color + '20',
+                    borderColor: color,
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0
+                }]},
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: true },
+                        title: { display: true, text: title }
+                    },
+                    scales: {
+                        x: { type: 'time', time: { unit: 'month' } },
+                        y: { beginAtZero: false }
+                    }
+                }
+            });
+        }
+
+        function parseYyyymmToDate(yyyymm) {
+            try {
+                const s = String(yyyymm || '');
+                const y = Number(s.slice(0,4));
+                const m = Number(s.slice(4,6));
+                if (!y || !m) return null;
+                return new Date(Date.UTC(y, m - 1, 1));
+            } catch { return null; }
+        }
+        function toNumberOrNull(v) {
+            const n = Number(v);
+            return isFinite(n) ? n : null;
+        }
+        function metricLabel(key) {
+            switch (key) {
+                case 'avg_listing_price': return 'Average Listing Price';
+                case 'median_listing_price_proxy': return 'Median Listing Price (proxy)';
+                case 'avg_price_per_sqft': return 'Average Price per Sq Ft';
+                case 'avg_days_on_market': return 'Average Days on Market';
+                case 'active_listing_count': return 'Active Listings';
+                case 'new_listing_count': return 'New Listings';
+                case 'pending_ratio': return 'Pending Ratio';
+                case 'price_increased_share': return 'Price Increased Share';
+                case 'price_reduced_share': return 'Price Reduced Share';
+                default: return key;
+            }
+        }
         // Initialize development comparison
         async function initializeDevelopmentComparison() {
+            if (window.isPalmBeachCounty === false) {
+                return;
+            }
             const t0 = performance.now();
             try {
                 // 1) Try direct-render from saved neighbourhood comparison first (no dropdown population)
@@ -5112,7 +5305,9 @@
 
         // Initialize development comparison when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(initializeDevelopmentComparison, 1500);
+            if (window.isPalmBeachCounty !== false) {
+                setTimeout(initializeDevelopmentComparison, 1500);
+            }
         });
     </script>
 
