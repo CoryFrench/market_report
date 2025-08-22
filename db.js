@@ -611,6 +611,94 @@ const dbQueries = {
       LIMIT $2
     `;
     return await query(queryText, [email, Math.max(1, Math.min(10, Number(limit) || 1))]);
+  },
+
+  // Zip/City/County lookups from otherdata.zip_city_county_xref
+  lookupZipCityByZip: async (zip, state) => {
+    const params = [String(zip || '')];
+    const where = [
+      `LPAD(zip::text, 5, '0') = LPAD($1::text, 5, '0')`
+    ];
+    if (state && String(state).trim().length > 0) {
+      params.push(String(state).trim());
+      where.push(`(state_id = $2 OR state_name ILIKE $2)`);
+    }
+
+    const queryText = `
+      SELECT 
+        LPAD(zip::text, 5, '0') AS zip5,
+        city,
+        state_id,
+        state_name,
+        county_fips AS primary_county_fips,
+        county_name AS primary_county_name,
+        COALESCE(NULLIF(county_names_all, ''), county_name) AS county_names_all,
+        COALESCE(NULLIF(county_fips_all, ''), county_fips) AS county_fips_all,
+        string_to_array(COALESCE(NULLIF(county_names_all, ''), county_name), '|') AS county_names,
+        string_to_array(COALESCE(NULLIF(county_fips_all, ''), county_fips), '|') AS county_fips
+      FROM otherdata.zip_city_county_xref
+      WHERE ${where.join(' AND ')}
+      LIMIT 50
+    `;
+    return await query(queryText, params);
+  },
+
+  lookupZipCityByCity: async (city, state) => {
+    const params = [ `%${String(city || '').trim()}%` ];
+    const where = [ `city ILIKE $1` ];
+    if (state && String(state).trim().length > 0) {
+      params.push(String(state).trim());
+      where.push(`(state_id = $2 OR state_name ILIKE $2)`);
+    }
+
+    const queryText = `
+      SELECT DISTINCT
+        LPAD(zip::text, 5, '0') AS zip5,
+        city,
+        state_id,
+        state_name,
+        county_fips AS primary_county_fips,
+        county_name AS primary_county_name,
+        COALESCE(NULLIF(county_names_all, ''), county_name) AS county_names_all,
+        COALESCE(NULLIF(county_fips_all, ''), county_fips) AS county_fips_all,
+        string_to_array(COALESCE(NULLIF(county_names_all, ''), county_name), '|') AS county_names,
+        string_to_array(COALESCE(NULLIF(county_fips_all, ''), county_fips), '|') AS county_fips
+      FROM otherdata.zip_city_county_xref
+      WHERE ${where.join(' AND ')}
+      ORDER BY state_id, city, zip5
+      LIMIT 50
+    `;
+    return await query(queryText, params);
+  },
+
+  lookupZipCityByCounty: async (county, state) => {
+    const params = [ `%${String(county || '').trim()}%` ];
+    const where = [
+      `(county_name ILIKE $1 OR county_names_all ILIKE $1)`
+    ];
+    if (state && String(state).trim().length > 0) {
+      params.push(String(state).trim());
+      where.push(`(state_id = $2 OR state_name ILIKE $2)`);
+    }
+
+    const queryText = `
+      SELECT DISTINCT
+        LPAD(zip::text, 5, '0') AS zip5,
+        city,
+        state_id,
+        state_name,
+        county_fips AS primary_county_fips,
+        county_name AS primary_county_name,
+        COALESCE(NULLIF(county_names_all, ''), county_name) AS county_names_all,
+        COALESCE(NULLIF(county_fips_all, ''), county_fips) AS county_fips_all,
+        string_to_array(COALESCE(NULLIF(county_names_all, ''), county_name), '|') AS county_names,
+        string_to_array(COALESCE(NULLIF(county_fips_all, ''), county_fips), '|') AS county_fips
+      FROM otherdata.zip_city_county_xref
+      WHERE ${where.join(' AND ')}
+      ORDER BY state_id, city, zip5
+      LIMIT 50
+    `;
+    return await query(queryText, params);
   }
 };
 

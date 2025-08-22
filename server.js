@@ -1684,6 +1684,49 @@ app.get('/api/counties', async (req, res) => {
   }
 });
 
+// Zip/City/County lookup endpoints to support autofill/suggestions
+app.get('/api/zipcity/by-zip', async (req, res) => {
+  try {
+    const { zip, state } = req.query;
+    if (!zip || String(zip).trim().length < 3) {
+      return res.status(400).json({ success: false, error: 'zip (min 3 chars) is required' });
+    }
+    const result = await dbQueries.lookupZipCityByZip(String(zip).trim(), state ? String(state).trim() : undefined);
+    return res.json({ success: true, count: result.rowCount, data: result.rows });
+  } catch (error) {
+    console.error('Error in /api/zipcity/by-zip:', error);
+    return res.status(500).json({ success: false, error: 'Failed to lookup by zip', message: error.message });
+  }
+});
+
+app.get('/api/zipcity/by-city', async (req, res) => {
+  try {
+    const { city, state } = req.query;
+    if (!city || String(city).trim().length < 2) {
+      return res.status(400).json({ success: false, error: 'city (min 2 chars) is required' });
+    }
+    const result = await dbQueries.lookupZipCityByCity(String(city).trim(), state ? String(state).trim() : undefined);
+    return res.json({ success: true, count: result.rowCount, data: result.rows });
+  } catch (error) {
+    console.error('Error in /api/zipcity/by-city:', error);
+    return res.status(500).json({ success: false, error: 'Failed to lookup by city', message: error.message });
+  }
+});
+
+app.get('/api/zipcity/by-county', async (req, res) => {
+  try {
+    const { county, state } = req.query;
+    if (!county || String(county).trim().length < 2) {
+      return res.status(400).json({ success: false, error: 'county (min 2 chars) is required' });
+    }
+    const result = await dbQueries.lookupZipCityByCounty(String(county).trim(), state ? String(state).trim() : undefined);
+    return res.json({ success: true, count: result.rowCount, data: result.rows });
+  } catch (error) {
+    console.error('Error in /api/zipcity/by-county:', error);
+    return res.status(500).json({ success: false, error: 'Failed to lookup by county', message: error.message });
+  }
+});
+
 // Get parcel geometry data for development map
 app.get('/api/development-parcels/:developmentName', async (req, res) => {
   try {

@@ -52,6 +52,7 @@
                 <div class="form-group">
                     <label for="city">City *</label>
                     <input type="text" id="city" name="city" required>
+                    <div id="cityPicker" class="picker" style="display:none;"></div>
                 </div>
 
                 <div class="form-group">
@@ -62,11 +63,13 @@
                 <div class="form-group">
                     <label for="county">County *</label>
                     <input type="text" id="county" name="county" required>
+                    <div id="countyPicker" class="picker" style="display:none;"></div>
                 </div>
 
                 <div class="form-group">
                     <label for="zipCode">ZIP Code *</label>
                     <input type="text" id="zipCode" name="zipCode" placeholder="12345 or 12345-6789" required>
+                    <div id="zipPicker" class="picker" style="display:none;"></div>
                 </div>
 
                 <div class="form-group">
@@ -169,6 +172,234 @@
         const reportLinkAnchor = document.getElementById('reportLinkAnchor');
         const detailsToggle = document.getElementById('detailsToggle');
         const detailsSection = document.getElementById('detailsSection');
+
+        // Inputs for autofill/suggestions
+        const cityInput = document.getElementById('city');
+        const cityPicker = document.getElementById('cityPicker');
+        const countyInput = document.getElementById('county');
+        const countyPicker = document.getElementById('countyPicker');
+        const zipInput = document.getElementById('zipCode');
+        const zipPicker = document.getElementById('zipPicker');
+        const stateInput = document.getElementById('state');
+
+        // Keep latest query results for selection mapping
+        let lastZipResults = [];
+        let lastCityResults = [];
+        let lastCountyResults = [];
+
+        // Debounce helper
+        function debounce(fn, ms) {
+            let t;
+            return function(...args) {
+                clearTimeout(t);
+                t = setTimeout(() => fn.apply(this, args), ms);
+            };
+        }
+
+        function toZip5(v) {
+            const digits = String(v || '').trim().replace(/[^0-9]/g, '');
+            if (digits.length === 0) return '';
+            return digits.padStart(5, '0').slice(0, 5);
+        }
+
+        // Inline picker renderer (small chip buttons)
+        function renderPicker(pickerEl, values, onSelect) {
+            if (!pickerEl) return;
+            const unique = Array.from(new Set((values || []).filter(Boolean)));
+            if (unique.length === 0) {
+                pickerEl.style.display = 'none';
+                pickerEl.innerHTML = '';
+                return;
+            }
+            const items = unique;
+            pickerEl.innerHTML = `
+                <div style="border:1px solid #e2e8f0;background:#ffffff;border-radius:8px;padding:6px;box-shadow:0 4px 10px rgba(0,0,0,0.06);margin-top:6px;">
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                        ${items.map(v => `<button type=\"button\" data-v=\"${String(v).replace(/"/g, '&quot;')}\" style=\"padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;cursor:pointer;font-size:12px;\">${String(v).replace(/</g,'&lt;')}</button>`).join('')}
+                    </div>
+                </div>
+            `;
+            pickerEl.style.display = 'block';
+            pickerEl.querySelectorAll('button[data-v]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const v = btn.getAttribute('data-v');
+                    if (onSelect) onSelect(v);
+                    pickerEl.style.display = 'none';
+                });
+            });
+        }
+
+        function fillIfUnambiguous(rows) {
+            if (!Array.isArray(rows) || rows.length === 0) return false;
+            // If there is only one row and it has one county, we can safely fill
+            const row = rows[0];
+            const counties = Array.isArray(row.county_names) ? row.county_names : (row.county_names_all ? String(row.county_names_all).split('|') : []);
+            if (rows.length === 1 && counties.length <= 1) {
+                if (cityInput && !document.activeElement?.isSameNode(cityInput)) cityInput.value = row.city || cityInput.value;
+                if (countyInput && !document.activeElement?.isSameNode(countyInput)) countyInput.value = (counties[0] || row.primary_county_name || countyInput.value || '');
+                if (zipInput && !document.activeElement?.isSameNode(zipInput)) zipInput.value = row.zip5 || zipInput.value;
+                if (stateInput && !document.activeElement?.isSameNode(stateInput)) stateInput.value = row.state_id || stateInput.value;
+                return true;
+            }
+            return false;
+        }
+
+        // ZIP lookup
+        const handleZipLookup = debounce(async () => {
+            const raw = zipInput ? zipInput.value : '';
+            const zip5 = toZip5(raw);
+            if (!zip5 || zip5.length < 3) return;
+            const state = stateInput ? String(stateInput.value || '').trim() : '';
+            try {
+                const url = new URL(`${API_BASE}/zipcity/by-zip`, window.location.origin);
+                url.searchParams.set('zip', zip5);
+                if (state) url.searchParams.set('state', state);
+                const resp = await fetch(url.toString().replace(window.location.origin, ''));
+                if (!resp.ok) return;
+                const json = await resp.json();
+                lastZipResults = Array.isArray(json.data) ? json.data : [];
+
+                // Populate pickers
+                renderPicker(cityPicker, lastZipResults.map(r => r.city), (val) => {
+                    if (cityInput) cityInput.value = val;
+                    tryApplyFromResultsByCity(val);
+                });
+                // Counties may be multi; flatten
+                const countyList = [];
+                for (const r of lastZipResults) {
+                    const arr = Array.isArray(r.county_names) ? r.county_names : (r.county_names_all ? String(r.county_names_all).split('|') : [r.primary_county_name]);
+                    countyList.push(...arr);
+                }
+                renderPicker(countyPicker, countyList, (val) => {
+                    if (countyInput) countyInput.value = val;
+                    tryApplyFromResultsByCounty(val);
+                });
+                renderPicker(zipPicker, lastZipResults.map(r => r.zip5), (val) => {
+                    if (zipInput) zipInput.value = val;
+                    tryApplyFromResultsByZip(val);
+                });
+
+                // If unambiguous, autofill
+                fillIfUnambiguous(lastZipResults);
+            } catch (_) {}
+        }, 300);
+
+        // City lookup
+        const handleCityLookup = debounce(async () => {
+            const city = cityInput ? String(cityInput.value || '').trim() : '';
+            if (!city || city.length < 2) return;
+            const state = stateInput ? String(stateInput.value || '').trim() : '';
+            try {
+                const url = new URL(`${API_BASE}/zipcity/by-city`, window.location.origin);
+                url.searchParams.set('city', city);
+                if (state) url.searchParams.set('state', state);
+                const resp = await fetch(url.toString().replace(window.location.origin, ''));
+                if (!resp.ok) return;
+                const json = await resp.json();
+                lastCityResults = Array.isArray(json.data) ? json.data : [];
+                renderPicker(zipPicker, lastCityResults.map(r => r.zip5), (val) => {
+                    if (zipInput) zipInput.value = val;
+                    tryApplyFromResultsByZip(val);
+                });
+                const countyList = [];
+                for (const r of lastCityResults) {
+                    const arr = Array.isArray(r.county_names) ? r.county_names : (r.county_names_all ? String(r.county_names_all).split('|') : [r.primary_county_name]);
+                    countyList.push(...arr);
+                }
+                renderPicker(countyPicker, countyList, (val) => {
+                    if (countyInput) countyInput.value = val;
+                    tryApplyFromResultsByCounty(val);
+                });
+                fillIfUnambiguous(lastCityResults);
+            } catch (_) {}
+        }, 300);
+
+        // County lookup
+        const handleCountyLookup = debounce(async () => {
+            const county = countyInput ? String(countyInput.value || '').trim() : '';
+            if (!county || county.length < 2) return;
+            const state = stateInput ? String(stateInput.value || '').trim() : '';
+            try {
+                const url = new URL(`${API_BASE}/zipcity/by-county`, window.location.origin);
+                url.searchParams.set('county', county);
+                if (state) url.searchParams.set('state', state);
+                const resp = await fetch(url.toString().replace(window.location.origin, ''));
+                if (!resp.ok) return;
+                const json = await resp.json();
+                lastCountyResults = Array.isArray(json.data) ? json.data : [];
+                renderPicker(zipPicker, lastCountyResults.map(r => r.zip5), (val) => {
+                    if (zipInput) zipInput.value = val;
+                    tryApplyFromResultsByZip(val);
+                });
+                renderPicker(cityPicker, lastCountyResults.map(r => r.city), (val) => {
+                    if (cityInput) cityInput.value = val;
+                    tryApplyFromResultsByCity(val);
+                });
+                fillIfUnambiguous(lastCountyResults);
+            } catch (_) {}
+        }, 300);
+
+        // Map selection when user chooses a value exactly matching a result
+        function tryApplyFromResultsByZip(zip5) {
+            const row = (lastZipResults || []).find(r => String(r.zip5) === String(zip5));
+            if (!row) return false;
+            if (cityInput) cityInput.value = row.city || cityInput.value;
+            if (stateInput) stateInput.value = row.state_id || stateInput.value;
+            const counties = Array.isArray(row.county_names) ? row.county_names : (row.county_names_all ? String(row.county_names_all).split('|') : [row.primary_county_name]);
+            if (countyInput && counties && counties.length === 1) countyInput.value = counties[0];
+            return true;
+        }
+
+        function tryApplyFromResultsByCity(city) {
+            const matches = (lastCityResults || []).filter(r => String(r.city).toLowerCase() === String(city).toLowerCase());
+            if (matches.length === 1) {
+                const r = matches[0];
+                if (zipInput) zipInput.value = r.zip5 || zipInput.value;
+                if (stateInput) stateInput.value = r.state_id || stateInput.value;
+                const counties = Array.isArray(r.county_names) ? r.county_names : (r.county_names_all ? String(r.county_names_all).split('|') : [r.primary_county_name]);
+                if (countyInput && counties && counties.length === 1) countyInput.value = counties[0];
+                return true;
+            }
+            return false;
+        }
+
+        function tryApplyFromResultsByCounty(county) {
+            const countyLower = String(county).toLowerCase();
+            const matches = (lastCountyResults || []).filter(r => {
+                const arr = Array.isArray(r.county_names) ? r.county_names : (r.county_names_all ? String(r.county_names_all).split('|') : [r.primary_county_name]);
+                return arr.some(n => String(n).toLowerCase() === countyLower);
+            });
+            if (matches.length === 1) {
+                const r = matches[0];
+                if (zipInput) zipInput.value = r.zip5 || zipInput.value;
+                if (cityInput) cityInput.value = r.city || cityInput.value;
+                if (stateInput) stateInput.value = r.state_id || stateInput.value;
+                return true;
+            }
+            return false;
+        }
+
+        if (zipInput) {
+            zipInput.addEventListener('input', handleZipLookup);
+            zipInput.addEventListener('change', () => {
+                const z = toZip5(zipInput.value);
+                if (!tryApplyFromResultsByZip(z)) handleZipLookup();
+            });
+        }
+        if (cityInput) {
+            cityInput.addEventListener('input', handleCityLookup);
+            cityInput.addEventListener('change', () => {
+                const c = String(cityInput.value || '').trim();
+                if (!tryApplyFromResultsByCity(c)) handleCityLookup();
+            });
+        }
+        if (countyInput) {
+            countyInput.addEventListener('input', handleCountyLookup);
+            countyInput.addEventListener('change', () => {
+                const c = String(countyInput.value || '').trim();
+                if (!tryApplyFromResultsByCounty(c)) handleCountyLookup();
+            });
+        }
 
         async function loadDevelopments() {
             try {
