@@ -513,8 +513,8 @@
                         <div class="chart-section" id="county-insights" style="display: none;">
                             <div class="chart-indicator-control" style="display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;">
                                 <label for="county-insights-metric-select" style="font-weight: bold; color: #333;">Metric:</label>
-                                <select id="county-insights-metric-select" class="fred-select" style="min-width: 220px;">
-                                    <option value="avg_listing_price">Average Listing Price</option>
+                                <select id="county-insights-metric-select" class="fred-select" style="min-width: 260px;">
+                                    <option value="avg_listing_price" selected>Average Listing Price</option>
                                     <option value="median_listing_price_proxy">Median Listing Price (proxy)</option>
                                     <option value="avg_price_per_sqft">Average Price per Sq Ft</option>
                                     <option value="avg_days_on_market">Average Days on Market</option>
@@ -524,6 +524,19 @@
                                     <option value="price_increased_share">Price Increased Share</option>
                                     <option value="price_reduced_share">Price Reduced Share</option>
                                 </select>
+                            </div>
+                            <div class="comparison-controls" id="ci-controls-section" style="margin-bottom: 12px;">
+                                <div class="locations-container">
+                                    <h4 id="ci-controls-title">County Insights Comparison</h4>
+                                    <div id="ci-location-selections"></div>
+                                </div>
+                                <div class="action-buttons">
+                                    <button id="ci-add-location-btn" class="add-location-btn">Add County</button>
+                                    <button id="ci-remove-location-btn" class="remove-location-btn" style="display: none;">Remove County</button>
+                                    <button id="ci-compare-btn" class="compare-btn">
+                                        <span>Generate Insight</span>
+                                    </button>
+                                </div>
                             </div>
                             <div id="county-insights-chart-container" style="position: relative; height: 420px; width: 100%;">
                                 <canvas id="county-insights-chart"></canvas>
@@ -3720,6 +3733,96 @@
                 const loadingEl = document.getElementById('county-insights-loading');
                 const errorEl = document.getElementById('county-insights-error');
 
+                const ciLocations = document.getElementById('ci-location-selections');
+                const ciAddBtn = document.getElementById('ci-add-location-btn');
+                const ciRemoveBtn = document.getElementById('ci-remove-location-btn');
+                const ciCompareBtn = document.getElementById('ci-compare-btn');
+                window.ciSelectionCount = 1;
+
+                function selectedCounties() {
+                    const list = [];
+                    for (let i = 1; i <= (window.ciSelectionCount || 1); i++) {
+                        const sState = document.getElementById(`ci-state-select-${i}`);
+                        const sCounty = document.getElementById(`ci-county-select-${i}`);
+                        if (sState && sCounty && sState.value && sCounty.value) {
+                            list.push({ state: sState.value, countyId: sCounty.value, name: sCounty.options[sCounty.selectedIndex]?.text || sCounty.value });
+                        }
+                    }
+                    return list;
+                }
+
+                async function updateCiCounties(idx) {
+                    const stateSelect = document.getElementById(`ci-state-select-${idx}`);
+                    const countySelect = document.getElementById(`ci-county-select-${idx}`);
+                    if (!stateSelect || !countySelect) return;
+                    if (!stateSelect.value) { countySelect.innerHTML = '<option value="">Select County</option>'; return; }
+                    try {
+                        const resp = await fetch(`${API_BASE}/counties?state=${encodeURIComponent(stateSelect.value)}`);
+                        const result = await resp.json();
+                        if (!resp.ok || !result.success) throw new Error('Failed to fetch counties');
+                        countySelect.innerHTML = '<option value="">Select County</option>';
+                        const sorted = result.data.sort((a,b)=>a.name.localeCompare(b.name));
+                        sorted.forEach(c => {
+                            const opt = document.createElement('option');
+                            opt.value = c.id;
+                            opt.textContent = c.name;
+                            countySelect.appendChild(opt);
+                        });
+                    } catch (e) {
+                        countySelect.innerHTML = '<option value="">Error loading counties</option>';
+                    }
+                }
+
+                async function rebuildCiSelections() {
+                    const prev = [];
+                    for (let i = 1; i <= (window.ciSelectionCount || 1); i++) {
+                        const sState = document.getElementById(`ci-state-select-${i}`);
+                        const sCounty = document.getElementById(`ci-county-select-${i}`);
+                        if (sState && sCounty) prev.push({ state: sState.value, county: sCounty.value });
+                    }
+                    ciLocations.innerHTML = '';
+                    for (let i = 1; i <= (window.ciSelectionCount || 1); i++) {
+                        const wrap = document.createElement('div');
+                        wrap.className = 'location-selection';
+                        wrap.id = `ci-location-${i}`;
+                        wrap.innerHTML = `
+                            <div>
+                                <label>State</label>
+                                <select id=\"ci-state-select-${i}\">
+                                    <option value=\"\">Choose State</option>
+                                    ${availableStates.map(st => `<option value=\"${st}\">${st}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label>County</label>
+                                <select id=\"ci-county-select-${i}\"><option value=\"\">Select County</option></select>
+                            </div>
+                        `;
+                        ciLocations.appendChild(wrap);
+                        const sState = document.getElementById(`ci-state-select-${i}`);
+                        const sCounty = document.getElementById(`ci-county-select-${i}`);
+                        sState.addEventListener('change', () => updateCiCounties(i));
+                        if (prev[i-1] && prev[i-1].state) {
+                            sState.value = prev[i-1].state;
+                            await updateCiCounties(i);
+                            if (prev[i-1].county) sCounty.value = prev[i-1].county;
+                        } else if (i === 1 && state) {
+                            sState.value = state;
+                            await updateCiCounties(i);
+                        }
+                    }
+                    ciRemoveBtn.style.display = (window.ciSelectionCount || 1) > 1 ? 'inline-block' : 'none';
+                }
+
+                ciAddBtn.addEventListener('click', async () => {
+                    window.ciSelectionCount = Math.min(5, (window.ciSelectionCount || 1) + 1);
+                    await rebuildCiSelections();
+                });
+                ciRemoveBtn.addEventListener('click', async () => {
+                    window.ciSelectionCount = Math.max(1, (window.ciSelectionCount || 1) - 1);
+                    await rebuildCiSelections();
+                });
+
                 const fetchAndRender = async () => {
                     try {
                         chartSection.style.display = 'block';
@@ -3741,13 +3844,9 @@
 
                         const metric = metricSelect.value || 'avg_listing_price';
                         const rows = json.data;
-                        const points = rows.map(r => ({
-                            x: parseYyyymmToDate(r.month_date_yyyymm),
-                            y: toNumberOrNull(r[metric])
-                        }));
-                        const label = `${rows[0].county_name || 'County'} (${rows[0].state_id || ''})`;
-
-                        renderCountyInsightsChart(points, label, metricLabel(metric));
+                        const title = `${rows[0].county_name || 'County'} (${rows[0].state_id || ''})`;
+                        const series = [{ key: metric, label: metricLabel(metric), data: rows.map(r => ({ x: parseYyyymmToDate(r.month_date_yyyymm), y: toNumberOrNull(r[metric]) })) }];
+                        renderCountyInsightsChart(series, title);
                         loadingEl.style.display = 'none';
                     } catch (err) {
                         console.warn('County insights error:', err);
@@ -3756,34 +3855,83 @@
                     }
                 };
 
-                metricSelect.addEventListener('change', fetchAndRender);
+                async function ciRenderForSelections(metric, selections) {
+                    try {
+                        chartSection.style.display = 'block';
+                        loadingEl.style.display = 'flex';
+                        errorEl.style.display = 'none';
+                        const fipsList = selections.map(s => s.countyId).join(',');
+                        const url = new URL(`${API_BASE}/county-comparison`, window.location.origin);
+                        url.searchParams.set('county_fips', fipsList);
+                        url.searchParams.set('months', '36');
+                        const resp = await fetch(url.toString().replace(window.location.origin, ''));
+                        const json = await resp.json();
+                        if (!resp.ok || !json.success || !Array.isArray(json.data) || json.data.length === 0) throw new Error(json.error || 'No data');
+                        const byCounty = {}; const names = {};
+                        for (const r of json.data) {
+                            const id = String(r.county_fips).padStart(5, '0');
+                            if (!byCounty[id]) byCounty[id] = [];
+                            byCounty[id].push({ x: parseYyyymmToDate(r.month_date_yyyymm), y: toNumberOrNull(r[metric]) });
+                            names[id] = r.county_name || id;
+                        }
+                        const series = Object.keys(byCounty).map((id) => ({ key: metric, label: `${names[id]}`, data: byCounty[id] }));
+                        renderCountyInsightsChart(series, metricLabel(metric));
+                        loadingEl.style.display = 'none';
+                    } catch (e) {
+                        console.warn('County insights comparison error:', e);
+                        loadingEl.style.display = 'none';
+                        errorEl.style.display = 'flex';
+                    }
+                }
+
+                metricSelect.addEventListener('change', async () => {
+                    const selections = selectedCounties();
+                    const metric = metricSelect.value || 'avg_listing_price';
+                    if (selections.length > 0) {
+                        await ciRenderForSelections(metric, selections);
+                    } else {
+                        await fetchAndRender();
+                    }
+                });
+                await rebuildCiSelections();
+                ciCompareBtn.addEventListener('click', async () => {
+                    const selections = selectedCounties();
+                    const metric = metricSelect.value || 'avg_listing_price';
+                    if (selections.length > 0) {
+                        await ciRenderForSelections(metric, selections);
+                    } else {
+                        await fetchAndRender();
+                    }
+                });
                 await fetchAndRender();
             } catch (e) {
                 console.warn('initCountyInsights failed:', e);
             }
         }
 
-        function renderCountyInsightsChart(points, label, title) {
+        function renderCountyInsightsChart(series, title) {
             const canvas = document.getElementById('county-insights-chart');
             if (!canvas) return;
             if (countyInsightsChart) {
                 countyInsightsChart.destroy();
                 countyInsightsChart = null;
             }
-            const color = '#2c7be5';
+            const palette = ['#2c7be5', '#e83e8c', '#28a745', '#fd7e14', '#6f42c1', '#17a2b8', '#20c997', '#ffc107', '#6610f2'];
             const ctx = canvas.getContext('2d');
+            const datasets = series.map((s, idx) => ({
+                label: s.label,
+                data: s.data,
+                yAxisID: isRatioMetric(s.key) ? 'y2' : 'y',
+                backgroundColor: palette[idx % palette.length] + '20',
+                borderColor: palette[idx % palette.length],
+                borderWidth: 3,
+                fill: false,
+                tension: 0.3,
+                pointRadius: 0
+            }));
             countyInsightsChart = new Chart(ctx, {
                 type: 'line',
-                data: { datasets: [{
-                    label,
-                    data: points,
-                    backgroundColor: color + '20',
-                    borderColor: color,
-                    borderWidth: 3,
-                    fill: false,
-                    tension: 0.3,
-                    pointRadius: 0
-                }]},
+                data: { datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
@@ -3794,7 +3942,14 @@
                     },
                     scales: {
                         x: { type: 'time', time: { unit: 'month' } },
-                        y: { beginAtZero: false }
+                        y: { beginAtZero: false },
+                        y2: {
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            suggestedMin: 0,
+                            suggestedMax: 1,
+                            ticks: { callback: (v) => `${Math.round(v * 100)}%` }
+                        }
                     }
                 }
             });
@@ -3826,6 +3981,9 @@
                 case 'price_reduced_share': return 'Price Reduced Share';
                 default: return key;
             }
+        }
+        function isRatioMetric(key) {
+            return key === 'pending_ratio' || key === 'price_increased_share' || key === 'price_reduced_share';
         }
         // Initialize development comparison
         async function initializeDevelopmentComparison() {
