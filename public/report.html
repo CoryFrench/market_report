@@ -1584,54 +1584,26 @@
                         </div>
                     `;
                 }
-                let series = null;
-                // Primary: ZIP series
-                try {
-                    const response = await fetch(`${API_BASE}/zip-series?zip=${encodeURIComponent(String(zipCode))}&months=24`);
-                    const result = await response.json();
-                    if (response.ok && result.success && Array.isArray(result.data) && result.data.length > 0) {
-                        series = result.data;
-                    }
-                } catch (_) {}
-                // Fallback: county-series by ZIP
-                if (!series) {
-                    const resp2 = await fetch(`${API_BASE}/county-series?zip=${encodeURIComponent(String(zipCode))}&months=24`);
-                    const json2 = await resp2.json();
-                    if (resp2.ok && json2.success && Array.isArray(json2.data) && json2.data.length > 0) {
-                        // Map county-level fields to expected names for display
-                        series = json2.data.map(r => ({
-                            zip5: String(zipCode).padStart(5, '0'),
-                            city: r.county_name || '',
-                            state_id: r.state_id || '',
-                            month_date_yyyymm: r.yyyymm,
-                            active_listing_count: r.active_listing_count,
-                            new_listing_count: r.new_listing_count,
-                            pending_listing_count: r.pending_listing_count,
-                            total_listing_count: r.total_listing_count,
-                            price_increased_count: r.price_increased_count,
-                            price_reduced_count: r.price_reduced_count,
-                            avg_listing_price: r.avg_listing_price,
-                            median_listing_price_proxy: r.median_listing_price_proxy,
-                            avg_days_on_market: r.avg_days_on_market,
-                            avg_price_per_sqft: r.avg_price_per_sqft
-                        }));
-                    } else {
-                        throw new Error(json2.error || 'No ZIP data available');
-                    }
+                // Fetch ZIP series only (no county fallback for Home Info panel)
+                const respZip = await fetch(`${API_BASE}/zip-series?zip=${encodeURIComponent(String(zipCode))}&months=24`);
+                const jsonZip = await respZip.json();
+                if (!respZip.ok || !jsonZip.success || !Array.isArray(jsonZip.data) || jsonZip.data.length === 0) {
+                    throw new Error(jsonZip.error || 'No ZIP data available');
                 }
+                const series = jsonZip.data;
                 // Latest month record
                 const latest = series[series.length - 1];
                 const zipStats = {
                     zip5: latest.zip5,
                     city: latest.city,
                     state_id: latest.state_id,
-                    active_listing_count: Number(latest.active_listing_count) || 0,
-                    median_listing_price: Number(latest.median_listing_price || latest.median_listing_price_proxy) || null,
-                    median_days_on_market: Number(latest.median_days_on_market || latest.avg_days_on_market) || null,
-                    new_listing_count: Number(latest.new_listing_count) || 0,
-                    pending_listing_count: Number(latest.pending_listing_count) || 0,
-                    median_listing_price_per_sqft: Number(latest.median_listing_price_per_square_foot || latest.avg_price_per_sqft) || null,
-                    total_listing_count: Number(latest.total_listing_count) || 0
+                    active_listing_count: Math.max(0, Math.floor(Number(latest.active_listing_count) || 0)),
+                    median_listing_price: (Number(latest.median_listing_price || latest.median_listing_price_proxy) || null),
+                    median_days_on_market: (Number(latest.median_days_on_market || latest.avg_days_on_market) || null) && Math.max(0, Math.round(Number(latest.median_days_on_market || latest.avg_days_on_market))),
+                    new_listing_count: Math.max(0, Math.floor(Number(latest.new_listing_count) || 0)),
+                    pending_listing_count: Math.max(0, Math.floor(Number(latest.pending_listing_count) || 0)),
+                    median_listing_price_per_sqft: (Number(latest.median_listing_price_per_square_foot || latest.avg_price_per_sqft) || null),
+                    total_listing_count: Math.max(0, Math.floor(Number(latest.total_listing_count) || 0))
                 };
                 displayZipStats(zipStats);
             } catch (error) {
@@ -1668,8 +1640,8 @@
                         </div>
                         <div>
                             <div style="margin-bottom: 8px;"><strong>Median Listing Price:</strong> <span style="color:#2c3e50;">${formatPrice(stats.median_listing_price)}</span></div>
-                            <div style="margin-bottom: 8px;"><strong>Median Price per SqFt:</strong> <span style="color:#2c3e50;">${stats.median_listing_price_per_sqft ? `$${Number(stats.median_listing_price_per_sqft).toLocaleString()}` : 'N/A'}</span></div>
-                            <div style="margin-bottom: 8px;"><strong>Median Days on Market:</strong> <span style="color:#34495e;">${stats.median_days_on_market ? `${stats.median_days_on_market} days` : 'N/A'}</span></div>
+                            <div style="margin-bottom: 8px;"><strong>Median Price per SqFt:</strong> <span style="color:#2c3e50;">${Number.isFinite(Number(stats.median_listing_price_per_sqft)) ? `$${Number(stats.median_listing_price_per_sqft).toFixed(0).toLocaleString?.() || Number(stats.median_listing_price_per_sqft).toLocaleString()}` : 'N/A'}</span></div>
+                            <div style="margin-bottom: 8px;"><strong>Median Days on Market:</strong> <span style="color:#34495e;">${Number.isFinite(Number(stats.median_days_on_market)) ? `${Number(stats.median_days_on_market)} days` : 'N/A'}</span></div>
                         </div>
                     </div>
                 </div>
