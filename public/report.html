@@ -1585,14 +1585,12 @@
                     `;
                 }
                 // Fetch ZIP series only (no county fallback for Home Info panel)
-                const respZip = await fetch(`${API_BASE}/zip-series?zip=${encodeURIComponent(String(zipCode))}&months=24`);
-                const jsonZip = await respZip.json();
-                if (!respZip.ok || !jsonZip.success || !Array.isArray(jsonZip.data) || jsonZip.data.length === 0) {
-                    throw new Error(jsonZip.error || 'No ZIP data available');
+                const respLatest = await fetch(`${API_BASE}/zip-latest?zip=${encodeURIComponent(String(zipCode))}`);
+                const latestResp = await respLatest.json();
+                if (!respLatest.ok || !latestResp.success || !latestResp.data) {
+                    throw new Error(latestResp.error || 'No ZIP latest data');
                 }
-                const series = jsonZip.data;
-                // Latest month record
-                const latest = series[series.length - 1];
+                const latest = latestResp.data;
                 const zipStats = {
                     zip5: latest.zip5,
                     city: latest.city,

@@ -400,6 +400,38 @@ const dbQueries = {
     return await query(queryText, [ cleaned, Number(months || 24) ]);
   },
 
+  // Latest single row for a ZIP from otherdata.realtor_historic
+  getZipLatestByZip: async (zip) => {
+    const queryText = `
+      WITH latest AS (
+        SELECT 
+          month_date_yyyymm::int AS month_date_yyyymm,
+          LPAD(postal_code::text, 5, '0') AS zip5,
+          zip_name,
+          NULLIF(median_listing_price, -1) AS median_listing_price,
+          NULLIF(median_days_on_market, -1) AS median_days_on_market,
+          NULLIF(median_listing_price_per_square_foot, -1) AS median_listing_price_per_square_foot,
+          GREATEST(COALESCE(NULLIF(active_listing_count, -1), 0), 0) AS active_listing_count,
+          GREATEST(COALESCE(NULLIF(new_listing_count, -1), 0), 0) AS new_listing_count,
+          GREATEST(COALESCE(NULLIF(pending_listing_count, -1), 0), 0) AS pending_listing_count,
+          GREATEST(COALESCE(NULLIF(total_listing_count, -1), 0), 0) AS total_listing_count,
+          quality_flag
+        FROM otherdata.realtor_historic
+        WHERE LPAD(postal_code::text, 5, '0') = LPAD($1::text, 5, '0')
+          AND quality_flag = 1
+        ORDER BY month_date_yyyymm DESC
+        LIMIT 1
+      )
+      SELECT 
+        l.*, z.city, z.state_id
+      FROM latest l
+      LEFT JOIN otherdata.zip_city_county_xref z
+        ON z.zip::text = l.zip5
+      LIMIT 1
+    `;
+    return await query(queryText, [ String(zip || '').trim() ]);
+  },
+
   // Multi-county comparison: time series for an array of county FIPS
   getCountySeriesMultiByFips: async (countyFipsArray, months = 24) => {
     const queryText = `

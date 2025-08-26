@@ -1723,6 +1723,24 @@ app.get('/api/zip-series', async (req, res) => {
   }
 });
 
+// Latest ZIP snapshot — single most recent row for a given ZIP
+app.get('/api/zip-latest', async (req, res) => {
+  try {
+    const { zip } = req.query;
+    if (!zip || String(zip).trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'zip is required' });
+    }
+    const result = await dbQueries.getZipLatestByZip(String(zip).trim());
+    if (!result || result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'ZIP not found' });
+    }
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error fetching ZIP latest:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch ZIP latest', message: error.message });
+  }
+});
+
 // Multi-ZIP comparison time series — zips is CSV string, optional months
 app.get('/api/zip-comparison', async (req, res) => {
   try {
