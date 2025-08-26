@@ -1707,6 +1707,39 @@ app.get('/api/county-comparison', async (req, res) => {
   }
 });
 
+// ZIP-level series from realtor.com — by ZIP code
+app.get('/api/zip-series', async (req, res) => {
+  try {
+    const { zip, months } = req.query;
+    if (!zip || String(zip).trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'zip is required' });
+    }
+    const monthsBack = months ? Number(months) : 24;
+    const result = await dbQueries.getZipSeriesByZip(String(zip).trim(), monthsBack);
+    return res.json({ success: true, count: result.rowCount, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching ZIP series:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch ZIP series', message: error.message });
+  }
+});
+
+// Multi-ZIP comparison time series — zips is CSV string, optional months
+app.get('/api/zip-comparison', async (req, res) => {
+  try {
+    const { zips, months } = req.query;
+    if (!zips || String(zips).trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'zips (CSV) is required' });
+    }
+    const list = String(zips).split(',').map(s => s.trim()).filter(Boolean);
+    const monthsBack = months ? Number(months) : 24;
+    const result = await dbQueries.getZipSeriesMultiByZip(list, monthsBack);
+    return res.json({ success: true, count: result.rowCount, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching ZIP comparison series:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch ZIP comparison', message: error.message });
+  }
+});
+
 // Counties API endpoint for Areas of Interest comparison
 app.get('/api/counties', async (req, res) => {
   try {

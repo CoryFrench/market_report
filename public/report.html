@@ -506,9 +506,9 @@
                     </div>
                 </div>
 
-                <!-- County Insights (realtor.com ZIP→county aggregation) - shown for non–Palm Beach -->
+                <!-- ZIP Insights (realtor.com ZIP-level) -->
                 <div class="section" id="county-insights-section" style="display: none;">
-                    <h2>County Insights</h2>
+                    <h2>ZIP Insights</h2>
                     <div class="section-content">
                         <div class="chart-section" id="county-insights" style="display: none;">
                             <div class="chart-indicator-control" style="display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;">
@@ -527,28 +527,28 @@
                             </div>
                             <div class="comparison-controls" id="ci-controls-section" style="margin-bottom: 12px;">
                                 <div class="locations-container">
-                                    <h4 id="ci-controls-title">County Insights Comparison</h4>
+                                    <h4 id="ci-controls-title">ZIP Insights Comparison</h4>
                                     <div id="ci-location-selections"></div>
                                 </div>
                                 <div class="action-buttons">
-                                    <button id="ci-add-location-btn" class="add-location-btn">Add County</button>
-                                    <button id="ci-remove-location-btn" class="remove-location-btn" style="display: none;">Remove County</button>
+                                    <button id="ci-add-location-btn" class="add-location-btn">Add ZIP</button>
+                                    <button id="ci-remove-location-btn" class="remove-location-btn" style="display: none;">Remove ZIP</button>
                                     <button id="ci-compare-btn" class="compare-btn">
                                         <span>Generate Insight</span>
                                     </button>
                                 </div>
                             </div>
                             <div class="chart-controls" id="ci-chart-controls" style="display:none; margin-bottom: 8px;">
-                                <button id="ci-back-to-controls-btn" class="back-to-controls-btn">← Change Counties</button>
+                                <button id="ci-back-to-controls-btn" class="back-to-controls-btn">← Change ZIPs</button>
                             </div>
                             <div id="county-insights-chart-container" style="position: relative; height: 420px; width: 100%; display: none;">
                                 <canvas id="county-insights-chart"></canvas>
                                 <div id="county-insights-loading" class="chart-loading-message" style="display: none;">
                                     <div class="loading-spinner-small"></div>
-                                    <p>Loading county insights…</p>
+                                    <p>Loading ZIP insights…</p>
                                 </div>
                                 <div id="county-insights-error" class="chart-error-message" style="display: none;">
-                                    <p>Insights unavailable for this county at the moment.</p>
+                                    <p>Insights unavailable for this ZIP at the moment.</p>
                                 </div>
                             </div>
                         </div>
@@ -744,27 +744,15 @@
             loadFredCharts(data.report_id);
             setupNationalInfoToggles();
 
-            // County Insights: show realtor.com county series for non–Palm Beach
+            // ZIP Insights: always show zipcode insights section
             try {
-                const countyName = String(data.county || '').toLowerCase();
-                const isPalmBeach = countyName.includes('palm beach');
-                window.isPalmBeachCounty = !!isPalmBeach;
                 const section = document.getElementById('county-insights-section');
                 if (section) {
-                    if (!isPalmBeach) {
-                        section.style.display = 'flex';
-                        initCountyInsights(data);
-                    } else {
-                        section.style.display = 'none';
-                    }
+                    section.style.display = 'flex';
+                    initCountyInsights(data);
                 }
 
-                // Hide Neighbourhood Charts section entirely when not Palm Beach
-                const devSectionTitle = document.getElementById('dev-comp-title');
-                if (!isPalmBeach && devSectionTitle) {
-                    const sectionEl = devSectionTitle.closest('.section');
-                    if (sectionEl) sectionEl.style.display = 'none';
-                }
+                // Keep Development/Zone sections visibility unchanged
             } catch (_) {}
         }
         
@@ -859,7 +847,11 @@
                 const devControls = document.getElementById('dev-controls-section');
                 const devChartSection = document.getElementById('dev-chart-section');
                 if (!isPalmBeach) {
-                    if (devSectionTitle) devSectionTitle.textContent = 'Neighborhood comparisons are not available in this area';
+                    // Hide the entire Neighbourhood Charts section when not Palm Beach County
+                    if (devSectionTitle) {
+                        const sectionEl = devSectionTitle.closest('.section');
+                        if (sectionEl) sectionEl.style.display = 'none';
+                    }
                     if (devControls) devControls.style.display = 'none';
                     if (devChartSection) devChartSection.style.display = 'none';
                 }
@@ -3757,9 +3749,7 @@
         let countyInsightsChart = null;
         async function initCountyInsights(reportData) {
             try {
-                const county = String(reportData.county || '').trim();
-                const state = String(reportData.home_state || '').trim();
-                if (!county) return;
+                const zipFromReport = String(reportData.zip_code || '').trim();
 
                 const metricSelect = document.getElementById('county-insights-metric-select');
                 const chartSection = document.getElementById('county-insights');
@@ -3772,13 +3762,12 @@
                 const ciCompareBtn = document.getElementById('ci-compare-btn');
                 window.ciSelectionCount = 1;
 
-                function selectedCounties() {
+                function selectedZips() {
                     const list = [];
                     for (let i = 1; i <= (window.ciSelectionCount || 1); i++) {
-                        const sState = document.getElementById(`ci-state-select-${i}`);
-                        const sCounty = document.getElementById(`ci-county-select-${i}`);
-                        if (sState && sCounty && sState.value && sCounty.value) {
-                            list.push({ state: sState.value, countyId: sCounty.value, name: sCounty.options[sCounty.selectedIndex]?.text || sCounty.value });
+                        const input = document.getElementById(`ci-zip-input-${i}`);
+                        if (input && input.value && /^\d{5}$/.test(input.value.trim())) {
+                            list.push({ zip: input.value.trim(), name: input.value.trim() });
                         }
                     }
                     return list;
@@ -3795,34 +3784,11 @@
                     document.getElementById('county-insights-chart-container').style.display = 'block';
                 }
 
-                async function updateCiCounties(idx) {
-                    const stateSelect = document.getElementById(`ci-state-select-${idx}`);
-                    const countySelect = document.getElementById(`ci-county-select-${idx}`);
-                    if (!stateSelect || !countySelect) return;
-                    if (!stateSelect.value) { countySelect.innerHTML = '<option value="">Select County</option>'; return; }
-                    try {
-                        const resp = await fetch(`${API_BASE}/counties?state=${encodeURIComponent(stateSelect.value)}`);
-                        const result = await resp.json();
-                        if (!resp.ok || !result.success) throw new Error('Failed to fetch counties');
-                        countySelect.innerHTML = '<option value="">Select County</option>';
-                        const sorted = result.data.sort((a,b)=>a.name.localeCompare(b.name));
-                        sorted.forEach(c => {
-                            const opt = document.createElement('option');
-                            opt.value = c.id;
-                            opt.textContent = c.name;
-                            countySelect.appendChild(opt);
-                        });
-                    } catch (e) {
-                        countySelect.innerHTML = '<option value="">Error loading counties</option>';
-                    }
-                }
-
                 async function rebuildCiSelections() {
                     const prev = [];
                     for (let i = 1; i <= (window.ciSelectionCount || 1); i++) {
-                        const sState = document.getElementById(`ci-state-select-${i}`);
-                        const sCounty = document.getElementById(`ci-county-select-${i}`);
-                        if (sState && sCounty) prev.push({ state: sState.value, county: sCounty.value });
+                        const input = document.getElementById(`ci-zip-input-${i}`);
+                        if (input) prev.push(input.value.trim());
                     }
                     ciLocations.innerHTML = '';
                     for (let i = 1; i <= (window.ciSelectionCount || 1); i++) {
@@ -3831,29 +3797,96 @@
                         wrap.id = `ci-location-${i}`;
                         wrap.innerHTML = `
                             <div>
-                                <label>State</label>
-                                <select id=\"ci-state-select-${i}\">
-                                    <option value=\"\">Choose State</option>
-                                    ${availableStates.map(st => `<option value=\"${st}\">${st}</option>`).join('')}
-                                </select>
+                                <label>ZIP or City</label>
+                                <input id="ci-zip-input-${i}" type="text" placeholder="Enter ZIP or City, ST" maxlength="64" style="width: 200px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;" />
                             </div>
                             <div>
-                                <label>County</label>
-                                <select id=\"ci-county-select-${i}\"><option value=\"\">Select County</option></select>
+                                <label id="ci-zip-dropdown-label-${i}" style="display:none;">Select ZIP</label>
+                                <select id="ci-zip-dropdown-${i}" style="display:none; min-width: 220px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; background:white;"></select>
                             </div>
                         `;
                         ciLocations.appendChild(wrap);
-                        const sState = document.getElementById(`ci-state-select-${i}`);
-                        const sCounty = document.getElementById(`ci-county-select-${i}`);
-                        sState.addEventListener('change', () => updateCiCounties(i));
-                        if (prev[i-1] && prev[i-1].state) {
-                            sState.value = prev[i-1].state;
-                            await updateCiCounties(i);
-                            if (prev[i-1].county) sCounty.value = prev[i-1].county;
-                        } else if (i === 1 && state) {
-                            sState.value = state;
-                            await updateCiCounties(i);
+                        const input = document.getElementById(`ci-zip-input-${i}`);
+                        const dropdown = document.getElementById(`ci-zip-dropdown-${i}`);
+                        const dropdownLabel = document.getElementById(`ci-zip-dropdown-label-${i}`);
+                        if (prev[i-1]) {
+                            input.value = prev[i-1];
+                        } else if (i === 1 && zipFromReport && /^\d{5}$/.test(zipFromReport)) {
+                            input.value = zipFromReport;
                         }
+
+                        let debounceTimer = null;
+                        input.addEventListener('input', () => {
+                            const val = String(input.value || '').trim();
+                            if (/^\d{5}$/.test(val)) {
+                                dropdown.style.display = 'none';
+                                dropdownLabel.style.display = 'none';
+                                return;
+                            }
+                            if (val.length < 2) {
+                                dropdown.style.display = 'none';
+                                dropdownLabel.style.display = 'none';
+                                return;
+                            }
+                            if (debounceTimer) clearTimeout(debounceTimer);
+                            debounceTimer = setTimeout(async () => {
+                                try {
+                                    const url = new URL(`${API_BASE}/zipcity/by-city`, window.location.origin);
+                                    // Parse optional state hint like "City, ST" or "City, State Name"
+                                    let cityQuery = val;
+                                    let stateHint = null;
+                                    const m = val.match(/^(.*?),(.*)$/);
+                                    if (m) {
+                                        cityQuery = m[1].trim();
+                                        stateHint = m[2].trim();
+                                    }
+                                    url.searchParams.set('city', cityQuery);
+                                    if (stateHint && stateHint.length > 0) {
+                                        const two = stateHint.match(/^\s*([A-Za-z]{2})\s*$/);
+                                        url.searchParams.set('state', two ? two[1].toUpperCase() : stateHint);
+                                    }
+                                    const resp = await fetch(url.toString().replace(window.location.origin, ''));
+                                    const json = await resp.json();
+                                    if (!resp.ok || !json.success) throw new Error('Lookup failed');
+                                    const rows = Array.isArray(json.data) ? json.data : [];
+                                    if (rows.length === 0) {
+                                        dropdown.style.display = 'none';
+                                        dropdownLabel.style.display = 'none';
+                                        return;
+                                    }
+                                    dropdown.innerHTML = '<option value="">Select ZIP</option>';
+                                    const seen = new Set();
+                                    for (const r of rows) {
+                                        const zip5 = String(r.zip5 || r.zip || '').padStart(5, '0');
+                                        if (!/^\d{5}$/.test(zip5) || seen.has(zip5)) continue;
+                                        seen.add(zip5);
+                                        const opt = document.createElement('option');
+                                        const stateDisp = r.state_id || r.state_name || '';
+                                        opt.value = zip5;
+                                        opt.textContent = `${zip5} - ${r.city || ''}${stateDisp ? ', ' + stateDisp : ''}`;
+                                        dropdown.appendChild(opt);
+                                    }
+                                    if (dropdown.options.length > 1) {
+                                        dropdown.style.display = 'inline-block';
+                                        dropdownLabel.style.display = 'inline-block';
+                                    } else {
+                                        dropdown.style.display = 'none';
+                                        dropdownLabel.style.display = 'none';
+                                    }
+                                } catch (_) {
+                                    dropdown.style.display = 'none';
+                                    dropdownLabel.style.display = 'none';
+                                }
+                            }, 400);
+                        });
+                        dropdown.addEventListener('change', () => {
+                            const z = String(dropdown.value || '').trim();
+                            if (/^\d{5}$/.test(z)) {
+                                input.value = z;
+                                dropdown.style.display = 'none';
+                                dropdownLabel.style.display = 'none';
+                            }
+                        });
                     }
                     ciRemoveBtn.style.display = (window.ciSelectionCount || 1) > 1 ? 'inline-block' : 'none';
                 }
@@ -3873,11 +3906,8 @@
                         loadingEl.style.display = 'flex';
                         errorEl.style.display = 'none';
 
-                        // Resolve to FIPS using API if needed, then fetch series
-                        const url = new URL(`${API_BASE}/county-series`, window.location.origin);
-                        if (county) url.searchParams.set('county', county);
-                        if (state) url.searchParams.set('state', state);
-                        if (reportData.zip_code) url.searchParams.set('zip', reportData.zip_code);
+                        const url = new URL(`${API_BASE}/zip-series`, window.location.origin);
+                        if (zipFromReport) url.searchParams.set('zip', zipFromReport);
                         url.searchParams.set('months', '36');
 
                         const resp = await fetch(url.toString().replace(window.location.origin, ''));
@@ -3888,13 +3918,15 @@
 
                         const metric = metricSelect.value || 'avg_listing_price';
                         const rows = json.data;
-                        const title = `${rows[0].county_name || 'County'} (${rows[0].state_id || ''})`;
-                        const series = [{ key: metric, label: metricLabel(metric), data: rows.map(r => ({ x: parseYyyymmToDate(r.month_date_yyyymm), y: toNumberOrNull(r[metric]) })) }];
+                        const cityName = rows[0].city || '';
+                        const zipLabel = String(rows[0].zip5 || '').padStart(5, '0');
+                        const title = `${metricLabel(metric)}`;
+                        const series = [{ key: metric, label: `${zipLabel}${cityName ? ' - ' + cityName : ''}`, data: rows.map(r => ({ x: parseYyyymmToDate(r.month_date_yyyymm), y: toNumberOrNull(r[metric]) })) }];
                         renderCountyInsightsChart(series, title);
                         ciShowChartView();
                         loadingEl.style.display = 'none';
                     } catch (err) {
-                        console.warn('County insights error:', err);
+                        console.warn('ZIP insights error:', err);
                         loadingEl.style.display = 'none';
                         errorEl.style.display = 'flex';
                     }
@@ -3905,33 +3937,34 @@
                         chartSection.style.display = 'block';
                         loadingEl.style.display = 'flex';
                         errorEl.style.display = 'none';
-                        const fipsList = selections.map(s => s.countyId).join(',');
-                        const url = new URL(`${API_BASE}/county-comparison`, window.location.origin);
-                        url.searchParams.set('county_fips', fipsList);
+                        const zipList = selections.map(s => s.zip).join(',');
+                        const url = new URL(`${API_BASE}/zip-comparison`, window.location.origin);
+                        url.searchParams.set('zips', zipList);
                         url.searchParams.set('months', '36');
                         const resp = await fetch(url.toString().replace(window.location.origin, ''));
                         const json = await resp.json();
                         if (!resp.ok || !json.success || !Array.isArray(json.data) || json.data.length === 0) throw new Error(json.error || 'No data');
-                        const byCounty = {}; const names = {};
+                        const byZip = {}; const names = {};
                         for (const r of json.data) {
-                            const id = String(r.county_fips).padStart(5, '0');
-                            if (!byCounty[id]) byCounty[id] = [];
-                            byCounty[id].push({ x: parseYyyymmToDate(r.month_date_yyyymm), y: toNumberOrNull(r[metric]) });
-                            names[id] = r.county_name || id;
+                            const id = String(r.zip5).padStart(5, '0');
+                            if (!byZip[id]) byZip[id] = [];
+                            byZip[id].push({ x: parseYyyymmToDate(r.month_date_yyyymm), y: toNumberOrNull(r[metric]) });
+                            const city = r.city || '';
+                            names[id] = `${id}${city ? ' - ' + city : ''}`;
                         }
-                        const series = Object.keys(byCounty).map((id) => ({ key: metric, label: `${names[id]}`, data: byCounty[id] }));
+                        const series = Object.keys(byZip).map((id) => ({ key: metric, label: `${names[id]}`, data: byZip[id] }));
                         renderCountyInsightsChart(series, metricLabel(metric));
                         ciShowChartView();
                         loadingEl.style.display = 'none';
                     } catch (e) {
-                        console.warn('County insights comparison error:', e);
+                        console.warn('ZIP insights comparison error:', e);
                         loadingEl.style.display = 'none';
                         errorEl.style.display = 'flex';
                     }
                 }
 
                 metricSelect.addEventListener('change', async () => {
-                    const selections = selectedCounties();
+                    const selections = selectedZips();
                     const metric = metricSelect.value || 'avg_listing_price';
                     if (selections.length > 0) {
                         await ciRenderForSelections(metric, selections);
@@ -3941,11 +3974,11 @@
                 });
                 await rebuildCiSelections();
                 ciCompareBtn.addEventListener('click', async () => {
-                    const selections = selectedCounties();
+                    const selections = selectedZips();
                     const metric = metricSelect.value || 'avg_listing_price';
                     if (selections.length > 0) {
                         await ciRenderForSelections(metric, selections);
-                    } else {
+                    } else if (zipFromReport) {
                         await fetchAndRender();
                     }
                 });
