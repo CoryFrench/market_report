@@ -1628,7 +1628,7 @@
                     if (vals.length === 0) return null;
                     return vals.reduce((a,b)=>a+b,0) / vals.length;
                 }
-                // Build year → median listing price map (proxy) and counts (use new listings as proxy)
+                // Build year → median listing price map (prefer actual median if present; else proxy) and counts (use new listings as proxy)
                 const byYear = new Map();
                 series.forEach(row => {
                     const y = String(row.month_date_yyyymm).slice(0,4);
@@ -1640,7 +1640,7 @@
                 Array.from(byYear.keys()).sort().forEach(y => {
                     const rows = byYear.get(y);
                     const last = rows[rows.length - 1];
-                    const med = Number(last.median_listing_price_proxy) || 0;
+                    const med = Number(last.median_listing_price || last.median_listing_price_proxy) || 0;
                     if (med > 0) medianPrices[y] = med;
                     const countSum = rows.reduce((acc, r) => acc + (Number(r.new_listing_count) || 0), 0);
                     if (countSum > 0) saleCounts[y] = countSum;
@@ -4150,7 +4150,9 @@
                         const cityName = rows[0].city || '';
                         const zipLabel = String(rows[0].zip5 || '').padStart(5, '0');
                         const title = `${metricLabel(metric)}`;
-                        const series = [{ key: metric, label: `${zipLabel}${cityName ? ' - ' + cityName : ''}`, data: rows.map(r => ({ x: parseYyyymmToDate(r.month_date_yyyymm), y: toNumberOrNull(r[metric]) })) }];
+                        // Prefer actual median_listing_price if metric is median and field exists
+                        const effectiveMetric = (metric === 'med_listing_price' && rows[0].median_listing_price) ? 'median_listing_price' : metric;
+                        const series = [{ key: effectiveMetric, label: `${zipLabel}${cityName ? ' - ' + cityName : ''}`, data: rows.map(r => ({ x: parseYyyymmToDate(r.month_date_yyyymm), y: toNumberOrNull(r[effectiveMetric]) })) }];
                         renderCountyInsightsChart(series, title);
                         ciShowChartView();
                         loadingEl.style.display = 'none';
