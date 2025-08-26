@@ -3213,6 +3213,13 @@
                 return { color: outline, weight: 2, fillColor: fill, fillOpacity: 0.75 };
             }
 
+            // Clean up any existing legend/control from prior sessions
+            const parentEl = mapContainer.parentElement;
+            const oldLegend = parentEl.querySelector('#mapLegend');
+            if (oldLegend) { try { oldLegend.remove(); } catch(_) {} }
+            const oldControl = parentEl.querySelector('#colorModeControl');
+            if (oldControl) { try { oldControl.remove(); } catch(_) {} }
+
             // Legend UI
             const legend = document.createElement('div');
             legend.id = 'mapLegend';
@@ -3228,7 +3235,7 @@
             legend.style.fontSize = '12px';
             legend.style.zIndex = '1200';
             legend.innerHTML = '';
-            mapContainer.parentElement.appendChild(legend);
+            parentEl.appendChild(legend);
 
             function renderLegend() {
                 function swatch(color, label) {
@@ -3254,10 +3261,20 @@
                         ${swatch(COLOR_MAP.gray, 'No data')}
                     `;
                 } else if (colorMode === 'sold_since_covid') {
+                    const features = (geojsonData && geojsonData.features) ? geojsonData.features : [];
+                    const totalCount = features.length;
+                    let yesCount = 0;
+                    for (let i = 0; i < features.length; i++) {
+                        const props = features[i] && features[i].properties ? features[i].properties : {};
+                        const d = parseDateSafe(props.last_sale_date);
+                        if (d && d >= new Date('2020-01-01')) yesCount++;
+                    }
+                    const noCount = Math.max(0, totalCount - yesCount);
+                    const pct = (n) => totalCount > 0 ? (Math.round((n / totalCount) * 1000) / 10).toFixed(1) : '0.0';
                     legend.innerHTML = `
-                        <div style="font-weight:600;margin-bottom:6px;">Legend: Sold Since Jan 1, 2020</div>
-                        ${swatch(COLOR_MAP.green, 'Sold since 2020-01-01')}
-                        ${swatch(COLOR_MAP.gray, 'Not sold since 2020-01-01 or no data')}
+                        <div style="font-weight:600;margin-bottom:6px;">Legend: Sold Since Covid</div>
+                        ${swatch(COLOR_MAP.green, `Sold since Covid — ${yesCount} (${pct(yesCount)}%)`)}
+                        ${swatch(COLOR_MAP.gray, `Not sold since Covid — ${noCount} (${pct(noCount)}%)`)}
                     `;
                 } else if (colorMode === 'tax_sale_price' || colorMode === 'tax_market_value') {
                     if (!valueThresholds || valueMin == null || valueMax == null) { legend.innerHTML = ''; return; }
@@ -3388,7 +3405,7 @@
                         popupContent = `
                             <div style="min-width: 280px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.4;">
                                 <div style="margin-bottom: 8px;"><strong>Address:</strong> ${address}</div>
-                                <div style="margin-bottom: 8px;"><strong>Parcel ID:</strong> ${props.property_control_number || 'N/A'} [TAX]</div>
+                                <div style="margin-bottom: 8px;"><strong>Parcel ID:</strong> ${props.property_control_number || 'N/A'}</div>
                                 <div style="margin-bottom: 8px;"><strong>Year Built:</strong> ${props.year_built || 'N/A'}</div>
                                 <div style="margin-bottom: 8px;"><strong>Development:</strong> ${props.development_name || 'N/A'}</div>
                                 <div style="margin-bottom: 8px;"><strong>Subdivision:</strong> ${props.subdivision_name || 'N/A'}</div>
@@ -3434,6 +3451,7 @@
 
             // Create color mode selector UI
             const selectorWrap = document.createElement('div');
+            selectorWrap.id = 'colorModeControl';
             selectorWrap.style.position = 'absolute';
             selectorWrap.style.top = '16px';
             selectorWrap.style.right = '16px';
@@ -3460,7 +3478,7 @@
                 { value: 'tax_sale_date', label: 'Tax Last Sale Date' },
                 { value: 'tax_sale_price', label: 'Tax Last Sale Price' },
                 { value: 'tax_market_value', label: 'Tax Market Value' },
-                { value: 'sold_since_covid', label: 'Sold Since Covid (Jan 1 2020)' },
+                { value: 'sold_since_covid', label: 'Sold Since Covid' },
                 { value: 'mls_status', label: 'MLS Status' }
             ];
             options.forEach(opt => {
@@ -3478,7 +3496,7 @@
             });
 
             selectorWrap.appendChild(select);
-            mapContainer.parentElement.appendChild(selectorWrap);
+            parentEl.appendChild(selectorWrap);
 
             // Initial thresholds + legend render
             recomputeThresholdsIfNeeded(geojsonData.features);
@@ -3551,6 +3569,18 @@
                 map.remove();
                 map = null;
             }
+
+            // Reset color mode UI and legend to avoid sticky state
+            try {
+                const container = document.getElementById('developmentMap');
+                const parentEl = container ? container.parentElement : null;
+                if (parentEl) {
+                    const oldLegend = parentEl.querySelector('#mapLegend');
+                    if (oldLegend) oldLegend.remove();
+                    const oldControl = parentEl.querySelector('#colorModeControl');
+                    if (oldControl) oldControl.remove();
+                }
+            } catch (_) {}
         }
         
         // Initialize map modal close handler
