@@ -723,6 +723,30 @@
             document.getElementById('buyerName').textContent = `${data.first_name} ${data.last_name}` || 'Buyer Name';
             document.getElementById('zipCode').textContent = data.zip_code || 'ZIP Code';
             
+            // Determine if property is out-of-state (non-Florida)
+            try {
+                const stateValue = String(data.home_state || '').trim().toLowerCase();
+                window.isOutOfState = !(stateValue === 'fl' || stateValue === 'florida');
+            } catch (_) { window.isOutOfState = false; }
+            
+            // Update Home Info map button UI based on state
+            try {
+                const mapButton = document.getElementById('mapButton');
+                if (mapButton) {
+                    if (window.isOutOfState) {
+                        mapButton.style.opacity = '0.5';
+                        mapButton.style.cursor = 'not-allowed';
+                        mapButton.style.pointerEvents = 'none';
+                        mapButton.title = 'Map is unavailable for out-of-state properties';
+                    } else {
+                        mapButton.style.opacity = '';
+                        mapButton.style.cursor = 'pointer';
+                        mapButton.style.pointerEvents = '';
+                        mapButton.title = '';
+                    }
+                }
+            } catch (_) {}
+            
             // Charts - Skip overwriting chartsContent since it now contains FRED interface
             // Chart data is now handled by the FRED comparison interface in Area Charts section
             
@@ -2997,6 +3021,14 @@
             const loading = document.getElementById('mapLoading');
             const error = document.getElementById('mapError');
             const subtitle = document.getElementById('mapSubtitle');
+            
+            // Guard: disable map for out-of-state properties
+            try {
+                if (window.isOutOfState === true) {
+                    showMapError('Map is available only for Florida properties.');
+                    return;
+                }
+            } catch (_) {}
             
             // Get development name from current report data
             const reportData = getCurrentReportData();
