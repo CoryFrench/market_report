@@ -1584,12 +1584,41 @@
                         </div>
                     `;
                 }
-                const response = await fetch(`${API_BASE}/zip-series?zip=${encodeURIComponent(String(zipCode))}&months=24`);
-                const result = await response.json();
-                if (!response.ok || !result.success || !Array.isArray(result.data) || result.data.length === 0) {
-                    throw new Error(result.error || 'No ZIP data available');
+                let series = null;
+                // Primary: ZIP series
+                try {
+                    const response = await fetch(`${API_BASE}/zip-series?zip=${encodeURIComponent(String(zipCode))}&months=24`);
+                    const result = await response.json();
+                    if (response.ok && result.success && Array.isArray(result.data) && result.data.length > 0) {
+                        series = result.data;
+                    }
+                } catch (_) {}
+                // Fallback: county-series by ZIP
+                if (!series) {
+                    const resp2 = await fetch(`${API_BASE}/county-series?zip=${encodeURIComponent(String(zipCode))}&months=24`);
+                    const json2 = await resp2.json();
+                    if (resp2.ok && json2.success && Array.isArray(json2.data) && json2.data.length > 0) {
+                        // Map county-level fields to expected names for display
+                        series = json2.data.map(r => ({
+                            zip5: String(zipCode).padStart(5, '0'),
+                            city: r.county_name || '',
+                            state_id: r.state_id || '',
+                            month_date_yyyymm: r.yyyymm,
+                            active_listing_count: r.active_listing_count,
+                            new_listing_count: r.new_listing_count,
+                            pending_listing_count: r.pending_listing_count,
+                            total_listing_count: r.total_listing_count,
+                            price_increased_count: r.price_increased_count,
+                            price_reduced_count: r.price_reduced_count,
+                            avg_listing_price: r.avg_listing_price,
+                            median_listing_price_proxy: r.median_listing_price_proxy,
+                            avg_days_on_market: r.avg_days_on_market,
+                            avg_price_per_sqft: r.avg_price_per_sqft
+                        }));
+                    } else {
+                        throw new Error(json2.error || 'No ZIP data available');
+                    }
                 }
-                const series = result.data;
                 // Latest month record
                 const latest = series[series.length - 1];
                 // Helper to compute averages over N months (backwards)
@@ -4072,18 +4101,52 @@
                         loadingEl.style.display = 'flex';
                         errorEl.style.display = 'none';
 
-                        const url = new URL(`${API_BASE}/zip-series`, window.location.origin);
-                        if (zipFromReport) url.searchParams.set('zip', zipFromReport);
-                        url.searchParams.set('months', '36');
+                        let rows = null;
+                        // Try ZIP series first
+                        try {
+                            const url = new URL(`${API_BASE}/zip-series`, window.location.origin);
+                            if (zipFromReport) url.searchParams.set('zip', zipFromReport);
+                            url.searchParams.set('months', '36');
+                            const resp = await fetch(url.toString().replace(window.location.origin, ''));
+                            const json = await resp.json();
+                            if (resp.ok && json.success && Array.isArray(json.data) && json.data.length > 0) {
+                                rows = json.data;
+                            }
+                        } catch (_) {}
 
-                        const resp = await fetch(url.toString().replace(window.location.origin, ''));
-                        const json = await resp.json();
-                        if (!resp.ok || !json.success || !Array.isArray(json.data) || json.data.length === 0) {
-                            throw new Error(json.error || 'No data');
+                        // Fallback to county-series by ZIP
+                        if (!rows) {
+                            const url2 = new URL(`${API_BASE}/county-series`, window.location.origin);
+                            if (zipFromReport) url2.searchParams.set('zip', zipFromReport);
+                            url2.searchParams.set('months', '36');
+                            const resp2 = await fetch(url2.toString().replace(window.location.origin, ''));
+                            const json2 = await resp2.json();
+                            if (!resp2.ok || !json2.success || !Array.isArray(json2.data) || json2.data.length === 0) {
+                                throw new Error(json2.error || 'No data');
+                            }
+                            // Map to rows compatible with metric selection
+                            rows = json2.data.map(r => ({
+                                zip5: String(zipFromReport || '').padStart(5, '0'),
+                                city: r.county_name || '',
+                                month_date_yyyymm: r.yyyymm,
+                                avg_listing_price: r.avg_listing_price,
+                                med_listing_price: r.median_listing_price_proxy,
+                                median_listing_price_proxy: r.median_listing_price_proxy,
+                                median_days_on_market: r.avg_days_on_market,
+                                avg_days_on_market: r.avg_days_on_market,
+                                median_price_per_sqft: r.avg_price_per_sqft,
+                                avg_price_per_sqft: r.avg_price_per_sqft,
+                                active_listing_count: r.active_listing_count,
+                                new_listing_count: r.new_listing_count,
+                                pending_listing_count: r.pending_listing_count,
+                                total_listing_count: r.total_listing_count,
+                                pending_ratio: r.pending_ratio,
+                                price_increased_share: r.price_increased_share,
+                                price_reduced_share: r.price_reduced_share
+                            }));
                         }
 
                         const metric = metricSelect.value || 'avg_listing_price';
-                        const rows = json.data;
                         const cityName = rows[0].city || '';
                         const zipLabel = String(rows[0].zip5 || '').padStart(5, '0');
                         const title = `${metricLabel(metric)}`;
