@@ -1621,56 +1621,17 @@
                 }
                 // Latest month record
                 const latest = series[series.length - 1];
-                // Helper to compute averages over N months (backwards)
-                function avgOf(field, months) {
-                    const take = series.slice(-months);
-                    const vals = take.map(r => Number(r[field]) || 0).filter(v => Number.isFinite(v));
-                    if (vals.length === 0) return null;
-                    return vals.reduce((a,b)=>a+b,0) / vals.length;
-                }
-                // Build year → median listing price map (prefer actual median if present; else proxy) and counts (use new listings as proxy)
-                const byYear = new Map();
-                series.forEach(row => {
-                    const y = String(row.month_date_yyyymm).slice(0,4);
-                    if (!byYear.has(y)) byYear.set(y, []);
-                    byYear.get(y).push(row);
-                });
-                const medianPrices = {};
-                const saleCounts = {};
-                Array.from(byYear.keys()).sort().forEach(y => {
-                    const rows = byYear.get(y);
-                    const last = rows[rows.length - 1];
-                    const med = Number(last.median_listing_price || last.median_listing_price_proxy) || 0;
-                    if (med > 0) medianPrices[y] = med;
-                    const countSum = rows.reduce((acc, r) => acc + (Number(r.new_listing_count) || 0), 0);
-                    if (countSum > 0) saleCounts[y] = countSum;
-                });
-                // Approximate months of inventory using Pending as proxy for monthly sales
-                const avgActive3 = avgOf('active_listing_count', 3);
-                const avgPend3 = avgOf('pending_listing_count', 3);
-                const avgActive12 = avgOf('active_listing_count', 12);
-                const avgPend12 = avgOf('pending_listing_count', 12);
-                const inv3 = avgActive3 && avgPend3 && avgPend3 > 0 ? (avgActive3 / avgPend3).toFixed(1) : 'N/A';
-                const inv12 = avgActive12 && avgPend12 && avgPend12 > 0 ? (avgActive12 / avgPend12).toFixed(1) : 'N/A';
-                const active = Number(latest.active_listing_count) || 0;
-                const newList = Number(latest.new_listing_count) || 0;
-                const pending = Number(latest.pending_listing_count) || 0;
-                const total = Number(latest.total_listing_count) || 0;
-                const activePct = total > 0 ? ((active / total) * 100).toFixed(1) : 'N/A';
-                const avgDom = Number(latest.avg_days_on_market) || 0;
                 const zipStats = {
                     zip5: latest.zip5,
                     city: latest.city,
                     state_id: latest.state_id,
-                    activeListings: active,
-                    newListings: newList,
-                    pending: pending,
-                    totalListings: total,
-                    activePercentage: activePct,
-                    medianPrices,
-                    saleCounts,
-                    inventoryMonths: { threeMonth: inv3, twelveMonth: inv12 },
-                    avgDaysOnMarket: avgDom
+                    active_listing_count: Number(latest.active_listing_count) || 0,
+                    median_listing_price: Number(latest.median_listing_price || latest.median_listing_price_proxy) || null,
+                    median_days_on_market: Number(latest.median_days_on_market || latest.avg_days_on_market) || null,
+                    new_listing_count: Number(latest.new_listing_count) || 0,
+                    pending_listing_count: Number(latest.pending_listing_count) || 0,
+                    median_listing_price_per_sqft: Number(latest.median_listing_price_per_square_foot || latest.avg_price_per_sqft) || null,
+                    total_listing_count: Number(latest.total_listing_count) || 0
                 };
                 displayZipStats(zipStats);
             } catch (error) {
@@ -1684,10 +1645,12 @@
             const statsSection = document.querySelector('#homeStatsContent > div:last-child');
             if (!statsSection) return;
             const formatPrice = (price) => {
-                if (!price || price === 0) return 'N/A';
-                if (price >= 1000000) return `$${(price / 1000000).toFixed(1)}M`;
-                if (price >= 1000) return `$${(price / 1000).toFixed(0)}K`;
-                return `$${price.toLocaleString()}`;
+                if (price === null || price === undefined || Number(price) === 0) return 'N/A';
+                const num = Number(price);
+                if (!Number.isFinite(num)) return 'N/A';
+                if (num >= 1000000) return `$${(num / 1000000).toFixed(1)}M`;
+                if (num >= 1000) return `$${(num / 1000).toFixed(0)}K`;
+                return `$${num.toLocaleString()}`;
             };
             statsSection.innerHTML = `
                 <div style="padding: 20px;">
@@ -1698,28 +1661,15 @@
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 18px;">
                         <div>
-                            <div style="margin-bottom: 8px;"><strong>Active Listings:</strong> <span style="color: #e74c3c;">${stats.activeListings}</span></div>
-                            <div style="margin-bottom: 8px;"><strong>New Listings (mo):</strong> <span style="color: #f39c12;">${stats.newListings}</span></div>
-                            <div style="margin-bottom: 8px;"><strong>Pending (mo):</strong> <span style="color: #8e44ad;">${stats.pending}</span></div>
-                            <div style="margin-bottom: 8px;"><strong>Total Listings:</strong> <span style="color: #2c3e50;">${stats.totalListings}</span></div>
-                            <div style="margin-bottom: 8px;"><strong>Active %:</strong> <span style="color: #2c3e50;">${typeof stats.activePercentage === 'string' ? stats.activePercentage : stats.activePercentage + '%'}${typeof stats.activePercentage === 'number' ? '%' : ''}</span></div>
+                            <div style="margin-bottom: 8px;"><strong>Active Listings:</strong> <span style="color: #e74c3c;">${stats.active_listing_count}</span></div>
+                            <div style="margin-bottom: 8px;"><strong>New Listings (mo):</strong> <span style="color: #f39c12;">${stats.new_listing_count}</span></div>
+                            <div style="margin-bottom: 8px;"><strong>Pending (mo):</strong> <span style="color: #8e44ad;">${stats.pending_listing_count}</span></div>
+                            <div style="margin-bottom: 8px;"><strong>Total Listings:</strong> <span style="color: #2c3e50;">${stats.total_listing_count}</span></div>
                         </div>
                         <div>
-                            <div style="margin-bottom: 12px;"><strong>Median Listing Price (by Year):</strong></div>
-                            ${Object.keys(stats.medianPrices).length > 0 ?
-                                Object.entries(stats.medianPrices)
-                                    .sort(([a], [b]) => parseInt(a) - parseInt(b))
-                                    .map(([year, price]) => {
-                                        const count = stats.saleCounts[year] || 0;
-                                        return `<div style="margin-bottom: 6px; margin-left: 10px;"><strong>${year}:</strong> <span style=\"color:#2c3e50\">${formatPrice(price)}${count ? ` (${count})` : ''}</span></div>`;
-                                    }).join('')
-                                : '<div style="margin-left: 10px; color: #95a5a6; font-style: italic;">No recent listing data</div>'
-                            }
-                            <div style="margin-top: 15px;">
-                                <div style="margin-bottom: 6px;"><strong>Months of Inventory (3mo, est):</strong> <span style="color:#8e44ad;">${stats.inventoryMonths.threeMonth}</span></div>
-                                <div style="margin-bottom: 6px;"><strong>Months of Inventory (12mo, est):</strong> <span style="color:#8e44ad;">${stats.inventoryMonths.twelveMonth}</span></div>
-                            </div>
-                            ${stats.avgDaysOnMarket > 0 ? `<div style=\"margin-top:10px;\"><strong>Avg DOM (Active):</strong> <span style=\"color:#34495e;\">${stats.avgDaysOnMarket} days</span></div>` : ''}
+                            <div style="margin-bottom: 8px;"><strong>Median Listing Price:</strong> <span style="color:#2c3e50;">${formatPrice(stats.median_listing_price)}</span></div>
+                            <div style="margin-bottom: 8px;"><strong>Median Price per SqFt:</strong> <span style="color:#2c3e50;">${stats.median_listing_price_per_sqft ? `$${Number(stats.median_listing_price_per_sqft).toLocaleString()}` : 'N/A'}</span></div>
+                            <div style="margin-bottom: 8px;"><strong>Median Days on Market:</strong> <span style="color:#34495e;">${stats.median_days_on_market ? `${stats.median_days_on_market} days` : 'N/A'}</span></div>
                         </div>
                     </div>
                 </div>
