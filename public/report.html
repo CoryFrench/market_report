@@ -867,6 +867,7 @@
             try {
                 const countyName = String(data.county || '').toLowerCase();
                 const isPalmBeach = countyName.includes('palm beach');
+                try { window.isPalmBeachCounty = isPalmBeach; } catch (_) {}
                 const devSectionTitle = document.getElementById('dev-comp-title');
                 const devControls = document.getElementById('dev-controls-section');
                 const devChartSection = document.getElementById('dev-chart-section');
@@ -989,9 +990,11 @@
                                     const addressBlock = leftPanel.querySelector('#propertyAddress');
                                     if (addressBlock) addressBlock.style.display = 'none';
                                 }
-                                // If no development was provided, try to auto-load stats from inferred development
-                                if ((!data.development || String(data.development).trim().length === 0) && best.development_name) {
+                                // If no development was provided and we are in Palm Beach, try to auto-load stats from inferred development
+                                if (window.isPalmBeachCounty !== false && (!data.development || String(data.development).trim().length === 0) && best.development_name) {
                                     try { await loadDevelopmentStats(best.development_name); } catch {}
+                                } else if (window.isPalmBeachCounty === false && data.zip_code) {
+                                    try { await loadZipStats(String(data.zip_code)); } catch {}
                                 }
                             }
                         }
@@ -1001,9 +1004,13 @@
                 }
             })();
             
-            // Load development stats if development name is available
-            if (data.development && data.development.trim()) {
-                loadDevelopmentStats(data.development.trim());
+            // Load development stats in Palm Beach, else load ZIP stats when available
+            if (window.isPalmBeachCounty !== false) {
+                if (data.development && data.development.trim()) {
+                    loadDevelopmentStats(data.development.trim());
+                }
+            } else if (data.zip_code) {
+                loadZipStats(String(data.zip_code));
             }
             
             // Setup chart button click handler
@@ -1557,6 +1564,133 @@
                                 <strong>Avg DOM (Active):</strong> <span style="color: #34495e;">${stats.avgDaysOnMarket} days</span>
                             </div>
                             ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Function to load ZIP-level statistics (fallback outside Palm Beach)
+        async function loadZipStats(zipCode) {
+            try {
+                const statsSection = document.querySelector('#homeStatsContent > div:last-child');
+                if (statsSection) {
+                    statsSection.innerHTML = `
+                        <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 150px;">
+                            <div style="text-align: center;">
+                                <div style="border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 2s linear infinite; margin: 0 auto 15px;"></div>
+                                <p style="margin: 0; color: #7f8c8d; font-size: 14px;">Loading ZIP ${zipCode} market statistics...</p>
+                            </div>
+                        </div>
+                    `;
+                }
+                const response = await fetch(`${API_BASE}/zip-series?zip=${encodeURIComponent(String(zipCode))}&months=24`);
+                const result = await response.json();
+                if (!response.ok || !result.success || !Array.isArray(result.data) || result.data.length === 0) {
+                    throw new Error(result.error || 'No ZIP data available');
+                }
+                const series = result.data;
+                // Latest month record
+                const latest = series[series.length - 1];
+                // Helper to compute averages over N months (backwards)
+                function avgOf(field, months) {
+                    const take = series.slice(-months);
+                    const vals = take.map(r => Number(r[field]) || 0).filter(v => Number.isFinite(v));
+                    if (vals.length === 0) return null;
+                    return vals.reduce((a,b)=>a+b,0) / vals.length;
+                }
+                // Build year → median listing price map (proxy) and counts (use new listings as proxy)
+                const byYear = new Map();
+                series.forEach(row => {
+                    const y = String(row.month_date_yyyymm).slice(0,4);
+                    if (!byYear.has(y)) byYear.set(y, []);
+                    byYear.get(y).push(row);
+                });
+                const medianPrices = {};
+                const saleCounts = {};
+                Array.from(byYear.keys()).sort().forEach(y => {
+                    const rows = byYear.get(y);
+                    const last = rows[rows.length - 1];
+                    const med = Number(last.median_listing_price_proxy) || 0;
+                    if (med > 0) medianPrices[y] = med;
+                    const countSum = rows.reduce((acc, r) => acc + (Number(r.new_listing_count) || 0), 0);
+                    if (countSum > 0) saleCounts[y] = countSum;
+                });
+                // Approximate months of inventory using Pending as proxy for monthly sales
+                const avgActive3 = avgOf('active_listing_count', 3);
+                const avgPend3 = avgOf('pending_listing_count', 3);
+                const avgActive12 = avgOf('active_listing_count', 12);
+                const avgPend12 = avgOf('pending_listing_count', 12);
+                const inv3 = avgActive3 && avgPend3 && avgPend3 > 0 ? (avgActive3 / avgPend3).toFixed(1) : 'N/A';
+                const inv12 = avgActive12 && avgPend12 && avgPend12 > 0 ? (avgActive12 / avgPend12).toFixed(1) : 'N/A';
+                const active = Number(latest.active_listing_count) || 0;
+                const newList = Number(latest.new_listing_count) || 0;
+                const pending = Number(latest.pending_listing_count) || 0;
+                const total = Number(latest.total_listing_count) || 0;
+                const activePct = total > 0 ? ((active / total) * 100).toFixed(1) : 'N/A';
+                const avgDom = Number(latest.avg_days_on_market) || 0;
+                const zipStats = {
+                    zip5: latest.zip5,
+                    city: latest.city,
+                    state_id: latest.state_id,
+                    activeListings: active,
+                    newListings: newList,
+                    pending: pending,
+                    totalListings: total,
+                    activePercentage: activePct,
+                    medianPrices,
+                    saleCounts,
+                    inventoryMonths: { threeMonth: inv3, twelveMonth: inv12 },
+                    avgDaysOnMarket: avgDom
+                };
+                displayZipStats(zipStats);
+            } catch (error) {
+                console.error('Error loading ZIP stats:', error);
+                displayStatsError('Unable to load ZIP market statistics');
+            }
+        }
+
+        // Function to display ZIP-level statistics
+        function displayZipStats(stats) {
+            const statsSection = document.querySelector('#homeStatsContent > div:last-child');
+            if (!statsSection) return;
+            const formatPrice = (price) => {
+                if (!price || price === 0) return 'N/A';
+                if (price >= 1000000) return `$${(price / 1000000).toFixed(1)}M`;
+                if (price >= 1000) return `$${(price / 1000).toFixed(0)}K`;
+                return `$${price.toLocaleString()}`;
+            };
+            statsSection.innerHTML = `
+                <div style="padding: 20px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h3 style="margin: 0; color: #2c3e50; font-size: 22px; font-weight: 600; margin-bottom: 5px;">ZIP ${stats.zip5}${stats.city ? ` • ${stats.city}` : ''}${stats.state_id ? `, ${stats.state_id}` : ''}</h3>
+                        <div style="width: 60px; height: 2px; background: linear-gradient(90deg, #3498db, #27ae60); margin: 8px auto;"></div>
+                        <p style="margin: 0; color: #7f8c8d; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">Market Statistics</p>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 18px;">
+                        <div>
+                            <div style="margin-bottom: 8px;"><strong>Active Listings:</strong> <span style="color: #e74c3c;">${stats.activeListings}</span></div>
+                            <div style="margin-bottom: 8px;"><strong>New Listings (mo):</strong> <span style="color: #f39c12;">${stats.newListings}</span></div>
+                            <div style="margin-bottom: 8px;"><strong>Pending (mo):</strong> <span style="color: #8e44ad;">${stats.pending}</span></div>
+                            <div style="margin-bottom: 8px;"><strong>Total Listings:</strong> <span style="color: #2c3e50;">${stats.totalListings}</span></div>
+                            <div style="margin-bottom: 8px;"><strong>Active %:</strong> <span style="color: #2c3e50;">${typeof stats.activePercentage === 'string' ? stats.activePercentage : stats.activePercentage + '%'}${typeof stats.activePercentage === 'number' ? '%' : ''}</span></div>
+                        </div>
+                        <div>
+                            <div style="margin-bottom: 12px;"><strong>Median Listing Price (by Year):</strong></div>
+                            ${Object.keys(stats.medianPrices).length > 0 ?
+                                Object.entries(stats.medianPrices)
+                                    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                                    .map(([year, price]) => {
+                                        const count = stats.saleCounts[year] || 0;
+                                        return `<div style="margin-bottom: 6px; margin-left: 10px;"><strong>${year}:</strong> <span style=\"color:#2c3e50\">${formatPrice(price)}${count ? ` (${count})` : ''}</span></div>`;
+                                    }).join('')
+                                : '<div style="margin-left: 10px; color: #95a5a6; font-style: italic;">No recent listing data</div>'
+                            }
+                            <div style="margin-top: 15px;">
+                                <div style="margin-bottom: 6px;"><strong>Months of Inventory (3mo, est):</strong> <span style="color:#8e44ad;">${stats.inventoryMonths.threeMonth}</span></div>
+                                <div style="margin-bottom: 6px;"><strong>Months of Inventory (12mo, est):</strong> <span style="color:#8e44ad;">${stats.inventoryMonths.twelveMonth}</span></div>
+                            </div>
+                            ${stats.avgDaysOnMarket > 0 ? `<div style=\"margin-top:10px;\"><strong>Avg DOM (Active):</strong> <span style=\"color:#34495e;\">${stats.avgDaysOnMarket} days</span></div>` : ''}
                         </div>
                     </div>
                 </div>
