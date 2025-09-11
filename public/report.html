@@ -721,7 +721,22 @@
             // Update header information
             document.getElementById('agentName').textContent = data.agent_name || 'Agent Name';
             document.getElementById('buyerName').textContent = `${data.first_name} ${data.last_name}` || 'Buyer Name';
-            document.getElementById('zipCode').textContent = data.zip_code || 'ZIP Code';
+            (function() {
+                const city = String(data.home_city || data.city || '').trim();
+                const state = String(data.home_state || data.state || '').trim();
+                const zip = String(data.zip_code || '').trim();
+                const isPalmBeach = /palm\s*beach/i.test(String(data.county || ''));
+                let headerValue = 'ZIP Code';
+                if (!isPalmBeach && zip) {
+                    if (city && state) headerValue = `${city}, ${state.toUpperCase()} ${zip}`;
+                    else if (state) headerValue = `${state.toUpperCase()} ${zip}`;
+                    else if (city) headerValue = `${city} ${zip}`;
+                    else headerValue = `ZIP ${zip}`;
+                } else if (zip) {
+                    headerValue = `ZIP ${zip}`;
+                }
+                document.getElementById('zipCode').textContent = headerValue;
+            })();
             
             // Determine if property is out-of-state (non-Florida)
             try {
@@ -996,6 +1011,50 @@
                                 } else if (window.isPalmBeachCounty === false && data.zip_code) {
                                     try { await loadZipStats(String(data.zip_code)); } catch {}
                                 }
+                                // For non-Palm Beach, also augment left-side Home Info details via RentCast property profile
+                                if (window.isPalmBeachCounty === false) {
+                                    try {
+                                        const addrParts = [];
+                                        if (data.address_line_1) addrParts.push(String(data.address_line_1).trim());
+                                        if (data.home_city || data.home_state || data.zip_code) {
+                                            const cityStateZip = [String(data.home_city || '').trim(), String(data.home_state || '').trim(), String(data.zip_code || '').trim()].filter(Boolean).join(', ');
+                                            if (cityStateZip) addrParts.push(cityStateZip);
+                                        }
+                                        const fullAddress = addrParts.join(', ');
+                                        if (fullAddress.length >= 5) {
+                                            const resp = await fetch(`${API_BASE}/property-profile?address=${encodeURIComponent(fullAddress)}`);
+                                            const pr = await resp.json();
+                                            if (resp.ok && pr && pr.success && pr.data) {
+                                                const p = pr.data;
+                                                const detailsCard = document.createElement('div');
+                                                detailsCard.style.marginTop = '12px';
+                                                const fmtQty = (v) => {
+                                                    const n = Number(v);
+                                                    return Number.isFinite(n) ? n.toLocaleString() : 'N/A';
+                                                };
+                                                const fmtCurr0 = (v) => {
+                                                    const n = Number(v);
+                                                    return Number.isFinite(n) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n) : 'N/A';
+                                                };
+                                                detailsCard.innerHTML = `
+                                                    <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
+                                                        <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
+                                                            <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">🛁 Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">📏 Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">🏗️ Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">💲 Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
+                                                        </div>
+                                                    </div>
+                                                `;
+                                                if (leftPanel) {
+                                                    leftPanel.appendChild(detailsCard);
+                                                }
+                                            }
+                                        }
+                                    } catch (_) { /* ignore profile errors */ }
+                                }
                             }
                         }
                     }
@@ -1015,6 +1074,63 @@
             
             // Setup chart button click handler
             setupChartButton(data.development && data.development.trim() ? data.development.trim() : null);
+
+            // For non-Palm Beach, augment Home Info with RentCast property profile regardless of county tax lookup result
+            if (window.isPalmBeachCounty === false) {
+                try { console.log('Non-PB: preparing RentCast profile fetch. isPalmBeachCounty=', window.isPalmBeachCounty); } catch (_) {}
+                (async () => {
+                    try {
+                        const leftPanelHost = document.querySelector('#homeStatsContent > div:first-child');
+                        if (!leftPanelHost) return;
+                        // Avoid duplicate injection
+                        if (leftPanelHost.querySelector('[data-rentcast-profile="1"]')) return;
+                        const parts = [];
+                        if (data.address_line_1) parts.push(String(data.address_line_1).trim());
+                        const cityStateZip = [String(data.home_city || '').trim(), String(data.home_state || '').trim(), String(data.zip_code || '').trim()].filter(Boolean).join(', ');
+                        if (cityStateZip) parts.push(cityStateZip);
+                        const fullAddress = parts.join(', ');
+                        try { console.log('Non-PB: fullAddress built for RentCast:', fullAddress); } catch (_) {}
+                        if (fullAddress.length < 5) return;
+                        const endpoint = `${API_BASE}/property-profile?address=${encodeURIComponent(fullAddress)}`;
+                        try { console.log('Non-PB: fetching RentCast profile:', endpoint); } catch (_) {}
+                        const resp = await fetch(endpoint);
+                        const pr = await resp.json();
+                        try { console.log('Non-PB: RentCast profile response ok=', resp.ok, 'success=', pr && pr.success); } catch (_) {}
+                        if (!resp.ok || !pr || !pr.success || !pr.data) return;
+                        const p = pr.data;
+                        const detailsCard = document.createElement('div');
+                        detailsCard.setAttribute('data-rentcast-profile', '1');
+                        detailsCard.style.marginTop = '12px';
+                        const fmtQty = (v) => {
+                            const n = Number(v);
+                            return Number.isFinite(n) ? n.toLocaleString() : 'N/A';
+                        };
+                        const fmtCurr0 = (v) => {
+                            const n = Number(v);
+                            return Number.isFinite(n) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n) : 'N/A';
+                        };
+                        detailsCard.innerHTML = `
+                            <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
+                                <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
+                                    <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">🛁 Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">📏 Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">🏗️ Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">💲 Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
+                                </div>
+                            </div>
+                        `;
+                        const mapButton = document.getElementById('mapButton');
+                        const buttonsRow = mapButton ? mapButton.parentElement : null;
+                        if (buttonsRow && buttonsRow.parentElement === leftPanelHost) {
+                            leftPanelHost.insertBefore(detailsCard, buttonsRow);
+                        } else {
+                            leftPanelHost.appendChild(detailsCard);
+                        }
+                    } catch (_) {}
+                })();
+            }
         }
         
         // Function to setup chart button click handler (idempotent and re-runnable)
@@ -1584,24 +1700,50 @@
                         </div>
                     `;
                 }
-                // Fetch ZIP series only (no county fallback for Home Info panel)
-                const respLatest = await fetch(`${API_BASE}/zip-latest?zip=${encodeURIComponent(String(zipCode))}`);
+                // Use RentCast proxy endpoint (no county fallback for Home Info panel)
+                const respLatest = await fetch(`${API_BASE}/zip-market?zip=${encodeURIComponent(String(zipCode))}`);
                 const latestResp = await respLatest.json();
                 if (!respLatest.ok || !latestResp.success || !latestResp.data) {
-                    throw new Error(latestResp.error || 'No ZIP latest data');
+                    throw new Error(latestResp.error || 'No ZIP market data');
                 }
                 const latest = latestResp.data;
+                let metaCity = '';
+                let metaState = '';
+                try {
+                    const metaResp = await fetch(`${API_BASE}/zip-latest?zip=${encodeURIComponent(String(zipCode))}`);
+                    if (metaResp.ok) {
+                        const metaJson = await metaResp.json();
+                        if (metaJson && metaJson.success && metaJson.data) {
+                            metaCity = String(metaJson.data.city || '').trim();
+                            metaState = String(metaJson.data.state_id || '').trim();
+                        }
+                    }
+                } catch (_) {}
+                // Fallback to zipcity lookup if needed
+                if ((!metaCity || !metaState)) {
+                    try {
+                        const zcUrl = new URL(`${API_BASE}/zipcity/by-zip`, window.location.origin);
+                        zcUrl.searchParams.set('zip', String(zipCode));
+                        const zcResp = await fetch(zcUrl.toString().replace(window.location.origin, ''));
+                        if (zcResp.ok) {
+                            const zcJson = await zcResp.json();
+                            const row = Array.isArray(zcJson?.data) ? zcJson.data[0] : null;
+                            if (row) {
+                                if (!metaCity) metaCity = String(row.city || '').trim();
+                                if (!metaState) metaState = String(row.state_id || '').trim();
+                            }
+                        }
+                    } catch (_) {}
+                }
                 const zipStats = {
-                    zip5: latest.zip5,
-                    city: latest.city,
-                    state_id: latest.state_id,
-                    active_listing_count: Math.max(0, Math.floor(Number(latest.active_listing_count) || 0)),
-                    median_listing_price: (Number(latest.median_listing_price || latest.median_listing_price_proxy) || null),
-                    median_days_on_market: (Number(latest.median_days_on_market || latest.avg_days_on_market) || null) && Math.max(0, Math.round(Number(latest.median_days_on_market || latest.avg_days_on_market))),
-                    new_listing_count: Math.max(0, Math.floor(Number(latest.new_listing_count) || 0)),
-                    pending_listing_count: Math.max(0, Math.floor(Number(latest.pending_listing_count) || 0)),
-                    median_listing_price_per_sqft: (Number(latest.median_listing_price_per_square_foot || latest.avg_price_per_sqft) || null),
-                    total_listing_count: Math.max(0, Math.floor(Number(latest.total_listing_count) || 0))
+                    zip5: String(zipCode),
+                    city: metaCity,
+                    state_id: metaState,
+                    median_listing_price: (Number(latest.medianPrice) || null),
+                    median_days_on_market: Number.isFinite(Number(latest.medianDaysOnMarket)) ? Math.max(0, Math.round(Number(latest.medianDaysOnMarket))) : null,
+                    new_listing_count: Math.max(0, Math.floor(Number(latest.newListings) || 0)),
+                    median_listing_price_per_sqft: (Number(latest.medianPricePerSquareFoot) || null),
+                    total_listing_count: Math.max(0, Math.floor(Number(latest.totalListings) || 0))
                 };
                 displayZipStats(zipStats);
             } catch (error) {
@@ -1622,24 +1764,27 @@
                 if (num >= 1000) return `$${(num / 1000).toFixed(0)}K`;
                 return `$${num.toLocaleString()}`;
             };
+            const __city = String(stats.city || '').trim();
+            const __state = String(stats.state_id || '').trim();
+            const __titleGeo = (__city || __state)
+                ? `${__city}${__city && __state ? ', ' : ''}${__state ? __state.toUpperCase() : ''} ${stats.zip5}`
+                : `ZIP ${stats.zip5}`;
             statsSection.innerHTML = `
-                <div style="padding: 20px;">
+                <div style="padding: 20px; box-sizing: border-box;">
                     <div style="text-align: center; margin-bottom: 20px;">
-                        <h3 style="margin: 0; color: #2c3e50; font-size: 22px; font-weight: 600; margin-bottom: 5px;">ZIP ${stats.zip5}${stats.city ? ` • ${stats.city}` : ''}${stats.state_id ? `, ${stats.state_id}` : ''}</h3>
+                        <h3 style="margin: 0; color: #2c3e50; font-size: 22px; font-weight: 600; margin-bottom: 5px;">${__titleGeo}</h3>
                         <div style="width: 60px; height: 2px; background: linear-gradient(90deg, #3498db, #27ae60); margin: 8px auto;"></div>
                         <p style="margin: 0; color: #7f8c8d; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">Market Statistics</p>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 18px;">
-                        <div>
-                            <div style="margin-bottom: 8px;"><strong>Active Listings:</strong> <span style="color: #e74c3c;">${stats.active_listing_count}</span></div>
-                            <div style="margin-bottom: 8px;"><strong>New Listings (mo):</strong> <span style="color: #f39c12;">${stats.new_listing_count}</span></div>
-                            <div style="margin-bottom: 8px;"><strong>Pending (mo):</strong> <span style="color: #8e44ad;">${stats.pending_listing_count}</span></div>
-                            <div style="margin-bottom: 8px;"><strong>Total Listings:</strong> <span style="color: #2c3e50;">${stats.total_listing_count}</span></div>
+                    <div style="display: flex; gap: 24px; font-size: 18px; align-items: flex-start; justify-content: stretch; margin: 0;">
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px; margin: 0;">
+                            <div><strong>New Listings (mo):</strong> <span style="color: #f39c12;">${stats.new_listing_count}</span></div>
+                            <div><strong>Total Listings:</strong> <span style="color: #2c3e50;">${stats.total_listing_count}</span></div>
                         </div>
-                        <div>
-                            <div style="margin-bottom: 8px;"><strong>Median Listing Price:</strong> <span style="color:#2c3e50;">${formatPrice(stats.median_listing_price)}</span></div>
-                            <div style="margin-bottom: 8px;"><strong>Median Price per SqFt:</strong> <span style="color:#2c3e50;">${Number.isFinite(Number(stats.median_listing_price_per_sqft)) ? `$${Number(stats.median_listing_price_per_sqft).toFixed(0).toLocaleString?.() || Number(stats.median_listing_price_per_sqft).toLocaleString()}` : 'N/A'}</span></div>
-                            <div style="margin-bottom: 8px;"><strong>Median Days on Market:</strong> <span style="color:#34495e;">${Number.isFinite(Number(stats.median_days_on_market)) ? `${Number(stats.median_days_on_market)} days` : 'N/A'}</span></div>
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px; margin: 0;">
+                            <div><strong>Median Listing Price:</strong> <span style="color:#2c3e50;">${formatPrice(stats.median_listing_price)}</span></div>
+                            <div><strong>Median Price per SqFt:</strong> <span style="color:#2c3e50;">${Number.isFinite(Number(stats.median_listing_price_per_sqft)) ? `$${Number(stats.median_listing_price_per_sqft).toFixed(0).toLocaleString?.() || Number(stats.median_listing_price_per_sqft).toLocaleString()}` : 'N/A'}</span></div>
+                            <div><strong>Median Days on Market:</strong> <span style="color:#34495e;">${Number.isFinite(Number(stats.median_days_on_market)) ? `${Number(stats.median_days_on_market)} days` : 'N/A'}</span></div>
                         </div>
                     </div>
                 </div>

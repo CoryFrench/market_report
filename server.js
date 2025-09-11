@@ -1741,6 +1741,140 @@ app.get('/api/zip-latest', async (req, res) => {
   }
 });
 
+// RentCast ZIP market snapshot (non-Palm Beach fallback)
+// Proxies RentCast API to avoid exposing API key to the client
+app.get('/api/zip-market', async (req, res) => {
+  try {
+    const { zip, history } = req.query;
+    if (!zip || String(zip).trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'zip is required' });
+    }
+
+    const apiKey = process.env.RENTCAST_API_KEY || '';
+    if (!apiKey) {
+      return res.status(500).json({ success: false, error: 'RentCast API key not configured' });
+    }
+
+    const params = {
+      zipCode: String(zip).trim(),
+      dataType: 'Sale'
+    };
+    const historyRange = Number(history);
+    if (Number.isFinite(historyRange) && historyRange > 0) {
+      params.historyRange = historyRange;
+    }
+
+    const rcResp = await axios.get('https://api.rentcast.io/v1/markets', {
+      params,
+      headers: { 'X-Api-Key': apiKey },
+      timeout: 20000
+    });
+
+    if (!rcResp || !rcResp.data || typeof rcResp.data !== 'object') {
+      return res.status(502).json({ success: false, error: 'Invalid response from RentCast' });
+    }
+
+    const payload = rcResp.data || {};
+    const sale = payload.saleData || {};
+
+    // Normalize snapshot fields to align with UI expectations where possible
+    const snapshot = {
+      zipCode: payload.zipCode || String(zip).trim(),
+      lastUpdatedDate: sale.lastUpdatedDate || null,
+      medianPrice: sale.medianPrice ?? null,
+      medianPricePerSquareFoot: sale.medianPricePerSquareFoot ?? null,
+      medianDaysOnMarket: sale.medianDaysOnMarket ?? null,
+      newListings: sale.newListings ?? null,
+      totalListings: sale.totalListings ?? null
+      // Note: RentCast does not provide pending or active listing counts
+    };
+
+    // Optional history (flatten to array of points)
+    let historyData = [];
+    if (sale.history && typeof sale.history === 'object') {
+      historyData = Object.entries(sale.history).map(([period, entry]) => ({
+        period,
+        date: entry?.date ?? null,
+        medianPrice: entry?.medianPrice ?? null,
+        medianPricePerSquareFoot: entry?.medianPricePerSquareFoot ?? null,
+        medianDaysOnMarket: entry?.medianDaysOnMarket ?? null,
+        newListings: entry?.newListings ?? null,
+        totalListings: entry?.totalListings ?? null
+      })).sort((a, b) => String(a.period).localeCompare(String(b.period)));
+    }
+
+    return res.json({ success: true, data: snapshot, history: historyData });
+  } catch (error) {
+    console.error('Error fetching RentCast market data:', error?.response?.data || error.message || error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch RentCast market data', message: error.message });
+  }
+});
+
+// RentCast property profile lookup by full address (non-Palm Beach fallback)
+// Returns minimal profile fields for Home Info card augmentation
+app.get('/api/property-profile', async (req, res) => {
+  try {
+    const { address } = req.query;
+    if (!address || String(address).trim().length < 5) {
+      return res.status(400).json({ success: false, error: 'address is required' });
+    }
+
+    const apiKey = process.env.RENTCAST_API_KEY || '';
+    if (!apiKey) {
+      return res.status(500).json({ success: false, error: 'RentCast API key not configured' });
+    }
+
+    const rcResp = await axios.get('https://api.rentcast.io/v1/properties', {
+      params: { address: String(address).trim() },
+      headers: { 'X-Api-Key': apiKey },
+      timeout: 25000
+    });
+
+    let list = rcResp?.data;
+    if (list && list.data && Array.isArray(list.data)) list = list.data;
+    if (!Array.isArray(list)) list = [];
+
+    if (list.length === 0) {
+      return res.json({ success: true, data: null });
+    }
+
+    const rec = list[0] || {};
+
+    // Prefer 2024 then 2023 for tax assessment
+    const preferredYears = ['2024', '2023'];
+    let taxAssessmentValue = null;
+    const ta = rec?.taxAssessments;
+    if (ta && typeof ta === 'object') {
+      for (const y of preferredYears) {
+        if (ta[y] && typeof ta[y] === 'object' && ta[y] !== null) {
+          taxAssessmentValue = ta[y].value ?? null;
+          if (taxAssessmentValue !== null) break;
+        }
+        const yi = Number(y);
+        if (Number.isFinite(yi) && ta[yi] && typeof ta[yi] === 'object' && ta[yi] !== null) {
+          taxAssessmentValue = ta[yi].value ?? null;
+          if (taxAssessmentValue !== null) break;
+        }
+      }
+    }
+
+    const minimal = {
+      address: rec.formattedAddress || rec.address || String(address).trim(),
+      bedrooms: rec.bedrooms ?? null,
+      bathrooms: rec.bathrooms ?? null,
+      squareFootage: rec.squareFootage ?? null,
+      lotSize: rec.lotSize ?? null,
+      yearBuilt: rec.yearBuilt ?? null,
+      taxAssessmentValue
+    };
+
+    return res.json({ success: true, data: minimal });
+  } catch (error) {
+    console.error('Error fetching RentCast property profile:', error?.response?.data || error.message || error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch RentCast property profile', message: error.message });
+  }
+});
+
 // Multi-ZIP comparison time series — zips is CSV string, optional months
 app.get('/api/zip-comparison', async (req, res) => {
   try {
