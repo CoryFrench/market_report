@@ -577,7 +577,7 @@
                                 <button id="ci-back-to-controls-btn" class="back-to-controls-btn">← Change ZIPs</button>
                                 <div class="chart-indicator-control">
                                     <label for="county-insights-metric-select">Metric:</label>
-                                    <select id="county-insights-metric-select" class="fred-select">
+                                    <select id="county-insights-metric-select" class="fred-select" style="min-width: 200px;">
                                         <option value="avg_listing_price" selected>Average Listing Price</option>
                                         <option value="median_listing_price_proxy">Median Listing Price (proxy)</option>
                                         <option value="avg_price_per_sqft">Average Price per Sq Ft</option>
@@ -4161,12 +4161,18 @@
 
                 function ciShowControlsView() {
                     document.getElementById('ci-controls-section').style.display = 'block';
-                    document.getElementById('ci-chart-controls').style.display = 'none';
+                    const chartControlsEl = document.getElementById('ci-chart-controls');
+                    if (chartControlsEl) {
+                        chartControlsEl.style.display = 'none';
+                    }
                     document.getElementById('county-insights-chart-container').style.display = 'none';
                 }
                 function ciShowChartView() {
                     document.getElementById('ci-controls-section').style.display = 'none';
-                    document.getElementById('ci-chart-controls').style.display = 'block';
+                    const chartControlsEl = document.getElementById('ci-chart-controls');
+                    if (chartControlsEl) {
+                        chartControlsEl.style.display = 'flex';
+                    }
                     document.getElementById('county-insights-chart-container').style.display = 'block';
                 }
 
@@ -4520,12 +4526,12 @@
                 countyInsightsChart.destroy();
                 countyInsightsChart = null;
             }
-            const ctx = canvas.getContext('2d');
-            const jupiterColor = '#003366';
             const basePalette = ['#e83e8c', '#28a745', '#fd7e14', '#6f42c1', '#20c997', '#ffc107', '#6610f2', '#d63384', '#adb5bd'];
+            const jupiterColor = '#003366';
             const isJupiterLabel = (label) => {
                 const text = String(label || '');
-                return /jupiter/i.test(text) && /\bfl\b/i.test(text);
+                if (!text) return false;
+                return /jupiter/i.test(text) && (/\bfl\b/i.test(text) || /\bflorida\b/i.test(text));
             };
             let paletteIndex = 0;
             const nextPaletteColor = () => {
@@ -4534,6 +4540,7 @@
                 paletteIndex += 1;
                 return color;
             };
+            const ctx = canvas.getContext('2d');
             const datasets = series.map((s) => {
                 const label = s.label;
                 const isJupiter = isJupiterLabel(label);
@@ -4542,7 +4549,7 @@
                     label: label,
                     data: s.data,
                     yAxisID: isRatioMetric(s.key) ? 'y2' : 'y',
-                    backgroundColor: `${color}20`,
+                    backgroundColor: color + '20',
                     borderColor: color,
                     borderWidth: 3,
                     fill: false,
