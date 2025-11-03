@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FRED Comparison Page - Technical Documentation</title>
+    <title>Realtor Comparison Page - Technical Documentation</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -105,593 +105,196 @@
 </head>
 <body>
     <div class="container">
-        <h1>FRED Comparison Page - Technical Implementation Guide</h1>
-        
+        <h1>Realtor Metrics Comparison - Technical Implementation Guide</h1>
         <div class="important-note">
-            <strong>Purpose:</strong> This document provides a comprehensive technical explanation of the FRED (Federal Reserve Economic Data) comparison page implementation. It covers database schemas, API endpoints, SQL queries, frontend logic, and the complete data flow for comparing economic data across multiple counties.
+            <strong>Purpose:</strong> This document explains the Realtor-based county and ZIP comparison implementation. It covers database schemas, API endpoints, SQL queries, frontend logic, and the complete data flow for comparing listing metrics across multiple geographies.
         </div>
-
         <h2>1. System Architecture Overview</h2>
-        
         <div class="flow-diagram">
             <strong>Data Flow Architecture</strong><br><br>
-            Frontend (fred-comparison.js) 
+            Frontend (Report Comparison UI)
             <div class="arrow">↓</div>
-            API Endpoints (/api/fred-series, /api/counties, /api/fred-data)
+            API Endpoints (/api/county-comparison, /api/zip-series, /api/zip-comparison)
             <div class="arrow">↓</div>
-            PostgreSQL Database (fred.series, irs.county_fips_xref)
+            PostgreSQL Database (otherdata.realtor_historic / otherdata.realtor_current_month)
             <div class="arrow">↓</div>
-            FRED API (Federal Reserve Bank of St. Louis)
-            <div class="arrow">↓</div>
-            D3.js Visualization
+            Chart.js Visualization
         </div>
-
         <h2>2. Database Schema and SQL Queries</h2>
-
-        <h3>2.1 FRED Series Configuration Table</h3>
-        <p>The system uses a PostgreSQL table <code>fred.series</code> to store metadata about available FRED data series:</p>
-        
+        <h3>2.1 Realtor Metrics</h3>
+        <p>County and ZIP comparisons use Realtor-supplied metrics stored in <code>otherdata.realtor_historic</code> and <code>otherdata.realtor_current_month</code>.</p>
         <table class="table-schema">
-            <tr>
-                <th>Column</th>
-                <th>Type</th>
-                <th>Description</th>
-            </tr>
-            <tr>
-                <td>id</td>
-                <td>INTEGER</td>
-                <td>Primary key</td>
-            </tr>
-            <tr>
-                <td>key_name</td>
-                <td>VARCHAR</td>
-                <td>Internal identifier (e.g., 'ACTIVE_COUNTY_INVENTORY')</td>
-            </tr>
-            <tr>
-                <td>display_name</td>
-                <td>VARCHAR</td>
-                <td>Human-readable name for UI</td>
-            </tr>
-            <tr>
-                <td>series_pattern</td>
-                <td>VARCHAR</td>
-                <td>FRED series ID template with {COUNTY} placeholder</td>
-            </tr>
-            <tr>
-                <td>lead_zero</td>
-                <td>BOOLEAN</td>
-                <td>Whether county codes need leading zeros</td>
-            </tr>
-            <tr>
-                <td>level</td>
-                <td>VARCHAR</td>
-                <td>NATIONAL, STATE, or COUNTY</td>
-            </tr>
-            <tr>
-                <td>is_active</td>
-                <td>BOOLEAN</td>
-                <td>Whether series is available for selection</td>
-            </tr>
-            <tr>
-                <td>sort_order</td>
-                <td>INTEGER</td>
-                <td>Display order in dropdown</td>
-            </tr>
+            <tr><th>Key</th><th>Label</th><th>Source column(s)</th></tr>
+            <tr><td>avg_listing_price</td><td>Average Listing Price</td><td>median_listing_price</td></tr>
+            <tr><td>median_listing_price_proxy</td><td>Median Listing Price (proxy)</td><td>median_listing_price</td></tr>
+            <tr><td>avg_price_per_sqft</td><td>Average Price per Sq Ft</td><td>median_listing_price_per_square_foot</td></tr>
+            <tr><td>avg_days_on_market</td><td>Average Days on Market</td><td>median_days_on_market</td></tr>
+            <tr><td>active_listing_count</td><td>Active Listings</td><td>active_listing_count</td></tr>
+            <tr><td>new_listing_count</td><td>New Listings</td><td>new_listing_count</td></tr>
+            <tr><td>total_listing_count</td><td>Total Listings</td><td>total_listing_count</td></tr>
+            <tr><td>pending_ratio</td><td>Pending Ratio</td><td>pending_ratio</td></tr>
+            <tr><td>price_increased_share</td><td>Price Increased Share</td><td>price_increased_share</td></tr>
+            <tr><td>price_reduced_share</td><td>Price Reduced Share</td><td>price_reduced_share</td></tr>
         </table>
-
-        <h3>2.2 SQL Query: Fetch FRED Series Options</h3>
+        <h3>2.2 SQL Query: Fetch County Series</h3>
         <div class="code-block sql-query">
-SELECT id, key_name, display_name, series_pattern, lead_zero, value_type, sort_order, description
-FROM fred.series
-WHERE level = $1 AND is_active = TRUE
-ORDER BY sort_order
+SELECT LPAD(cs.county_fips::text, 5, '0') AS county_fips,
+       cs.county_name,
+       cs.month_date_yyyymm::int AS month_date_yyyymm,
+       NULLIF(cs.median_listing_price, -1) AS avg_listing_price,
+       NULLIF(cs.median_listing_price_per_square_foot, -1) AS avg_price_per_sqft,
+       NULLIF(cs.median_days_on_market, -1) AS avg_days_on_market,
+       NULLIF(cs.active_listing_count, -1) AS active_listing_count,
+       NULLIF(cs.new_listing_count, -1) AS new_listing_count,
+       NULLIF(cs.total_listing_count, -1) AS total_listing_count,
+       NULLIF(cs.pending_ratio, -1) AS pending_ratio,
+       NULLIF(cs.price_increased_share, -1) AS price_increased_share,
+       NULLIF(cs.price_reduced_share, -1) AS price_reduced_share
+FROM (
+  SELECT * FROM otherdata.realtor_county_historic
+  UNION ALL
+  SELECT * FROM otherdata.realtor_county_current_month
+) cs
+WHERE LPAD(cs.county_fips::text, 5, '0') = ANY($1::text[])
+  AND COALESCE(cs.quality_flag::numeric, 1) = 1
+  AND cs.month_date_yyyymm::int >= $2
+ORDER BY county_fips ASC, month_date_yyyymm ASC;
         </div>
-        <p><strong>Parameters:</strong> $1 = 'COUNTY' (for the comparison page)</p>
-
-        <h3>2.3 County FIPS Reference Table</h3>
-        <p>The <code>irs.county_fips_xref</code> table provides county-to-FIPS code mapping:</p>
-        
-        <table class="table-schema">
-            <tr>
-                <th>Column</th>
-                <th>Type</th>
-                <th>Description</th>
-            </tr>
-            <tr>
-                <td>countyname</td>
-                <td>VARCHAR</td>
-                <td>Full county name (e.g., 'Palm Beach County')</td>
-            </tr>
-            <tr>
-                <td>state</td>
-                <td>VARCHAR</td>
-                <td>State name (e.g., 'Florida')</td>
-            </tr>
-            <tr>
-                <td>statefips</td>
-                <td>INTEGER</td>
-                <td>State FIPS code</td>
-            </tr>
-            <tr>
-                <td>countyfips</td>
-                <td>INTEGER</td>
-                <td>County FIPS code</td>
-            </tr>
-        </table>
-
-        <h3>2.4 SQL Query: Fetch Counties by State</h3>
-        <div class="code-block sql-query">
-SELECT 
-    countyname as name,
-    LPAD(statefips::text, 2, '0') || LPAD(countyfips::text, 3, '0') as id
-FROM irs.county_fips_xref
-WHERE state = $1
-ORDER BY countyname
-        </div>
-        <p><strong>Parameters:</strong> $1 = state name (e.g., 'Florida')</p>
-        <p><strong>Result:</strong> Returns county names with 5-digit FIPS codes (state + county)</p>
-
         <h2>3. Backend API Endpoints</h2>
-
-        <h3>3.1 /api/fred-series Endpoint</h3>
+        <h3>3.1 /api/county-comparison</h3>
         <div class="code-block api-endpoint">
-app.get('/api/fred-series', async (req, res) => {
-  const { level } = req.query;
-  
-  if (!level || !['NATIONAL', 'STATE', 'COUNTY'].includes(level.toUpperCase())) {
-    return res.status(400).json({ error: 'Invalid or missing level parameter' });
-  }
-  
+app.get('/api/county-comparison', async (req, res) => {
   try {
-    const result = await pgPool.query(`
-      SELECT id, key_name, display_name, series_pattern, lead_zero, value_type, sort_order, description
-      FROM fred.series
-      WHERE level = $1 AND is_active = TRUE
-      ORDER BY sort_order
-    `, [level.toUpperCase()]);
-    
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching FRED series:', err);
-    res.status(500).json({ error: 'Failed to fetch FRED series' });
+    const { county_fips, months } = req.query;
+    if (!county_fips || String(county_fips).trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'county_fips (CSV) is required' });
+    }
+    const list = String(county_fips).split(',').map(s => s.trim()).filter(Boolean);
+    const monthsBack = months ? Number(months) : 24;
+    const result = await dbQueries.getCountySeriesMultiByFips(list, monthsBack);
+    return res.json({ success: true, count: result.rowCount, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching county comparison:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch county comparison', message: error.message });
   }
 });
         </div>
-
-        <h3>3.2 /api/counties Endpoint</h3>
+        <h3>3.2 /api/zip-series & /api/zip-comparison</h3>
         <div class="code-block api-endpoint">
-app.get('/api/counties', checkAuth, async (req, res) => {
-    const { state } = req.query;
-    try {
-        const result = await pgPool.query(`
-            SELECT 
-                countyname as name,
-                LPAD(statefips::text, 2, '0') || LPAD(countyfips::text, 3, '0') as id
-            FROM irs.county_fips_xref
-            WHERE state = $1
-            ORDER BY countyname
-        `, [state]);
-        
-        res.json(result.rows);
-    } catch (err) {
-        console.error('Error fetching counties:', err);
-        res.status(500).json({ error: 'Failed to fetch counties' });
+app.get('/api/zip-series', async (req, res) => {
+  try {
+    const { zip, months } = req.query;
+    if (!zip || String(zip).trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'zip is required' });
     }
+    const monthsBack = months ? Number(months) : 24;
+    const result = await dbQueries.getZipSeriesByZip(String(zip).trim(), monthsBack);
+    return res.json({ success: true, count: result.rowCount, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching ZIP series:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch ZIP series', message: error.message });
+  }
+});
+
+app.get('/api/zip-comparison', async (req, res) => {
+  try {
+    const { zips, months } = req.query;
+    if (!zips || String(zips).trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'zips (CSV) is required' });
+    }
+    const list = String(zips).split(',').map(s => s.trim()).filter(Boolean);
+    const monthsBack = months ? Number(months) : 24;
+    const result = await dbQueries.getZipSeriesMultiByZip(list, monthsBack);
+    return res.json({ success: true, count: result.rowCount, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching ZIP comparison series:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch ZIP comparison', message: error.message });
+  }
 });
         </div>
-
-        <h3>3.3 /api/fred-data Endpoint</h3>
-        <div class="code-block api-endpoint">
-app.get('/api/fred-data', async (req, res) => {
-    try {
-      const { seriesId, startDate, endDate } = req.query;
-      const response = await axios.get(`https://api.stlouisfed.org/fred/series/observations`, {
-        params: {
-          series_id: seriesId,
-          api_key: process.env.FRED_API_KEY,
-          file_type: 'json',
-          observation_start: startDate,
-          observation_end: endDate
-        }
-      });
-  
-      res.json(response.data);
-    } catch (error) {
-      console.error('Error fetching FRED data:', error);
-      res.status(500).json({ error: 'Failed to fetch FRED data' });
-    }
-  });
-        </div>
-
         <h2>4. Frontend Implementation</h2>
-
         <h3>4.1 Series Options Loading</h3>
         <div class="code-block js-code">
-// Function to fetch series options from the database API
-async function fetchSeriesOptions() {
-    if (seriesOptionsCache) {
-        return seriesOptionsCache;
-    }
-    
-    try {
-        const response = await fetch('/api/fred-series?level=COUNTY');
-        if (!response.ok) {
-            throw new Error('Failed to fetch county series options');
-        }
-        
-        const seriesData = await response.json();
-        const options = {};
-        
-        // Convert API response to expected format
-        seriesData.forEach(item => {
-            options[item.key_name] = {
-                series: item.series_pattern,
-                lead_zero: item.lead_zero,
-                display_name: item.display_name,
-                sort_order: item.sort_order || 999
-            };
-        });
-        
-        seriesOptionsCache = options;
-        return options;
-    } catch (error) {
-        console.error('Error fetching series options:', error);
-        // Fallback to hardcoded options
-        return SERIES_OPTIONS;
-    }
+const REALTOR_METRICS = [
+  { key: 'avg_listing_price', label: 'Average Listing Price', valueType: 'currency', decimals: 0 },
+  { key: 'median_listing_price_proxy', label: 'Median Listing Price (proxy)', valueType: 'currency', decimals: 0 },
+  { key: 'avg_price_per_sqft', label: 'Average Price per Sq Ft', valueType: 'currency', decimals: 0 },
+  { key: 'avg_days_on_market', label: 'Average Days on Market', valueType: 'number' },
+  { key: 'active_listing_count', label: 'Active Listings', valueType: 'number' },
+  { key: 'new_listing_count', label: 'New Listings', valueType: 'number' },
+  { key: 'total_listing_count', label: 'Total Listings', valueType: 'number' },
+  { key: 'pending_ratio', label: 'Pending Ratio', valueType: 'ratio', percentDecimals: 1 },
+  { key: 'price_increased_share', label: 'Price Increased Share', valueType: 'ratio', percentDecimals: 1 },
+  { key: 'price_reduced_share', label: 'Price Reduced Share', valueType: 'ratio', percentDecimals: 1 }
+];
+
+function loadSeriesOptions() {
+  const select = document.getElementById('series-select');
+  select.innerHTML = '';
+  REALTOR_METRICS.forEach(metric => {
+    const option = document.createElement('option');
+    option.value = metric.key;
+    option.textContent = metric.label;
+    select.appendChild(option);
+  });
+  select.value = REALTOR_METRICS[0]?.key;
 }
         </div>
-
         <h3>4.2 County Data Fetching</h3>
         <div class="code-block js-code">
-async function fetchCounties(state) {
-    const response = await fetch(`/api/counties?state=${state}`);
-    return response.json();
-}
+async function fetchCountySeriesData(countyIds, metricKey) {
+  const params = new URLSearchParams();
+  params.set('county_fips', countyIds.join(','));
+  params.set('months', '60');
+  const response = await fetch(`/api/county-comparison?${params}`);
+  if (!response.ok) throw new Error('Failed to fetch county comparison data');
+  const json = await response.json();
+  if (!json.success) return [];
 
-function populateCountyDropdown(selectElement, counties, defaultCounty = 'Palm Beach County') {
-    counties.sort((a, b) => a.name.localeCompare(b.name));
-    selectElement.innerHTML = counties.map(county => 
-        `&lt;option value="${county.id}"&gt;${county.name}&lt;/option&gt;`
-    ).join('');
-    
-    const defaultOption = Array.from(selectElement.options).find(option => 
-        option.text === defaultCounty
-    );
-    if (defaultOption) {
-        selectElement.value = defaultOption.value;
-    }
-}
-        </div>
-
-        <h3>4.3 FRED Data Fetching Logic</h3>
-        <div class="code-block js-code">
-async function fetchData(seriesId) {
-    const end_date = new Date().toISOString().split('T')[0];
-    const start_date = new Date(new Date().setFullYear(new Date().getFullYear() - 10))
-        .toISOString().split('T')[0];
-    
-    const url = `/api/fred-data?seriesId=${seriesId}&startDate=${start_date}&endDate=${end_date}`;
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (!response.ok) {
-        if (response.status === 400) {
-            return { error: 'Series does not exist' };
-        }
-        return { error: data.error || 'Unknown error' };
-    }
-    
-    return data.observations.map(obs => ({
-        date: new Date(obs.date),
-        value: parseFloat(obs.value)
-    })).filter(obs => !isNaN(obs.value));
-}
-        </div>
-
-        <h3>4.4 Series ID Construction</h3>
-        <div class="code-block js-code">
-// Main comparison logic when user clicks "Compare" button
-compareButton.addEventListener('click', async () => {
-    const series = seriesSelect.value;
-    const selections = [];
-
-    // Collect all state/county selections
-    for (let i = 1; i <= selectionCount; i++) {
-        const stateSelect = document.getElementById(`state-select-${i}`);
-        const countySelect = document.getElementById(`county-select-${i}`);
-        if (stateSelect && countySelect) {
-            selections.push({
-                state: stateSelect.value,
-                county: countySelect.value,
-                countyName: countySelect.options[countySelect.selectedIndex].text
-            });
-        }
-    }
-
-    try {
-        const allSeriesOptions = await fetchSeriesOptions();
-        const seriesOption = allSeriesOptions[series];
-        
-        const data = {};
-        for (const selection of selections) {
-            // Apply leading zeros based on series configuration
-            const countyCode = seriesOption.lead_zero ? 
-                selection.county.padStart(5, '0') : 
-                selection.county.replace(/^0+/, '');
-            
-            // Replace {COUNTY} placeholder with actual county code
-            const seriesId = seriesOption.series.replace('{COUNTY}', countyCode);
-            const seriesData = await fetchData(seriesId);
-            data[selection.county] = [{ type: 'series', data: seriesData }];
-        }
-
-        createComparisonChart(data, 'comparison-chart', currentTitle, currentYAxisLabel, currentCountyNames);
-    } catch (error) {
-        console.error('Error fetching comparison data:', error);
-        alert('Error fetching comparison data. Please try again later.');
-    }
-});
-        </div>
-
-        <h2>5. FRED Series Examples</h2>
-
-        <h3>5.1 Series Pattern Examples</h3>
-        <table class="table-schema">
-            <tr>
-                <th>Display Name</th>
-                <th>Key Name</th>
-                <th>Series Pattern</th>
-                <th>Lead Zero</th>
-                <th>Example Series ID</th>
-            </tr>
-            <tr>
-                <td>Active County Inventory</td>
-                <td>ACTIVE_COUNTY_INVENTORY</td>
-                <td>ACTLISCOU{COUNTY}</td>
-                <td>false</td>
-                <td>ACTLISCOU12099 (Palm Beach, FL)</td>
-            </tr>
-            <tr>
-                <td>Total Listing Count</td>
-                <td>TOTAL_LISTING_COUNT</td>
-                <td>TOTLISCOU{COUNTY}</td>
-                <td>false</td>
-                <td>TOTLISCOU12099</td>
-            </tr>
-            <tr>
-                <td>All Transactions HPI</td>
-                <td>ALL_TRANSACTIONS_HPI</td>
-                <td>ATNHPIUS{COUNTY}A</td>
-                <td>true</td>
-                <td>ATNHPIUS12099A</td>
-            </tr>
-            <tr>
-                <td>County GDP</td>
-                <td>COUNTY_GDP</td>
-                <td>GDPALL{COUNTY}</td>
-                <td>true</td>
-                <td>GDPALL12099</td>
-            </tr>
-        </table>
-
-        <h3>5.2 County Code Formatting Logic</h3>
-        <div class="code-block js-code">
-// Two different formatting approaches based on lead_zero flag:
-
-// For series that need leading zeros (lead_zero: true)
-const countyCode = selection.county.padStart(5, '0');
-// Example: "12099" becomes "12099", "1001" becomes "01001"
-
-// For series that don't need leading zeros (lead_zero: false)  
-const countyCode = selection.county.replace(/^0+/, '');
-// Example: "01001" becomes "1001", "12099" stays "12099"
-        </div>
-
-        <h2>6. D3.js Visualization Implementation</h2>
-
-        <h3>6.1 Chart Creation Function</h3>
-        <div class="code-block js-code">
-function createComparisonChart(data, chartId, title, yAxisLabel, countyNames) {
-    const margin = { top: 40, right: 80, bottom: 100, left: 100 };
-    const width = 800 - margin.left - margin.right;
-    const height = 400 - margin.top - margin.bottom;
-
-    // Clear existing chart
-    d3.select(`#${chartId}`).selectAll("*").remove();
-
-    // Create SVG with responsive viewBox
-    const svg = d3.select(`#${chartId}`)
-        .append("svg")
-        .attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
-        .attr("preserveAspectRatio", "xMinYMin meet")
-        .append("g")
-        .attr("transform", `translate(${margin.left},${margin.top})`);
-
-    // Set up scales
-    const x = d3.scaleTime().range([0, width]);
-    const ySeries = d3.scaleLinear().range([height, 0]);
-
-    // Create line generator
-    const line = d3.line()
-        .x(d => x(d.date))
-        .y(d => ySeries(d.value));
-
-    // Extract and set domains
-    const allData = Object.values(data).flatMap(countyData => 
-        countyData.flatMap(d => d.data)
-    );
-    x.domain(d3.extent(allData, d => d.date));
-    ySeries.domain([d3.min(allData, d => d.value), d3.max(allData, d => d.value)]);
-
-    // Add axes
-    svg.append("g")
-        .attr("transform", `translate(0,${height})`)
-        .call(d3.axisBottom(x))
-        .selectAll("text")
-        .style("text-anchor", "end")
-        .attr("dx", "-.8em")
-        .attr("dy", ".15em")
-        .attr("transform", "rotate(-45)");
-
-    svg.append("g")
-        .call(d3.axisLeft(ySeries))
-        .append("text")
-        .attr("fill", "black")
-        .attr("transform", "rotate(-90)")
-        .attr("y", -margin.left + 20)
-        .attr("x", -height / 2)
-        .attr("dy", "0.71em")
-        .attr("text-anchor", "middle")
-        .text(yAxisLabel);
-
-    // Color scale for different counties
-    const color = d3.scaleOrdinal()
-        .domain(Object.keys(data))
-        .range(Object.keys(data).map(countyId => {
-            if (countyNames[countyId] === 'Palm Beach County') {
-                return 'blue'; // Specific color for Palm Beach County
-            }
-            return d3.schemeCategory10[Object.keys(data).indexOf(countyId) % 9 + 1];
-        }));
-
-    // Draw lines for each county
-    Object.entries(data).forEach(([countyId, datasets]) => {
-        datasets.forEach(dataset => {
-            const validData = dataset.data.filter(d => !isNaN(d.value));
-            svg.append("path")
-                .data([validData])
-                .attr("class", "line")
-                .attr("d", line)
-                .style("stroke", color(countyId))
-                .style("stroke-width", "3px")
-                .style("fill", "none");
-        });
+  const grouped = {};
+  json.data.forEach(row => {
+    const id = row.county_fips;
+    if (!grouped[id]) grouped[id] = { county: id, name: row.county_name, points: [] };
+    grouped[id].points.push({
+      x: parseYyyymmToDate(row.month_date_yyyymm),
+      y: toNumberOrNull(row[metricKey])
     });
+  });
 
-    // Add title and legend
-    svg.append("text")
-        .attr("x", (width / 2))
-        .attr("y", 0 - (margin.top / 2))
-        .attr("text-anchor", "middle")
-        .style("font-size", "16px")
-        .text(title);
-
-    const legend = svg.selectAll(".legend")
-        .data(Object.keys(data))
-        .enter().append("g")
-        .attr("class", "legend")
-        .attr("transform", (d, i) => `translate(${i * 150},${height + 40})`);
-
-    legend.append("rect")
-        .attr("x", 0)
-        .attr("width", 9)
-        .attr("height", 18)
-        .style("fill", d => color(d));
-
-    legend.append("text")
-        .attr("x", 20)
-        .attr("y", 9)
-        .attr("dy", ".35em")
-        .style("text-anchor", "start")
-        .text(d => countyNames[d].replace(' County', ''));
+  return Object.values(grouped).map(entry => {
+    entry.points.sort((a, b) => (a.x?.getTime?.() || 0) - (b.x?.getTime?.() || 0));
+    return entry;
+  });
 }
         </div>
-
-        <h2>7. Complete Data Flow Process</h2>
-
-        <div class="flow-diagram">
-            <strong>Step-by-Step Process Flow</strong><br><br>
-            
-            <strong>1. Page Load</strong><br>
-            Frontend fetches available series via /api/fred-series?level=COUNTY
-            <div class="arrow">↓</div>
-            
-            <strong>2. Series Dropdown Population</strong><br>
-            Database query returns series metadata from fred.series table<br>
-            Results sorted by sort_order and populated in dropdown
-            <div class="arrow">↓</div>
-            
-            <strong>3. State/County Selection</strong><br>
-            Frontend fetches counties via /api/counties?state=StateName<br>
-            Database query returns counties from irs.county_fips_xref
-            <div class="arrow">↓</div>
-            
-            <strong>4. User Clicks "Compare"</strong><br>
-            For each selected county: Generate FRED series ID using pattern<br>
-            Apply lead_zero formatting if required
-            <div class="arrow">↓</div>
-            
-            <strong>5. Data Fetching</strong><br>
-            Multiple parallel calls to /api/fred-data with constructed series IDs<br>
-            Backend proxies requests to FRED API with API key
-            <div class="arrow">↓</div>
-            
-            <strong>6. Chart Rendering</strong><br>
-            D3.js processes time series data and creates multi-line comparison chart<br>
-            Different colors for each county, responsive design
-        </div>
-
-        <h2>8. Configuration and Environment</h2>
-
-        <h3>8.1 Required Environment Variables</h3>
-        <div class="code-block">
-FRED_API_KEY=your_fred_api_key_here
-        </div>
-
-        <h3>8.2 Database Dependencies</h3>
-        <ul>
-            <li><strong>fred.series</strong> - Contains FRED series metadata and configuration</li>
-            <li><strong>irs.county_fips_xref</strong> - Maps county names to FIPS codes</li>
-            <li>PostgreSQL connection via pgPool</li>
-        </ul>
-
-        <h3>8.3 External Dependencies</h3>
-        <ul>
-            <li><strong>FRED API</strong> - Federal Reserve Bank of St. Louis economic data API</li>
-            <li><strong>D3.js v7</strong> - Data visualization library</li>
-            <li><strong>axios</strong> - HTTP client for backend API calls</li>
-        </ul>
-
-        <h2>9. Error Handling and Fallbacks</h2>
-
-        <div class="warning">
-            <strong>Important Error Handling Features:</strong>
-            <ul>
-                <li>Fallback to hardcoded series options if database query fails</li>
-                <li>Graceful handling of missing FRED series data</li>
-                <li>User-friendly error messages for network failures</li>
-                <li>Data validation before chart rendering</li>
-                <li>Loading overlays during data fetching operations</li>
-            </ul>
-        </div>
-
-        <h3>9.1 Frontend Error Handling</h3>
+        <h3>4.3 Value Formatting</h3>
         <div class="code-block js-code">
-try {
-    const seriesData = await fetchData(seriesId);
-    data[selection.county] = [{ type: 'series', data: seriesData }];
-} catch (error) {
-    console.error('Error fetching comparison data:', error);
-    alert('Error fetching comparison data. Please try again later.');
-} finally {
-    loadingOverlay.style.display = 'none';
+function formatMetricValue(value, meta) {
+  if (value == null || Number.isNaN(value)) return '—';
+  if (!meta || meta.valueType === 'number') {
+    return Number(value).toLocaleString();
+  }
+  if (meta.valueType === 'currency') {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: meta.decimals ?? 0,
+      minimumFractionDigits: meta.decimals ?? 0
+    }).format(value);
+  }
+  if (meta.valueType === 'ratio') {
+    return `${(Number(value) * 100).toFixed(meta.percentDecimals ?? 1)}%`;
+  }
+  return Number(value).toLocaleString();
 }
         </div>
-
-        <h2>10. Performance Considerations</h2>
-
-        <ul>
-            <li><strong>Caching:</strong> Series options cached in memory to avoid repeated database queries</li>
-            <li><strong>Parallel Requests:</strong> Multiple FRED API calls made simultaneously for different counties</li>
-            <li><strong>Data Filtering:</strong> Invalid data points filtered out before visualization</li>
-            <li><strong>Responsive Charts:</strong> SVG viewBox for mobile compatibility</li>
-            <li><strong>Debounced Resizing:</strong> Chart resize events debounced to prevent excessive redraws</li>
-        </ul>
-
-        <div class="important-note">
-            <strong>Implementation Summary:</strong> The FRED comparison page combines database-driven configuration, external API integration, and advanced data visualization to provide an interactive economic data comparison tool. The modular architecture allows for easy addition of new data series and supports multiple counties simultaneously.
-        </div>
+        <h2>5. Realtor Metric Examples</h2>
+        <table class="table-schema">
+            <tr><th>Key</th><th>Description</th><th>Notes</th></tr>
+            <tr><td>avg_listing_price</td><td>Median listing price (currency)</td><td>Displayed in USD</td></tr>
+            <tr><td>avg_days_on_market</td><td>Median days on market</td><td>Integer values</td></tr>
+            <tr><td>pending_ratio</td><td>Pending listings ÷ total listings</td><td>Rendered as percentage</td></tr>
+        </table>
     </div>
 </body>
 </html> 

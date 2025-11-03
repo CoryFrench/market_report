@@ -82,6 +82,20 @@
         // Define API_BASE early so all subsequent scripts can use it
         window.API_BASE = window.location.pathname.startsWith('/report/') ? '/report/api' : '/api';
         const API_BASE = window.API_BASE;
+
+        const HTML_ESCAPE_MAP = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+            '/': '&#47;'
+        };
+
+        function escapeHtml(value) {
+            if (value === null || value === undefined) return '';
+            return String(value).replace(/[&<>"'/]/g, char => HTML_ESCAPE_MAP[char] || char);
+        }
     </script>
     <style>
         @keyframes spin {
@@ -258,6 +272,38 @@
         }
         #devLegend .legend-actions a:hover {
             text-decoration: underline;
+        }
+
+        /* Overlay price metric toggle */
+        .price-toggle-group {
+            display: inline-flex;
+            gap: 4px;
+            padding: 4px;
+            border: 1px solid #dee2e6;
+            border-radius: 999px;
+            background: #f1f5f9;
+        }
+
+        .price-toggle-btn {
+            border: none;
+            background: transparent;
+            color: #2c3e50;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .price-toggle-btn:hover {
+            background: rgba(39, 174, 96, 0.12);
+        }
+
+        .price-toggle-btn.active {
+            background: #27ae60;
+            color: #ffffff;
+            box-shadow: 0 2px 6px rgba(39, 174, 96, 0.3);
         }
     </style>
 </head>
@@ -484,10 +530,13 @@
                                     <div id="devLegend" class="dev-legend-bar"></div>
                                     <div id="development-chart-controls" style="display: none; text-align: center; margin-bottom: 20px;">
                                         <label for="development-chart-type-select" style="margin-right: 10px; font-weight: bold;">Chart Type:</label>
-                                        <select id="development-chart-type-select" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer; min-width: 150px;">
+                                        <select id="development-chart-type-select" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer; min-width: 180px;">
                                             <option value="sales">Sales Count</option>
                                             <option value="price">Average Price</option>
                                             <option value="price_per_sqft">Price Per Square Foot</option>
+                                            <option value="sales_pct">Sales Count (% Change)</option>
+                                            <option value="price_pct">Average Price (% Change)</option>
+                                            <option value="price_per_sqft_pct">Price Per Square Foot (% Change)</option>
                                         </select>
                                     </div>
                                     <div id="dev-comparison-chart-container" style="position: relative; height: 500px; width: 100%;">
@@ -720,7 +769,15 @@
             
             // Update header information
             document.getElementById('agentName').textContent = data.agent_name || 'Agent Name';
-            document.getElementById('buyerName').textContent = `${data.first_name} ${data.last_name}` || 'Buyer Name';
+            const hasBuyerFirst = Boolean(data.first_name && String(data.first_name).trim().length);
+            const hasBuyerLast = Boolean(data.last_name && String(data.last_name).trim().length);
+            if (hasBuyerFirst || hasBuyerLast) {
+                const buyerFirst = hasBuyerFirst ? String(data.first_name).trim() : '';
+                const buyerLast = hasBuyerLast ? String(data.last_name).trim() : '';
+                document.getElementById('buyerName').textContent = `${buyerFirst}${buyerFirst && buyerLast ? ' ' : ''}${buyerLast}`;
+            } else {
+                document.getElementById('buyerName').textContent = 'Buyer Name';
+            }
             (function() {
                 const city = String(data.home_city || data.city || '').trim();
                 const state = String(data.home_state || data.state || '').trim();
@@ -769,8 +826,8 @@
             if (data.interest_areas && data.interest_areas.length > 0) {
                 const areasHtml = data.interest_areas.map(area => `
                     <div class="info-item">
-                        <div class="info-label">Interest ${area.interest_id}</div>
-                        <div class="info-value">${area.city}, ${area.state}</div>
+                        <div class="info-label">Interest ${escapeHtml(area.interest_id)}</div>
+                        <div class="info-value">${escapeHtml(area.city)}, ${escapeHtml(area.state)}</div>
                     </div>
                 `).join('');
                 document.getElementById('interestAreasContent').innerHTML = `<div class="info-grid">${areasHtml}</div>`;
@@ -824,12 +881,12 @@
             if (data.address_line_1 && data.address_line_1.trim()) {
                 addressLines.push(toTitleCaseSmart(data.address_line_1.trim()));
             }
-            
+
             // Address Line 2 (if exists)
             if (data.address_line_2 && data.address_line_2.trim()) {
                 addressLines.push(toTitleCaseSmart(data.address_line_2.trim()));
             }
-            
+
             // City, State, Zip
             let cityStateZip = [];
             if (data.home_city) cityStateZip.push(toTitleCaseSmart(data.home_city));
@@ -838,7 +895,7 @@
             if (cityStateZip.length > 0) {
                 addressLines.push(cityStateZip.join(', '));
             }
-            
+
             // Development & Subdivision (avoid duplicate when identical)
             const devName = (data.development && data.development.trim()) ? toTitleCaseSmart(data.development.trim()) : '';
             const subName = (data.subdivision && data.subdivision.trim()) ? toTitleCaseSmart(data.subdivision.trim()) : '';
@@ -854,19 +911,21 @@
             if (addressLines.length > 0) {
                 let styledAddress = '';
                 addressLines.forEach((line, index) => {
+                    const rawLine = line == null ? '' : String(line);
+                    const safeLine = escapeHtml(rawLine);
                     // Determine line type based on content pattern rather than position
-                    const isCityStateZip = line.includes(',') && /\d{5}/.test(line); // Contains comma and 5-digit zip
+                    const isCityStateZip = rawLine.includes(',') && /\d{5}/.test(rawLine); // Contains comma and 5-digit zip
                     const isStreetAddress = index === 0 || (index === 1 && !isCityStateZip);
                     
                     if (isStreetAddress) {
                         // Street address lines - larger and bolder
-                        styledAddress += `<div style="font-size: 18px; font-weight: 600; color: #2c3e50; margin-bottom: 4px; line-height: 1.3;">${line}</div>`;
+                        styledAddress += `<div style="font-size: 18px; font-weight: 600; color: #2c3e50; margin-bottom: 4px; line-height: 1.3;">${safeLine}</div>`;
                     } else if (isCityStateZip) {
                         // City, State, Zip line - medium weight
-                        styledAddress += `<div style="font-size: 20px; font-weight: 500; color: #34495e; margin-bottom: 8px; line-height: 1.3;">${line}</div>`;
+                        styledAddress += `<div style="font-size: 20px; font-weight: 500; color: #34495e; margin-bottom: 8px; line-height: 1.3;">${safeLine}</div>`;
                     } else {
                         // Development/Subdivision - lighter styling with subtle separation
-                        styledAddress += `<div style="font-size: 18px; font-weight: 400; color: #7f8c8d; margin-bottom: 3px; line-height: 1.4; font-style: italic;">${line}</div>`;
+                        styledAddress += `<div style="font-size: 18px; font-weight: 400; color: #7f8c8d; margin-bottom: 3px; line-height: 1.4; font-style: italic;">${safeLine}</div>`;
                     }
                 });
                 addressElement.innerHTML = styledAddress;
@@ -1242,11 +1301,17 @@
                             </div>
                         </div>
                         
-                        <!-- Average Price Chart -->
+                        <!-- Price Chart -->
                         <div style="flex: 1;">
-                            <h4 style="text-align: center; color: #34495e; margin-bottom: 15px;">Average Sale Price per Year</h4>
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; flex-wrap: wrap; gap: 12px;">
+                                <h4 id="priceChartHeading" style="color: #34495e; margin: 0;">Average Sale Price per Year</h4>
+                                <div id="priceMetricToggle" class="price-toggle-group" role="group" aria-label="Sale price metric toggle">
+                                    <button type="button" class="price-toggle-btn active" data-metric="avg_price" aria-pressed="true">Average</button>
+                                    <button type="button" class="price-toggle-btn" data-metric="median_price" aria-pressed="false">Median</button>
+                                </div>
+                            </div>
                             <div style="height: 300px; position: relative;">
-                                <canvas id="avgPriceChart" style="width: 100%; height: 100%;"></canvas>
+                                <canvas id="priceChart" style="width: 100%; height: 100%;"></canvas>
                             </div>
                         </div>
                     </div>
@@ -1298,11 +1363,16 @@
             `;
             
             content.innerHTML = chartHtml;
+
+            // Cache data for metric toggling
+            priceChartData = Array.isArray(chartData) ? chartData.slice() : [];
+            priceChartMetric = 'avg_price';
             
             // Render Chart.js charts
             setTimeout(() => {
                 renderPopupChart('salesCountChart', chartData, 'sales_count', '#3498db', 'Number of Sales');
-                renderPopupChart('avgPriceChart', chartData, 'avg_price', '#27ae60', 'Average Sale Price');
+                renderOverlayPriceChart(priceChartData, priceChartMetric);
+                setupPriceMetricToggle();
             }, 100);
         }
         
@@ -1357,7 +1427,7 @@
             chartHtml += `</div>`;
             return chartHtml;
         }
-        
+
         // Function to render popup charts using Chart.js
         function renderPopupChart(canvasId, data, valueField, color, label) {
             const canvas = document.getElementById(canvasId);
@@ -1369,8 +1439,6 @@
             // Destroy existing chart instance
             if (canvasId === 'salesCountChart' && salesCountChartInstance) {
                 salesCountChartInstance.destroy();
-            } else if (canvasId === 'avgPriceChart' && avgPriceChartInstance) {
-                avgPriceChartInstance.destroy();
             }
             
             // Prepare data for Chart.js
@@ -1487,9 +1555,143 @@
             
             if (canvasId === 'salesCountChart') {
                 salesCountChartInstance = newChart;
-            } else if (canvasId === 'avgPriceChart') {
-                avgPriceChartInstance = newChart;
             }
+        }
+
+        function renderOverlayPriceChart(data, metric = 'avg_price') {
+            const canvas = document.getElementById('priceChart');
+            if (!canvas) {
+                console.error('priceChart canvas not found');
+                return;
+            }
+
+            priceChartData = Array.isArray(data) ? data.slice() : [];
+            priceChartMetric = metric in PRICE_METRIC_CONFIG ? metric : 'avg_price';
+
+            const metricConfig = PRICE_METRIC_CONFIG[priceChartMetric] || PRICE_METRIC_CONFIG.avg_price;
+            const heading = document.getElementById('priceChartHeading');
+            if (heading) {
+                heading.textContent = `${metricConfig.label} per Year`;
+            }
+
+            const chartData = priceChartData.map(item => ({
+                x: item.sale_year ? item.sale_year.toString() : '',
+                y: parseFloat(item[priceChartMetric]) || 0
+            }));
+
+            if (priceChartInstance) {
+                priceChartInstance.destroy();
+                priceChartInstance = null;
+            }
+
+            const ctx = canvas.getContext('2d');
+            priceChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: metricConfig.label,
+                        data: chartData,
+                        backgroundColor: `${metricConfig.color}20`,
+                        borderColor: metricConfig.color,
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: metricConfig.color,
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        pointHoverBackgroundColor: metricConfig.color,
+                        pointHoverBorderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { left: 16, right: 16, top: 8, bottom: 12 } },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    return `Year ${tooltipItems[0].label}`;
+                                },
+                                label: function(context) {
+                                    const value = context.parsed.y || 0;
+                                    return `${metricConfig.label}: $${Math.round(value).toLocaleString()}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'category',
+                            title: {
+                                display: true,
+                                text: 'Year',
+                                color: '#2c3e50',
+                                font: { weight: 'bold' }
+                            },
+                            grid: { display: false },
+                            ticks: {
+                                color: '#2c3e50',
+                                font: { weight: '500' }
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: metricConfig.label,
+                                color: '#2c3e50',
+                                font: { weight: 'bold' }
+                            },
+                            grid: { color: '#f0f0f0' },
+                            ticks: {
+                                color: '#666',
+                                callback: function(value) {
+                                    return '$' + Math.round(value).toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 800,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+
+            updatePriceMetricToggleState();
+        }
+
+        function setupPriceMetricToggle() {
+            const toggleGroup = document.getElementById('priceMetricToggle');
+            if (!toggleGroup) return;
+
+            const buttons = toggleGroup.querySelectorAll('button[data-metric]');
+            buttons.forEach(button => {
+                const metric = button.getAttribute('data-metric');
+                button.onclick = () => {
+                    if (!metric || priceChartMetric === metric) return;
+                    priceChartMetric = metric;
+                    renderOverlayPriceChart(priceChartData, priceChartMetric);
+                };
+            });
+
+            updatePriceMetricToggleState();
+        }
+
+        function updatePriceMetricToggleState() {
+            const toggleGroup = document.getElementById('priceMetricToggle');
+            if (!toggleGroup) return;
+            const buttons = toggleGroup.querySelectorAll('button[data-metric]');
+            buttons.forEach(button => {
+                const metric = button.getAttribute('data-metric');
+                const isActive = metric === priceChartMetric;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
         }
         
         // Function to close chart overlay and clean up chart instances
@@ -1502,10 +1704,12 @@
                 salesCountChartInstance.destroy();
                 salesCountChartInstance = null;
             }
-            if (avgPriceChartInstance) {
-                avgPriceChartInstance.destroy();
-                avgPriceChartInstance = null;
+            if (priceChartInstance) {
+                priceChartInstance.destroy();
+                priceChartInstance = null;
             }
+            priceChartData = [];
+            priceChartMetric = 'avg_price';
         }
         
         // Setup chart overlay close handlers
@@ -2260,8 +2464,22 @@
             }
         }
 
-        // FRED Comparison Functionality for Area Charts
+        // County comparison (Realtor metrics)
         let seriesOptionsCache = null;
+        const REALTOR_METRICS = [
+            { key: 'avg_listing_price', label: 'Average Listing Price', valueType: 'currency', decimals: 0 },
+            { key: 'median_listing_price_proxy', label: 'Median Listing Price (proxy)', valueType: 'currency', decimals: 0 },
+            { key: 'avg_price_per_sqft', label: 'Average Price per Sq Ft', valueType: 'currency', decimals: 0 },
+            { key: 'avg_days_on_market', label: 'Average Days on Market', valueType: 'number', decimals: 0 },
+            { key: 'active_listing_count', label: 'Active Listings', valueType: 'number', decimals: 0 },
+            { key: 'new_listing_count', label: 'New Listings', valueType: 'number', decimals: 0 },
+            { key: 'total_listing_count', label: 'Total Listings', valueType: 'number', decimals: 0 },
+            { key: 'pending_ratio', label: 'Pending Ratio', valueType: 'ratio', percentDecimals: 1 },
+            { key: 'price_increased_share', label: 'Price Increased Share', valueType: 'ratio', percentDecimals: 1 },
+            { key: 'price_reduced_share', label: 'Price Reduced Share', valueType: 'ratio', percentDecimals: 1 }
+        ];
+        const DEFAULT_COUNTY_METRIC = REALTOR_METRICS[0]?.key || 'avg_listing_price';
+        const realtorSeriesKeys = new Set(REALTOR_METRICS.map(m => m.key));
         let selectionCount = 1;
         const maxSelections = 5;
         
@@ -2270,9 +2488,15 @@
         let rightChartInstance = null;
         let comparisonChartInstance = null;
         
-        // Chart.js instances for popup charts
+        // Chart.js instances for popup charts and overlay state
         let salesCountChartInstance = null;
-        let avgPriceChartInstance = null;
+        let priceChartInstance = null;
+        let priceChartMetric = 'avg_price';
+        let priceChartData = [];
+        const PRICE_METRIC_CONFIG = {
+            avg_price: { label: 'Average Sale Price', color: '#27ae60' },
+            median_price: { label: 'Median Sale Price', color: '#8e44ad' }
+        };
         
         // Available states for county selection (alphabetically sorted)
         const availableStates = [
@@ -2306,16 +2530,9 @@
             }
         }
         
-        // Load available FRED series from database
+        // Load Realtor metrics for county comparison
         async function loadSeriesOptions() {
             try {
-                const response = await fetch('/api/fred-series?level=COUNTY');
-                const result = await response.json();
-                
-                if (!response.ok || !result.success) {
-                    throw new Error('Failed to fetch series options');
-                }
-                
                 const seriesSelect = document.getElementById('series-select');
                 if (!seriesSelect) {
                     console.error('series-select element not found');
@@ -2323,45 +2540,20 @@
                 }
                 seriesSelect.innerHTML = '';
                 
-                // Convert to the expected format
-                const options = {};
-                result.data.forEach(item => {
-                    options[item.key_name] = {
-                        series: item.series_pattern,
-                        lead_zero: item.lead_zero,
-                        display_name: item.display_name,
-                        sort_order: item.sort_order || 999,
-                        description: item.description || ''
-                    };
-                    
-                    // Add option to select element
+                seriesOptionsCache = {};
+
+                REALTOR_METRICS.forEach(metric => {
+                    seriesOptionsCache[metric.key] = metric;
                     const option = document.createElement('option');
-                    option.value = item.key_name;
-                    option.textContent = item.display_name;
+                    option.value = metric.key;
+                    option.textContent = metric.label;
                     seriesSelect.appendChild(option);
                 });
-                
-                seriesOptionsCache = options;
-                
-                // Set default selection to Active County Inventory or first available
-                const defaultSeries = 'ACTIVE_COUNTY_INVENTORY';
-                if (options[defaultSeries]) {
-                    seriesSelect.value = defaultSeries;
-                } else if (result.data.length > 0) {
-                    seriesSelect.value = result.data[0].key_name;
-                }
+
+                seriesSelect.value = DEFAULT_COUNTY_METRIC;
                 
             } catch (error) {
                 console.error('Error loading series options:', error);
-                // Fallback options
-                const seriesSelect = document.getElementById('series-select');
-                if (seriesSelect) {
-                    seriesSelect.innerHTML = `
-                        <option value="ACTLISCOU{COUNTY}">Active County Inventory</option>
-                        <option value="ATNHPIUS{COUNTY}A">All Transactions HPI</option>
-                        <option value="GDPALL{COUNTY}">County GDP</option>
-                    `;
-                }
             }
         }
         
@@ -2668,7 +2860,7 @@
             
             // Reset series selection to default
             const seriesSelect = document.getElementById('series-select');
-            const defaultSeries = 'ACTIVE_COUNTY_INVENTORY';
+            const defaultSeries = 'ACTIVE_LISTING_COUNT';
             if (seriesOptionsCache && seriesOptionsCache[defaultSeries]) {
                 seriesSelect.value = defaultSeries;
             } else if (seriesSelect.options.length > 1) {
@@ -2692,7 +2884,7 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        seriesId: 'ACTIVE_COUNTY_INVENTORY',
+                        seriesId: 'ACTIVE_LISTING_COUNT',
                         countyIds: ['12099'] // Default Palm Beach County
                     })
                 });
@@ -2709,9 +2901,9 @@
         async function generateComparison() {
             const seriesSelect = document.getElementById('series-select');
             const selectedSeries = seriesSelect.value;
-            
-            if (!selectedSeries || !seriesOptionsCache) {
-                alert('Please select a metric to compare');
+
+            if (!selectedSeries || !realtorSeriesKeys.has(selectedSeries)) {
+                alert('Please select a Realtor-backed metric to compare');
                 return;
             }
             
@@ -2751,44 +2943,25 @@
             }
             
             try {
-                const seriesOption = seriesOptionsCache[selectedSeries];
+                const seriesOption = seriesOptionsCache ? seriesOptionsCache[selectedSeries] : null;
+                if (!seriesOption) {
+                    alert('Selected metric is not available. Please choose another option.');
+                    return;
+                }
                 const chartData = {};
                 const countyNames = {};
                 const unavailableLocations = [];
                 
-                // Fetch data for each selected location
-                for (const selection of selections) {
-                    // Apply leading zeros based on series configuration
-                    const countyCode = seriesOption.lead_zero ? 
-                        selection.county.padStart(5, '0') : 
-                        selection.county.replace(/^0+/, '');
-                    
-                    // Replace {COUNTY} placeholder with actual county code
-                    const seriesId = seriesOption.series.replace('{COUNTY}', countyCode);
-                    
-                    try {
-                        const fredData = await fetchFredData(seriesId);
-                        if (fredData && fredData.length > 0) {
-                            chartData[selection.county] = fredData.map(obs => ({
-                                date: new Date(obs.date),
-                                value: parseFloat(obs.value)
-                            })).filter(obs => !isNaN(obs.value));
-                            countyNames[selection.county] = selection.countyName;
-                        } else {
-                            unavailableLocations.push({
-                                name: selection.countyName,
-                                seriesId: seriesId
-                            });
-                        }
-                    } catch (error) {
-                        console.warn(`Failed to fetch data for ${selection.countyName}:`, error);
-                        unavailableLocations.push({
-                            name: selection.countyName,
-                            seriesId: seriesId,
-                            error: error.message
-                        });
+                const countyData = await fetchCountySeriesData(selections.map(sel => sel.county), selectedSeries);
+                countyData.forEach(({ county, name, points }) => {
+                    chartData[county] = points;
+                    countyNames[county] = name;
+                });
+                selections.forEach(sel => {
+                    if (!chartData[sel.county]) {
+                        unavailableLocations.push({ name: sel.countyName, seriesId: selectedSeries });
                     }
-                }
+                });
                 
                 // Hide loading state
                 document.getElementById('chart-loading').style.display = 'none';
@@ -2801,11 +2974,11 @@
                 
                 // Show chart header and create the comparison chart
                 document.getElementById('comparison-chart-header').style.display = 'block';
-                createSimpleComparisonChart(chartData, countyNames, seriesOption.display_name);
+                createSimpleComparisonChart(chartData, countyNames, seriesOption.label, seriesOption);
                 
                 // Display professional notification for unavailable data
                 if (unavailableLocations.length > 0) {
-                    displayDataAvailabilityNotice(unavailableLocations, seriesOption.display_name);
+                    displayDataAvailabilityNotice(unavailableLocations, seriesOption.label);
                 }
                 
             } catch (error) {
@@ -2846,24 +3019,8 @@
             }
         }
         
-        // Fetch FRED data for a specific series
-        async function fetchFredData(seriesId) {
-            const endDate = new Date().toISOString().split('T')[0];
-            const startDate = new Date(new Date().setFullYear(new Date().getFullYear() - 5))
-                .toISOString().split('T')[0];
-            
-            const response = await fetch(`${API_BASE}/fred-data?seriesId=${seriesId}&startDate=${startDate}&endDate=${endDate}`);
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to fetch FRED data');
-            }
-            
-            return data.observations || [];
-        }
-        
         // Create a simple comparison chart using Chart.js
-        function createSimpleComparisonChart(data, countyNames, title) {
+        function createSimpleComparisonChart(data, countyNames, title, metricMeta = null) {
             const canvas = document.getElementById('comparison-chart');
             
             if (!canvas) {
@@ -2914,8 +3071,8 @@
                 return {
                     label: countyName.replace(' County', ''),
                     data: countyData.map(d => ({
-                        x: d.date,
-                        y: (d.value == null || d.value === 0 || isNaN(d.value)) ? null : d.value
+                        x: d.date ?? d.x,
+                        y: (d.value ?? d.y)
                     })),
                     backgroundColor: color + '20', // 20% opacity for fill
                     borderColor: color,
@@ -2935,13 +3092,7 @@
             
             const ctx = canvas.getContext('2d');
             
-            // Compute y padding so series do not hug edges
-            const flatValues = datasets.flatMap(ds => (ds.data || []).map(d => d && d.y).filter(v => v != null && !isNaN(v)));
-            const yMin = flatValues.length ? Math.min(...flatValues) : 0;
-            const yMax = flatValues.length ? Math.max(...flatValues) : 1;
-            const yPad = (yMax - yMin) * 0.08;
-            const suggestedMin = Math.max(0, yMin - yPad);
-            const suggestedMax = yMax + yPad * 0.5;
+            const yAxisConfig = computeYAxisConfig(metricMeta, datasets);
 
             // Create Chart.js configuration
             const config = {
@@ -2985,7 +3136,7 @@
                                     return date.toLocaleDateString();
                                 },
                                 label: function(context) {
-                                    return `${context.dataset.label}: ${context.parsed.y.toLocaleString()}`;
+                                    return `${context.dataset.label}: ${formatMetricValue(context.parsed.y, metricMeta)}`;
                                 }
                             }
                         }
@@ -3012,8 +3163,7 @@
                             }
                         },
                         y: {
-                            suggestedMin: suggestedMin,
-                            suggestedMax: suggestedMax,
+                            ...yAxisConfig,
                             grid: {
                                 display: true,
                                 color: '#f0f0f0'
@@ -3023,9 +3173,7 @@
                                 font: {
                                     size: 11
                                 },
-                                callback: function(value) {
-                                    return value.toLocaleString();
-                                }
+                                callback: (value) => formatMetricValue(value, metricMeta)
                             }
                         }
                     },
@@ -3121,7 +3269,7 @@
             const chartSeriesSelect = document.getElementById('chart-series-select');
             const selectedSeries = chartSeriesSelect.value;
             
-            if (!selectedSeries || !seriesOptionsCache) {
+            if (!selectedSeries || !seriesOptionsCache || !realtorSeriesKeys.has(selectedSeries)) {
                 return;
             }
             
@@ -3169,39 +3317,16 @@
                 const countyNames = {};
                 const unavailableLocations = [];
                 
-                // Fetch data for each selected location
-                for (const selection of selections) {
-                    // Apply leading zeros based on series configuration
-                    const countyCode = seriesOption.lead_zero ? 
-                        selection.county.padStart(5, '0') : 
-                        selection.county.replace(/^0+/, '');
-                    
-                    // Replace {COUNTY} placeholder with actual county code
-                    const seriesId = seriesOption.series.replace('{COUNTY}', countyCode);
-                    
-                    try {
-                        const fredData = await fetchFredData(seriesId);
-                        if (fredData && fredData.length > 0) {
-                            chartData[selection.county] = fredData.map(obs => ({
-                                date: new Date(obs.date),
-                                value: parseFloat(obs.value)
-                            })).filter(obs => !isNaN(obs.value));
-                            countyNames[selection.county] = selection.countyName;
-                        } else {
-                            unavailableLocations.push({
-                                name: selection.countyName,
-                                seriesId: seriesId
-                            });
-                        }
-                    } catch (error) {
-                        console.warn(`Failed to fetch data for ${selection.countyName}:`, error);
-                        unavailableLocations.push({
-                            name: selection.countyName,
-                            seriesId: seriesId,
-                            error: error.message
-                        });
+                const countyData = await fetchCountySeriesData(selections.map(sel => sel.county), selectedSeries);
+                countyData.forEach(({ county, name, points }) => {
+                    chartData[county] = points;
+                    countyNames[county] = name;
+                });
+                selections.forEach(sel => {
+                    if (!chartData[sel.county]) {
+                        unavailableLocations.push({ name: sel.countyName, seriesId: selectedSeries });
                     }
-                }
+                });
                 
                 // Hide loading state
                 document.getElementById('chart-loading').style.display = 'none';
@@ -3994,7 +4119,8 @@
                 // Restore chart type (no auto-regenerate)
                 if (saved.series_id) {
                     const type = String(saved.series_id);
-                    if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
+                    const allowedTypes = new Set(['sales', 'price', 'price_per_sqft', 'sales_pct', 'price_pct', 'price_per_sqft_pct']);
+                    if (allowedTypes.has(type)) {
                         switchDevelopmentChart(type);
                     }
                 }
@@ -4044,6 +4170,73 @@
                     document.getElementById('county-insights-chart-container').style.display = 'block';
                 }
 
+                function formatCityState(city, state) {
+                    try {
+                        const rawCity = String(city || '').trim();
+                        const rawState = String(state || '').trim();
+                        const state2 = rawState.length === 2
+                            ? rawState.toUpperCase()
+                            : (rawState ? rawState.split(/\s+/).map(p => p[0]?.toUpperCase()).join('') : '');
+
+                        // Remove any trailing ", <state>" already present in city (e.g., "Jupiter, fl")
+                        let cityClean = rawCity;
+                        if (state2) {
+                            const reAbbr = new RegExp(`\\s*,\\s*${state2}$`, 'i');
+                            cityClean = cityClean.replace(reAbbr, '');
+                        }
+                        if (rawState) {
+                            const reFull = new RegExp(`\\s*,\\s*${rawState}$`, 'i');
+                            cityClean = cityClean.replace(reFull, '');
+                        }
+                        // Generic cleanup: strip any trailing ", XX"
+                        cityClean = cityClean.replace(/,\s*[A-Za-z]{2}\s*$/, '');
+
+                        // Title-case city
+                        const titled = cityClean.replace(/\b([A-Za-zÀ-ÖØ-öø-ÿ])(\S*)/g, (_m, a, b) => a.toUpperCase() + b.toLowerCase());
+
+                        // Append state if not already present
+                        if (state2 && !new RegExp(`,\\s*${state2}$`, 'i').test(titled)) {
+                            return `${titled}, ${state2}`;
+                        }
+                        return titled;
+                    } catch { return city || ''; }
+                }
+
+                function resolveZipReportId() {
+                    try {
+                        const candidates = [reportData?.report_id, reportData?.reportId, reportData?.id, reportData?.reportid];
+                        for (const value of candidates) { const num = Number(value); if (Number.isFinite(num) && num > 0) return num; }
+                    } catch (_) {}
+                    try { if (typeof urlSlug === 'string' && urlSlug.length > 0) { const m = urlSlug.match(/(\d+)/); if (m) { const num = Number(m[1]); if (Number.isFinite(num) && num > 0) return num; } } } catch (_) {}
+                    return null;
+                }
+                function sanitizeZipList(list) { return Array.isArray(list) ? list.map(z => String(z || '').trim()).filter(z => /^\d{5}$/.test(z)).slice(0,5) : []; }
+                async function loadSavedZipComparison() {
+                    const reportId = resolveZipReportId();
+                    if (!reportId) return null;
+                    try {
+                        const resp = await fetch(`${API_BASE}/reports/${reportId}/zip-comparison`);
+                        const json = await resp.json();
+                        if (!resp.ok || !json.success || !json.data) return null;
+                        const zips = sanitizeZipList(json.data.zip_codes);
+                        return { series_id: json.data.series_id || 'avg_listing_price', zip_codes: zips };
+                    } catch (_) { return null; }
+                }
+                function applySavedZipComparison(saved) {
+                    if (!saved || !Array.isArray(saved.zip_codes) || saved.zip_codes.length === 0) return;
+                    const sel = document.getElementById('county-insights-metric-select');
+                    if (sel && saved.series_id && sel.querySelector(`option[value="${saved.series_id}"]`)) sel.value = saved.series_id;
+                    try { window.__savedZipCodes = saved.zip_codes.slice(); } catch (_) {}
+                    window.ciSelectionCount = Math.min(5, saved.zip_codes.length || 1);
+                }
+                async function saveZipComparison(metric, selections) {
+                    const reportId = resolveZipReportId();
+                    if (!reportId) return;
+                    const payloadZips = sanitizeZipList((selections || []).map(s => s.zip));
+                    if (payloadZips.length === 0) return;
+                    try { await fetch(`${API_BASE}/reports/${reportId}/zip-comparison`, { method:'PUT', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ seriesId: metric || 'avg_listing_price', zipIds: payloadZips }) }); } catch (_) {}
+                }
+
                 async function rebuildCiSelections() {
                     const prev = [];
                     for (let i = 1; i <= (window.ciSelectionCount || 1); i++) {
@@ -4071,6 +4264,8 @@
                         const dropdownLabel = document.getElementById(`ci-zip-dropdown-label-${i}`);
                         if (prev[i-1]) {
                             input.value = prev[i-1];
+                        } else if (Array.isArray(window.__savedZipCodes) && window.__savedZipCodes[i-1]) {
+                            input.value = String(window.__savedZipCodes[i-1]).padStart(5, '0');
                         } else if (i === 1 && zipFromReport && /^\d{5}$/.test(zipFromReport)) {
                             input.value = zipFromReport;
                         }
@@ -4212,12 +4407,20 @@
                         }
 
                         const metric = metricSelect.value || 'avg_listing_price';
-                        const cityName = rows[0].city || '';
+                        const cityName = formatCityState(rows[0].city || '', rows[0].state_id || rows[0].state || rows[0].state_name);
                         const zipLabel = String(rows[0].zip5 || '').padStart(5, '0');
                         const title = `${metricLabel(metric)}`;
                         // Prefer actual median_listing_price if metric is median and field exists
                         const effectiveMetric = (metric === 'med_listing_price' && rows[0].median_listing_price) ? 'median_listing_price' : metric;
-                        const series = [{ key: effectiveMetric, label: `${zipLabel}${cityName ? ' - ' + cityName : ''}`, data: rows.map(r => ({ x: parseYyyymmToDate(r.month_date_yyyymm), y: toNumberOrNull(r[effectiveMetric]) })) }];
+                        const series = [{
+                            key: effectiveMetric,
+                            zip: zipLabel,
+                            label: `${zipLabel}${cityName ? ' - ' + cityName : ''}`,
+                            data: rows.map(r => ({
+                                x: parseYyyymmToDate(r.month_date_yyyymm),
+                                y: toNumberOrNull(r[effectiveMetric])
+                            }))
+                        }];
                         renderCountyInsightsChart(series, title);
                         ciShowChartView();
                         loadingEl.style.display = 'none';
@@ -4246,9 +4449,16 @@
                             if (!byZip[id]) byZip[id] = [];
                             byZip[id].push({ x: parseYyyymmToDate(r.month_date_yyyymm), y: toNumberOrNull(r[metric]) });
                             const city = r.city || '';
-                            names[id] = `${id}${city ? ' - ' + city : ''}`;
+                            const state = r.state_id || r.state || r.state_name || '';
+                            const disp = (city || state) ? formatCityState(city, state) : '';
+                            names[id] = `${id}${disp ? ' - ' + disp : ''}`;
                         }
-                        const series = Object.keys(byZip).map((id) => ({ key: metric, label: `${names[id]}`, data: byZip[id] }));
+                        const series = Object.keys(byZip).map((id) => ({
+                            key: metric,
+                            zip: id,
+                            label: `${names[id]}`,
+                            data: byZip[id]
+                        }));
                         renderCountyInsightsChart(series, metricLabel(metric));
                         ciShowChartView();
                         loadingEl.style.display = 'none';
@@ -4264,23 +4474,40 @@
                     const metric = metricSelect.value || 'avg_listing_price';
                     if (selections.length > 0) {
                         await ciRenderForSelections(metric, selections);
+                        await saveZipComparison(metric, selections);
                     } else {
                         await fetchAndRender();
                     }
                 });
                 await rebuildCiSelections();
+                const savedZipComparison = await loadSavedZipComparison();
+                applySavedZipComparison(savedZipComparison);
+                await rebuildCiSelections();
+                let initialRenderDone = false;
+                if (savedZipComparison && Array.isArray(savedZipComparison.zip_codes) && savedZipComparison.zip_codes.length > 0) {
+                    const metric = savedZipComparison.series_id || (metricSelect.value || 'avg_listing_price');
+                    const selections = savedZipComparison.zip_codes.map(zip => ({ zip, label: zip }));
+                    await ciRenderForSelections(metric, selections);
+                    initialRenderDone = true;
+                } else {
+                    await fetchAndRender();
+                    initialRenderDone = true;
+                }
                 ciCompareBtn.addEventListener('click', async () => {
                     const selections = selectedZips();
                     const metric = metricSelect.value || 'avg_listing_price';
                     if (selections.length > 0) {
                         await ciRenderForSelections(metric, selections);
+                        await saveZipComparison(metric, selections);
                     } else if (zipFromReport) {
                         await fetchAndRender();
                     }
                 });
                 const ciBackBtn = document.getElementById('ci-back-to-controls-btn');
                 ciBackBtn.addEventListener('click', ciShowControlsView);
-                await fetchAndRender();
+                if (!initialRenderDone) {
+                    await fetchAndRender();
+                }
             } catch (e) {
                 console.warn('initCountyInsights failed:', e);
             }
@@ -4293,19 +4520,29 @@
                 countyInsightsChart.destroy();
                 countyInsightsChart = null;
             }
-            const palette = ['#2c7be5', '#e83e8c', '#28a745', '#fd7e14', '#6f42c1', '#17a2b8', '#20c997', '#ffc107', '#6610f2'];
+            const PRIMARY_ZIP = '33477';
+            const PRIMARY_COLOR = '#2c7be5';
+            const secondaryPalette = ['#e83e8c', '#28a745', '#fd7e14', '#6f42c1', '#17a2b8', '#20c997', '#ffc107', '#6610f2', '#ff6f61', '#ff9f1c'];
+            let secondaryIndex = 0;
             const ctx = canvas.getContext('2d');
-            const datasets = series.map((s, idx) => ({
-                label: s.label,
-                data: s.data,
-                yAxisID: isRatioMetric(s.key) ? 'y2' : 'y',
-                backgroundColor: palette[idx % palette.length] + '20',
-                borderColor: palette[idx % palette.length],
-                borderWidth: 3,
-                fill: false,
-                tension: 0.3,
-                pointRadius: 0
-            }));
+            const datasets = series.map((s) => {
+                const zipId = String(s.zip || '').padStart(5, '0');
+                const isPrimary = zipId === PRIMARY_ZIP;
+                const color = isPrimary
+                    ? PRIMARY_COLOR
+                    : secondaryPalette[(secondaryIndex++) % secondaryPalette.length];
+                return {
+                    label: s.label,
+                    data: s.data,
+                    yAxisID: isRatioMetric(s.key) ? 'y2' : 'y',
+                    backgroundColor: `${color}20`,
+                    borderColor: color,
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0
+                };
+            });
             countyInsightsChart = new Chart(ctx, {
                 type: 'line',
                 data: { datasets },
@@ -4361,6 +4598,100 @@
         }
         function isRatioMetric(key) {
             return key === 'pending_ratio' || key === 'price_increased_share' || key === 'price_reduced_share';
+        }
+
+        async function fetchCountySeriesData(countyIds, metricKey) {
+            if (!Array.isArray(countyIds) || countyIds.length === 0) {
+                return [];
+            }
+            const params = new URLSearchParams();
+            params.set('county_fips', countyIds.join(','));
+            params.set('months', '60');
+            const response = await fetch(`${API_BASE}/county-comparison?${params.toString()}`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch county comparison data');
+            }
+            const json = await response.json();
+            if (!json.success || !Array.isArray(json.data)) {
+                return [];
+            }
+            const grouped = {};
+            json.data.forEach(row => {
+                const countyId = row.county_fips;
+                if (!grouped[countyId]) {
+                    grouped[countyId] = {
+                        county: countyId,
+                        name: row.county_name,
+                        points: []
+                    };
+                }
+                grouped[countyId].points.push({
+                    x: parseYyyymmToDate(row.month_date_yyyymm),
+                    y: toNumberOrNull(row[metricKey])
+                });
+            });
+            return Object.values(grouped).map(entry => {
+                entry.points.sort((a, b) => (a.x?.getTime?.() || 0) - (b.x?.getTime?.() || 0));
+                return entry;
+            });
+        }
+
+        function formatMetricValue(value, meta) {
+            if (value == null || Number.isNaN(value)) return '—';
+            if (!meta || meta.valueType === 'number') {
+                return Number(value).toLocaleString();
+            }
+            if (meta.valueType === 'currency') {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    maximumFractionDigits: meta.decimals ?? 0,
+                    minimumFractionDigits: meta.decimals ?? 0
+                }).format(value);
+            }
+            if (meta.valueType === 'ratio') {
+                const percent = Number(value) * 100;
+                const decimals = meta.percentDecimals ?? 1;
+                return `${percent.toFixed(decimals)}%`;
+            }
+            return Number(value).toLocaleString();
+        }
+
+        function computeYAxisConfig(meta, datasets) {
+            const values = datasets.flatMap(ds => (ds.data || []).map(point => point && point.y).filter(v => v != null && !Number.isNaN(v)));
+            if (values.length === 0) {
+                return {};
+            }
+            if (meta && meta.valueType === 'ratio') {
+                return {
+                    beginAtZero: true,
+                    suggestedMax: Math.min(1, Math.max(...values) * 1.05 || 0.5),
+                    ticks: {
+                        callback: (v) => `${Math.round(v * 100)}%`
+                    }
+                };
+            }
+            const decimals = meta && meta.valueType === 'currency' ? (meta.decimals ?? 0) : 0;
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            const pad = (max - min) * 0.08 || (meta && meta.valueType === 'currency' ? 1000 : 10);
+            return {
+                suggestedMin: Math.max(0, min - pad),
+                suggestedMax: max + pad * 0.5,
+                ticks: {
+                    callback: (v) => {
+                        if (meta && meta.valueType === 'currency') {
+                            return new Intl.NumberFormat('en-US', {
+                                style: 'currency',
+                                currency: 'USD',
+                                maximumFractionDigits: decimals,
+                                minimumFractionDigits: decimals
+                            }).format(v);
+                        }
+                        return Number(v).toLocaleString();
+                    }
+                }
+            };
         }
         // Initialize development comparison
         async function initializeDevelopmentComparison() {
@@ -5389,18 +5720,39 @@
                 developmentChart.destroy();
             }
             
+            const isPercentMode = typeof chartType === 'string' && chartType.endsWith('_pct');
+            const baseChartType = isPercentMode ? chartType.replace('_pct', '') : chartType;
+
             // Determine data key and formatting
             let dataKey, yAxisLabel;
-            if (chartType === 'sales') {
+            if (baseChartType === 'sales') {
                 dataKey = 'sales_count';
                 yAxisLabel = 'Number of Sales';
-            } else if (chartType === 'price') {
+            } else if (baseChartType === 'price') {
                 dataKey = 'avg_price';
                 yAxisLabel = 'Average Sale Price';
-            } else if (chartType === 'price_per_sqft') {
+            } else if (baseChartType === 'price_per_sqft') {
                 dataKey = 'avg_price_per_sqft';
                 yAxisLabel = 'Average Price Per Square Foot';
+            } else {
+                dataKey = 'sales_count';
+                yAxisLabel = 'Number of Sales';
             }
+            if (isPercentMode) {
+                yAxisLabel += ' (% Change vs Prior Year)';
+            }
+
+            const rawValueFormatters = {
+                sales: (val) => `${Math.round(val).toLocaleString()} sales`,
+                price: (val) => `$${Math.round(val).toLocaleString()}`,
+                price_per_sqft: (val) => `$${Math.round(val).toLocaleString()}/sqft`
+            };
+            const percentFormatter = (val) => {
+                if (val == null || !Number.isFinite(val)) return 'N/A';
+                const rounded = val.toFixed(1);
+                const sign = val > 0 ? '+' : '';
+                return `${sign}${rounded}%`;
+            };
             
             // Prepare datasets for Chart.js
             const datasets = developments.map((label, index) => {
@@ -5408,12 +5760,53 @@
                 const entity = labelToEntity[label] || { name: label, type: 'development' };
                 // Prefer label-keyed data (handles identical names across types)
                 const dataKeyForEntity = data[label] || data[entity.name] || {};
-                const developmentData = years.map(year => {
-                    const yearData = dataKeyForEntity[year] ? dataKeyForEntity[year][dataKey] : null;
-                    // Treat 0/undefined as missing to avoid drawing along axes
-                    if (yearData == null || yearData === 0 || isNaN(yearData)) return null;
-                    return yearData;
+                const rawValues = [];
+                let previousReportedValue = null;
+                years.forEach(year => {
+                    const yearEntry = dataKeyForEntity[year];
+                    let numeric = null;
+                    if (yearEntry && yearEntry[dataKey] != null) {
+                        const candidate = Number(yearEntry[dataKey]);
+                        if (Number.isFinite(candidate)) {
+                            // Treat zero as valid data point
+                            numeric = candidate;
+                            previousReportedValue = candidate;
+                        }
+                    }
+
+                    if (numeric == null) {
+                        if (previousReportedValue != null) {
+                            numeric = previousReportedValue;
+                        } else {
+                            rawValues.push(null);
+                            return;
+                        }
+                    }
+
+                    rawValues.push(numeric);
                 });
+
+                let developmentData;
+                if (isPercentMode) {
+                    let baseline = null;
+                    developmentData = rawValues.map(val => {
+                        if (val == null || !Number.isFinite(val)) {
+                            return null;
+                        }
+                        if (baseline == null) {
+                            baseline = val;
+                            return 0;
+                        }
+                        if (!Number.isFinite(baseline) || Math.abs(baseline) < 1e-6) {
+                            const pct = Number.isFinite(val) ? 0 : null;
+                            return pct;
+                        }
+                        const pct = ((val - baseline) / Math.abs(baseline)) * 100;
+                        return Number.isFinite(pct) ? pct : 0;
+                    });
+                } else {
+                    developmentData = rawValues.map(val => (val != null && Number.isFinite(val)) ? val : null);
+                }
                 
                 // Use distinct colors for each development
                 const colors = [
@@ -5432,6 +5825,9 @@
                 return {
                     label,
                     data: developmentData,
+                    rawValues,
+                    baseChartType,
+                    percentMode: isPercentMode,
                     backgroundColor: colors[index % colors.length] + '20', // 20% opacity for fill
                     borderColor: colors[index % colors.length],
                     borderWidth: 3,
@@ -5450,12 +5846,34 @@
             
             // Create Chart.js configuration
             // Compute y padding to avoid clipping at edges
-            const flatValues = datasets.flatMap(ds => (ds.data || []).filter(v => v != null && !isNaN(v)));
-            const yMin = flatValues.length ? Math.min(...flatValues) : 0;
-            const yMax = flatValues.length ? Math.max(...flatValues) : 1;
-            const yPad = (yMax - yMin) * 0.08;
-            const suggestedMin = Math.max(0, yMin - yPad);
-            const suggestedMax = yMax + yPad * 0.5;
+            const flatValues = datasets.flatMap(ds => (ds.data || []).filter(v => v != null && Number.isFinite(v)));
+            let yMin, yMax;
+            if (flatValues.length) {
+                yMin = Math.min(...flatValues);
+                yMax = Math.max(...flatValues);
+            } else if (isPercentMode) {
+                yMin = -10;
+                yMax = 10;
+            } else {
+                yMin = 0;
+                yMax = 1;
+            }
+
+            let yPad = (yMax - yMin) * 0.08;
+            if (!Number.isFinite(yPad) || yPad === 0) {
+                yPad = isPercentMode ? 5 : Math.max(10, Math.abs(yMax) * 0.1 || 10);
+            }
+            let suggestedMin = isPercentMode ? (yMin - yPad) : Math.max(0, yMin - yPad);
+            let suggestedMax = yMax + yPad;
+            if (!Number.isFinite(suggestedMin) || !Number.isFinite(suggestedMax) || suggestedMin === suggestedMax) {
+                if (isPercentMode) {
+                    suggestedMin = -10;
+                    suggestedMax = 10;
+                } else {
+                    suggestedMin = 0;
+                    suggestedMax = Math.max(10, yMax + yPad);
+                }
+            }
 
             const config = {
                 type: 'line',
@@ -5494,15 +5912,31 @@
                             callbacks: {
                                 label: function(context) {
                                     const value = context.parsed.y;
-                                    let formattedValue;
-                                    if (chartType === 'sales') {
-                                        formattedValue = value.toLocaleString() + ' sales';
-                                    } else if (chartType === 'price') {
-                                        formattedValue = '$' + value.toLocaleString();
-                                    } else if (chartType === 'price_per_sqft') {
-                                        formattedValue = '$' + value.toFixed(0) + '/sqft';
+                                    const dataset = context.dataset || {};
+                                    if (dataset.percentMode) {
+                                        if (value == null || !Number.isFinite(value)) {
+                                            return `${dataset.label}: N/A`;
+                                        }
+                                        const rawVals = dataset.rawValues || [];
+                                        const rawVal = rawVals[context.dataIndex];
+                                        const formatter = rawValueFormatters[dataset.baseChartType || 'sales'];
+                                        const rawText = (rawVal != null && Number.isFinite(rawVal) && formatter)
+                                            ? ` (${formatter(rawVal)})`
+                                            : '';
+                                        if (context.dataIndex === 0) {
+                                            return `${dataset.label}: Origin${rawText}`;
+                                        }
+                                        const pctLabel = percentFormatter(value);
+                                        return `${dataset.label}: ${pctLabel}${rawText}`;
                                     }
-                                    return `${context.dataset.label}: ${formattedValue}`;
+                                    if (baseChartType === 'sales') {
+                                        return `${dataset.label}: ${Number(value).toLocaleString()} sales`;
+                                    } else if (baseChartType === 'price') {
+                                        return `${dataset.label}: $${Number(value).toLocaleString()}`;
+                                    } else if (baseChartType === 'price_per_sqft') {
+                                        return `${dataset.label}: $${Number(value).toFixed(0)}/sqft`;
+                                    }
+                                    return `${dataset.label}: ${Number(value).toLocaleString()}`;
                                 }
                             }
                         }
@@ -5527,7 +5961,7 @@
                                 display: true,
                                 text: yAxisLabel
                             },
-                            beginAtZero: true,
+                            beginAtZero: !isPercentMode,
                             grid: {
                                 display: true,
                                 color: '#f0f0f0',
@@ -5535,13 +5969,20 @@
                             },
                             ticks: {
                                 callback: function(value) {
-                                    if (chartType === 'sales') {
+                                    if (isPercentMode) {
+                                        const num = Number(value);
+                                        if (!Number.isFinite(num)) return '';
+                                        const sign = num > 0 ? '+' : '';
+                                        return `${sign}${num.toFixed(0)}%`;
+                                    }
+                                    if (baseChartType === 'sales') {
                                         return value.toLocaleString();
-                                    } else if (chartType === 'price') {
+                                    } else if (baseChartType === 'price') {
                                         return '$' + (value / 1000).toFixed(0) + 'K';
-                                    } else if (chartType === 'price_per_sqft') {
+                                    } else if (baseChartType === 'price_per_sqft') {
                                         return '$' + value.toFixed(0);
                                     }
+                                    return value;
                                 }
                             }
                         }
@@ -5788,24 +6229,31 @@
         function updateChartTypeDropdown() {
             const chartTypeSelect = document.getElementById('development-chart-type-select');
             if (!chartTypeSelect) return;
-            
-            const pricePerSqftOption = chartTypeSelect.querySelector('option[value="price_per_sqft"]');
-            if (pricePerSqftOption) {
+
+            const optionConfigs = [
+                { value: 'price_per_sqft', label: 'Price Per Square Foot' },
+                { value: 'price_per_sqft_pct', label: 'Price Per Square Foot (% Change)' }
+            ];
+
+            optionConfigs.forEach(({ value, label }) => {
+                const optionEl = chartTypeSelect.querySelector(`option[value="${value}"]`);
+                if (!optionEl) return;
                 if (window.hasPricePerSqftData) {
-                    pricePerSqftOption.disabled = false;
-                    pricePerSqftOption.style.color = '';
+                    optionEl.disabled = false;
+                    optionEl.style.color = '';
+                    optionEl.textContent = label;
                 } else {
-                    pricePerSqftOption.disabled = true;
-                    pricePerSqftOption.style.color = '#999';
-                    pricePerSqftOption.textContent = 'Price Per Square Foot (No Data Available)';
+                    optionEl.disabled = true;
+                    optionEl.style.color = '#999';
+                    optionEl.textContent = `${label} (No Data Available)`;
                 }
-            }
+            });
         }
 
             // Switch between chart types
         function switchDevelopmentChart(chartType) {
             // If trying to switch to price_per_sqft but no data available, fall back to sales
-            if (chartType === 'price_per_sqft' && !window.hasPricePerSqftData) {
+            if ((chartType === 'price_per_sqft' || chartType === 'price_per_sqft_pct') && !window.hasPricePerSqftData) {
                 console.warn('Price per sqft data not available, falling back to sales chart');
                 chartType = 'sales';
             }
@@ -5959,4 +6407,3 @@
     </div>
 </body>
 </html>
-

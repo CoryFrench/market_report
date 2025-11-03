@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "market_report": "file:.."
+  }
+}

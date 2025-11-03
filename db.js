@@ -153,69 +153,71 @@ const dbQueries = {
           LPAD($1::text, 5, '0') AS county_fips,
           GREATEST(1, LEAST(120, $2::int)) AS months_back,
           to_char(date_trunc('month', now()) - ($2::int || ' months')::interval, 'YYYYMM')::int AS min_yyyymm
-      ), zx AS (
-        SELECT LPAD(zip::text, 5, '0') AS zip5, county_fips, county_name, state_id
-        FROM otherdata.zip_city_county_xref
-      ), rh AS (
+      ), county_series AS (
         SELECT 
-          month_date_yyyymm::int AS yyyymm,
-          LPAD(postal_code::text, 5, '0') AS zip5,
-          NULLIF(average_listing_price, -1) AS avg_listing_price,
-          NULLIF(median_listing_price, -1) AS med_listing_price,
-          NULLIF(median_days_on_market, -1) AS median_days_on_market,
-          NULLIF(median_listing_price_per_square_foot, -1) AS median_price_per_sqft,
-          GREATEST(COALESCE(NULLIF(total_listing_count, -1), 0), 0) AS total_listing_count,
-          GREATEST(COALESCE(NULLIF(active_listing_count, -1), 0), 0) AS active_listing_count,
-          GREATEST(COALESCE(NULLIF(new_listing_count, -1), 0), 0) AS new_listing_count,
-          GREATEST(COALESCE(NULLIF(pending_listing_count, -1), 0), 0) AS pending_listing_count,
-          GREATEST(COALESCE(NULLIF(price_increased_count, -1), 0), 0) AS price_increased_count,
-          GREATEST(COALESCE(NULLIF(price_reduced_count, -1), 0), 0) AS price_reduced_count,
-          quality_flag
-        FROM otherdata.realtor_historic
-      ), joined AS (
+          month_date_yyyymm,
+          county_fips,
+          county_name,
+          average_listing_price,
+          median_listing_price,
+          median_listing_price_per_square_foot,
+          median_days_on_market,
+          active_listing_count,
+          new_listing_count,
+          pending_listing_count,
+          total_listing_count,
+          price_increased_count,
+          price_reduced_count,
+          pending_ratio,
+          price_increased_share,
+          price_reduced_share,
+          rl_classification_code,
+          rl_construction_status
+        FROM otherdata.realtor_county_historic
+        UNION ALL
         SELECT 
-          rh.*, zx.county_fips AS zx_fips, zx.county_name, zx.state_id
-        FROM rh
-        JOIN zx USING (zip5)
+          month_date_yyyymm,
+          county_fips,
+          county_name,
+          average_listing_price,
+          median_listing_price,
+          median_listing_price_per_square_foot,
+          median_days_on_market,
+          active_listing_count,
+          new_listing_count,
+          pending_listing_count,
+          total_listing_count,
+          price_increased_count,
+          price_reduced_count,
+          pending_ratio,
+          price_increased_share,
+          price_reduced_share,
+          rl_classification_code,
+          rl_construction_status
+        FROM otherdata.realtor_county_current_month
       )
       SELECT 
-        j.zx_fips AS county_fips,
-        MIN(j.county_name) AS county_name,
-        MIN(j.state_id) AS state_id,
-        j.yyyymm AS month_date_yyyymm,
-        SUM(j.active_listing_count) AS active_listing_count,
-        SUM(j.new_listing_count) AS new_listing_count,
-        SUM(j.pending_listing_count) AS pending_listing_count,
-        SUM(j.total_listing_count) AS total_listing_count,
-        SUM(j.price_increased_count) AS price_increased_count,
-        SUM(j.price_reduced_count) AS price_reduced_count,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(COALESCE(j.avg_listing_price, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS avg_listing_price,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(COALESCE(j.med_listing_price, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS median_listing_price_proxy,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(COALESCE(j.median_days_on_market, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS avg_days_on_market,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(COALESCE(j.median_price_per_sqft, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS avg_price_per_sqft,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(j.pending_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS pending_ratio,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(j.price_increased_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS price_increased_share,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(j.price_reduced_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS price_reduced_share
-      FROM joined j, params p
-      WHERE j.zx_fips = p.county_fips
-        AND j.quality_flag = 1
-        AND j.yyyymm >= p.min_yyyymm
-      GROUP BY j.zx_fips, j.yyyymm
-      ORDER BY j.yyyymm ASC
+        LPAD(cs.county_fips::text, 5, '0') AS county_fips,
+        cs.county_name,
+        cs.month_date_yyyymm::int AS month_date_yyyymm,
+        NULLIF(cs.active_listing_count, -1) AS active_listing_count,
+        NULLIF(cs.new_listing_count, -1) AS new_listing_count,
+        NULLIF(cs.pending_listing_count, -1) AS pending_listing_count,
+        NULLIF(cs.total_listing_count, -1) AS total_listing_count,
+        NULLIF(cs.price_increased_count, -1) AS price_increased_count,
+        NULLIF(cs.price_reduced_count, -1) AS price_reduced_count,
+        NULLIF(cs.average_listing_price, -1) AS avg_listing_price,
+        NULLIF(cs.median_listing_price, -1) AS median_listing_price,
+        NULLIF(cs.median_listing_price, -1) AS median_listing_price_proxy,
+        NULLIF(cs.median_days_on_market, -1) AS avg_days_on_market,
+        NULLIF(cs.median_listing_price_per_square_foot, -1) AS avg_price_per_sqft,
+        NULLIF(cs.pending_ratio, -1) AS pending_ratio,
+        NULLIF(cs.price_increased_share, -1) AS price_increased_share,
+        NULLIF(cs.price_reduced_share, -1) AS price_reduced_share
+      FROM county_series cs, params p
+      WHERE LPAD(cs.county_fips::text, 5, '0') = p.county_fips
+        AND cs.month_date_yyyymm::int >= p.min_yyyymm
+      ORDER BY cs.month_date_yyyymm ASC
     `;
     return await query(queryText, [ String(countyFips || '').trim(), Number(months || 24) ]);
   },
@@ -228,183 +230,245 @@ const dbQueries = {
           LPAD($1::text, 5, '0') AS zip5,
           GREATEST(1, LEAST(120, $2::int)) AS months_back,
           to_char(date_trunc('month', now()) - ($2::int || ' months')::interval, 'YYYYMM')::int AS min_yyyymm
-      ), rh AS (
-        SELECT 
-          month_date_yyyymm::int AS yyyymm,
-          LPAD(postal_code::text, 5, '0') AS zip5,
+      ), zip_series AS (
+        SELECT
+          month_date_yyyymm,
+          postal_code,
           zip_name,
-          NULLIF(average_listing_price, -1) AS avg_listing_price,
-          NULLIF(median_listing_price, -1) AS med_listing_price,
-          NULLIF(median_listing_price_mm, -1) AS med_listing_price_mm,
-          NULLIF(median_listing_price_yy, -1) AS med_listing_price_yy,
-          NULLIF(median_days_on_market, -1) AS median_days_on_market,
-          NULLIF(median_days_on_market_mm, -1) AS median_days_on_market_mm,
-          NULLIF(median_days_on_market_yy, -1) AS median_days_on_market_yy,
-          NULLIF(median_listing_price_per_square_foot, -1) AS median_price_per_sqft,
-          NULLIF(median_listing_price_per_square_foot_mm, -1) AS median_price_per_sqft_mm,
-          NULLIF(median_listing_price_per_square_foot_yy, -1) AS median_price_per_sqft_yy,
-          NULLIF(median_square_feet, -1) AS median_square_feet,
-          NULLIF(median_square_feet_mm, -1) AS median_square_feet_mm,
-          NULLIF(median_square_feet_yy, -1) AS median_square_feet_yy,
-          GREATEST(COALESCE(NULLIF(total_listing_count, -1), 0), 0) AS total_listing_count,
-          NULLIF(total_listing_count_mm, -1) AS total_listing_count_mm,
-          NULLIF(total_listing_count_yy, -1) AS total_listing_count_yy,
-          GREATEST(COALESCE(NULLIF(active_listing_count, -1), 0), 0) AS active_listing_count,
-          NULLIF(active_listing_count_mm, -1) AS active_listing_count_mm,
-          NULLIF(active_listing_count_yy, -1) AS active_listing_count_yy,
-          GREATEST(COALESCE(NULLIF(new_listing_count, -1), 0), 0) AS new_listing_count,
-          NULLIF(new_listing_count_mm, -1) AS new_listing_count_mm,
-          NULLIF(new_listing_count_yy, -1) AS new_listing_count_yy,
-          GREATEST(COALESCE(NULLIF(pending_listing_count, -1), 0), 0) AS pending_listing_count,
-          NULLIF(pending_listing_count_mm, -1) AS pending_listing_count_mm,
-          NULLIF(pending_listing_count_yy, -1) AS pending_listing_count_yy,
-          GREATEST(COALESCE(NULLIF(price_increased_count, -1), 0), 0) AS price_increased_count,
-          NULLIF(price_increased_count_mm, -1) AS price_increased_count_mm,
-          NULLIF(price_increased_count_yy, -1) AS price_increased_count_yy,
-          GREATEST(COALESCE(NULLIF(price_reduced_count, -1), 0), 0) AS price_reduced_count,
-          NULLIF(price_reduced_count_mm, -1) AS price_reduced_count_mm,
-          NULLIF(price_reduced_count_yy, -1) AS price_reduced_count_yy,
-          NULLIF(price_increased_share, -1) AS price_increased_share,
-          NULLIF(price_increased_share_mm, -1) AS price_increased_share_mm,
-          NULLIF(price_increased_share_yy, -1) AS price_increased_share_yy,
-          NULLIF(price_reduced_share, -1) AS price_reduced_share,
-          NULLIF(price_reduced_share_mm, -1) AS price_reduced_share_mm,
-          NULLIF(price_reduced_share_yy, -1) AS price_reduced_share_yy,
-          NULLIF(pending_ratio, -1) AS pending_ratio,
-          NULLIF(pending_ratio_mm, -1) AS pending_ratio_mm,
-          NULLIF(pending_ratio_yy, -1) AS pending_ratio_yy,
-          quality_flag
+          median_listing_price,
+          median_listing_price_mm,
+          median_listing_price_yy,
+          active_listing_count,
+          active_listing_count_mm,
+          active_listing_count_yy,
+          median_days_on_market,
+          median_days_on_market_mm,
+          median_days_on_market_yy,
+          new_listing_count,
+          new_listing_count_mm,
+          new_listing_count_yy,
+          price_increased_count,
+          price_increased_count_mm,
+          price_increased_count_yy,
+          price_increased_share,
+          price_increased_share_mm,
+          price_increased_share_yy,
+          price_reduced_count,
+          price_reduced_count_mm,
+          price_reduced_count_yy,
+          price_reduced_share,
+          price_reduced_share_mm,
+          price_reduced_share_yy,
+          pending_listing_count,
+          pending_listing_count_mm,
+          pending_listing_count_yy,
+          median_listing_price_per_square_foot,
+          median_listing_price_per_square_foot_mm,
+          median_listing_price_per_square_foot_yy,
+          median_square_feet,
+          median_square_feet_mm,
+          median_square_feet_yy,
+          total_listing_count,
+          total_listing_count_mm,
+          total_listing_count_yy,
+          pending_ratio,
+          pending_ratio_mm,
+          pending_ratio_yy
         FROM otherdata.realtor_historic
-      ), zx AS (
-        SELECT LPAD(zip::text, 5, '0') AS zip5, city, state_id
-        FROM otherdata.zip_city_county_xref
-      ), joined AS (
-        SELECT rh.*, zx.city, zx.state_id
-        FROM rh
-        JOIN zx USING (zip5)
+        UNION ALL
+        SELECT
+          month_date_yyyymm,
+          postal_code,
+          zip_name,
+          median_listing_price,
+          median_listing_price_mm,
+          median_listing_price_yy,
+          active_listing_count,
+          active_listing_count_mm,
+          active_listing_count_yy,
+          median_days_on_market,
+          median_days_on_market_mm,
+          median_days_on_market_yy,
+          new_listing_count,
+          new_listing_count_mm,
+          new_listing_count_yy,
+          price_increased_count,
+          price_increased_count_mm,
+          price_increased_count_yy,
+          price_increased_share,
+          price_increased_share_mm,
+          price_increased_share_yy,
+          price_reduced_count,
+          price_reduced_count_mm,
+          price_reduced_count_yy,
+          price_reduced_share,
+          price_reduced_share_mm,
+          price_reduced_share_yy,
+          pending_listing_count,
+          pending_listing_count_mm,
+          pending_listing_count_yy,
+          median_listing_price_per_square_foot,
+          median_listing_price_per_square_foot_mm,
+          median_listing_price_per_square_foot_yy,
+          median_square_feet,
+          median_square_feet_mm,
+          median_square_feet_yy,
+          total_listing_count,
+          total_listing_count_mm,
+          total_listing_count_yy,
+          pending_ratio,
+          pending_ratio_mm,
+          pending_ratio_yy
+        FROM otherdata.realtor_current_month
+      ), labeled AS (
+        SELECT zs.*, zx.city, zx.state_id
+        FROM zip_series zs
+        LEFT JOIN otherdata.zip_city_county_xref zx
+          ON LPAD(zx.zip::text, 5, '0') = LPAD(zs.postal_code::text, 5, '0')
       )
       SELECT 
-        j.zip5 AS zip5,
-        MIN(COALESCE(j.zip_name, j.city)) AS city,
-        MIN(j.state_id) AS state_id,
-        j.yyyymm AS month_date_yyyymm,
-        MAX(j.active_listing_count) AS active_listing_count,
-        MAX(j.active_listing_count_mm) AS active_listing_count_mm,
-        MAX(j.active_listing_count_yy) AS active_listing_count_yy,
-        MAX(j.new_listing_count) AS new_listing_count,
-        MAX(j.new_listing_count_mm) AS new_listing_count_mm,
-        MAX(j.new_listing_count_yy) AS new_listing_count_yy,
-        MAX(j.pending_listing_count) AS pending_listing_count,
-        MAX(j.pending_listing_count_mm) AS pending_listing_count_mm,
-        MAX(j.pending_listing_count_yy) AS pending_listing_count_yy,
-        MAX(j.total_listing_count) AS total_listing_count,
-        MAX(j.total_listing_count_mm) AS total_listing_count_mm,
-        MAX(j.total_listing_count_yy) AS total_listing_count_yy,
-        MAX(j.price_increased_count) AS price_increased_count,
-        MAX(j.price_increased_count_mm) AS price_increased_count_mm,
-        MAX(j.price_increased_count_yy) AS price_increased_count_yy,
-        MAX(j.price_reduced_count) AS price_reduced_count,
-        MAX(j.price_reduced_count_mm) AS price_reduced_count_mm,
-        MAX(j.price_reduced_count_yy) AS price_reduced_count_yy,
-        MAX(j.price_increased_share) AS price_increased_share,
-        MAX(j.price_increased_share_mm) AS price_increased_share_mm,
-        MAX(j.price_increased_share_yy) AS price_increased_share_yy,
-        MAX(j.price_reduced_share) AS price_reduced_share,
-        MAX(j.price_reduced_share_mm) AS price_reduced_share_mm,
-        MAX(j.price_reduced_share_yy) AS price_reduced_share_yy,
-        MAX(j.avg_listing_price) AS avg_listing_price,
-        MAX(j.med_listing_price) AS median_listing_price_proxy,
-        MAX(j.med_listing_price) AS median_listing_price,
-        MAX(j.median_days_on_market) AS avg_days_on_market,
-        MAX(j.median_days_on_market_mm) AS avg_days_on_market_mm,
-        MAX(j.median_days_on_market_yy) AS avg_days_on_market_yy,
-        MAX(j.median_price_per_sqft) AS avg_price_per_sqft,
-        MAX(j.median_price_per_sqft_mm) AS avg_price_per_sqft_mm,
-        MAX(j.median_price_per_sqft_yy) AS avg_price_per_sqft_yy,
-        MAX(j.median_square_feet) AS median_square_feet,
-        MAX(j.median_square_feet_mm) AS median_square_feet_mm,
-        MAX(j.median_square_feet_yy) AS median_square_feet_yy,
-        CASE WHEN MAX(j.total_listing_count) > 0 THEN MAX(j.pending_listing_count)::numeric / NULLIF(MAX(j.total_listing_count), 0) ELSE NULL END AS pending_ratio,
-        CASE WHEN MAX(j.total_listing_count) > 0 THEN MAX(j.price_increased_count)::numeric / NULLIF(MAX(j.total_listing_count), 0) ELSE NULL END AS price_increased_share,
-        CASE WHEN MAX(j.total_listing_count) > 0 THEN MAX(j.price_reduced_count)::numeric / NULLIF(MAX(j.total_listing_count), 0) ELSE NULL END AS price_reduced_share
-      FROM joined j, params p
-      WHERE j.zip5 = p.zip5
-        AND j.quality_flag = 1
-        AND j.yyyymm >= p.min_yyyymm
-      GROUP BY j.zip5, j.yyyymm
-      ORDER BY j.yyyymm ASC
+        LPAD(labeled.postal_code::text, 5, '0') AS zip5,
+        COALESCE(labeled.zip_name, labeled.city) AS city,
+        labeled.state_id,
+        labeled.month_date_yyyymm::int AS month_date_yyyymm,
+        NULLIF(labeled.active_listing_count, -1) AS active_listing_count,
+        NULLIF(labeled.active_listing_count_mm, -1) AS active_listing_count_mm,
+        NULLIF(labeled.active_listing_count_yy, -1) AS active_listing_count_yy,
+        NULLIF(labeled.new_listing_count, -1) AS new_listing_count,
+        NULLIF(labeled.new_listing_count_mm, -1) AS new_listing_count_mm,
+        NULLIF(labeled.new_listing_count_yy, -1) AS new_listing_count_yy,
+        NULLIF(labeled.pending_listing_count, -1) AS pending_listing_count,
+        NULLIF(labeled.pending_listing_count_mm, -1) AS pending_listing_count_mm,
+        NULLIF(labeled.pending_listing_count_yy, -1) AS pending_listing_count_yy,
+        NULLIF(labeled.total_listing_count, -1) AS total_listing_count,
+        NULLIF(labeled.total_listing_count_mm, -1) AS total_listing_count_mm,
+        NULLIF(labeled.total_listing_count_yy, -1) AS total_listing_count_yy,
+        NULLIF(labeled.price_increased_count, -1) AS price_increased_count,
+        NULLIF(labeled.price_increased_count_mm, -1) AS price_increased_count_mm,
+        NULLIF(labeled.price_increased_count_yy, -1) AS price_increased_count_yy,
+        NULLIF(labeled.price_reduced_count, -1) AS price_reduced_count,
+        NULLIF(labeled.price_reduced_count_mm, -1) AS price_reduced_count_mm,
+        NULLIF(labeled.price_reduced_count_yy, -1) AS price_reduced_count_yy,
+        NULLIF(labeled.price_increased_share, -1) AS price_increased_share,
+        NULLIF(labeled.price_increased_share_mm, -1) AS price_increased_share_mm,
+        NULLIF(labeled.price_increased_share_yy, -1) AS price_increased_share_yy,
+        NULLIF(labeled.price_reduced_share, -1) AS price_reduced_share,
+        NULLIF(labeled.price_reduced_share_mm, -1) AS price_reduced_share_mm,
+        NULLIF(labeled.price_reduced_share_yy, -1) AS price_reduced_share_yy,
+        NULLIF(labeled.median_listing_price, -1) AS avg_listing_price,
+        NULLIF(labeled.median_listing_price, -1) AS median_listing_price,
+        NULLIF(labeled.median_listing_price, -1) AS median_listing_price_proxy,
+        NULLIF(labeled.median_days_on_market, -1) AS avg_days_on_market,
+        NULLIF(labeled.median_days_on_market_mm, -1) AS avg_days_on_market_mm,
+        NULLIF(labeled.median_days_on_market_yy, -1) AS avg_days_on_market_yy,
+        NULLIF(labeled.median_listing_price_per_square_foot, -1) AS avg_price_per_sqft,
+        NULLIF(labeled.median_listing_price_per_square_foot_mm, -1) AS avg_price_per_sqft_mm,
+        NULLIF(labeled.median_listing_price_per_square_foot_yy, -1) AS avg_price_per_sqft_yy,
+        NULLIF(labeled.median_square_feet, -1) AS median_square_feet,
+        NULLIF(labeled.median_square_feet_mm, -1) AS median_square_feet_mm,
+        NULLIF(labeled.median_square_feet_yy, -1) AS median_square_feet_yy,
+        NULLIF(labeled.pending_ratio, -1) AS pending_ratio,
+        NULLIF(labeled.pending_ratio_mm, -1) AS pending_ratio_mm,
+        NULLIF(labeled.pending_ratio_yy, -1) AS pending_ratio_yy
+      FROM labeled, params p
+      WHERE LPAD(labeled.postal_code::text, 5, '0') = p.zip5
+        AND labeled.month_date_yyyymm::int >= p.min_yyyymm
+      ORDER BY labeled.month_date_yyyymm ASC
     `;
     return await query(queryText, [ String(zip || '').trim(), Number(months || 24) ]);
   },
 
   // Multi-ZIP comparison: time series for an array of ZIPs
   getZipSeriesMultiByZip: async (zipArray, months = 24) => {
+    const zipList = Array.isArray(zipArray) ? zipArray : String(zipArray || '').split(',');
+    const cleaned = zipList.map(v => String(v || '').trim()).filter(v => v.length > 0);
+    if (cleaned.length === 0) {
+      return { rows: [], rowCount: 0 };
+    }
+
     const queryText = `
       WITH params AS (
         SELECT 
           ARRAY(SELECT DISTINCT LPAD(TRIM(x)::text, 5, '0') FROM unnest($1::text[]) x) AS zips_list,
           GREATEST(1, LEAST(120, $2::int)) AS months_back,
           to_char(date_trunc('month', now()) - ($2::int || ' months')::interval, 'YYYYMM')::int AS min_yyyymm
-      ), rh AS (
-        SELECT 
-          month_date_yyyymm::int AS yyyymm,
-          LPAD(postal_code::text, 5, '0') AS zip5,
-          NULLIF(average_listing_price, -1) AS avg_listing_price,
-          NULLIF(median_listing_price, -1) AS med_listing_price,
-          NULLIF(median_days_on_market, -1) AS median_days_on_market,
-          NULLIF(median_listing_price_per_square_foot, -1) AS median_price_per_sqft,
-          GREATEST(COALESCE(NULLIF(total_listing_count, -1), 0), 0) AS total_listing_count,
-          GREATEST(COALESCE(NULLIF(active_listing_count, -1), 0), 0) AS active_listing_count,
-          GREATEST(COALESCE(NULLIF(new_listing_count, -1), 0), 0) AS new_listing_count,
-          GREATEST(COALESCE(NULLIF(pending_listing_count, -1), 0), 0) AS pending_listing_count,
-          GREATEST(COALESCE(NULLIF(price_increased_count, -1), 0), 0) AS price_increased_count,
-          GREATEST(COALESCE(NULLIF(price_reduced_count, -1), 0), 0) AS price_reduced_count,
-          quality_flag
+      ), zip_series AS (
+        SELECT
+          month_date_yyyymm,
+          postal_code,
+          zip_name,
+          median_listing_price,
+          active_listing_count,
+          new_listing_count,
+          pending_listing_count,
+          total_listing_count,
+          price_increased_count,
+          price_reduced_count,
+          median_days_on_market,
+          median_listing_price_per_square_foot,
+          pending_ratio,
+          price_increased_share,
+          price_reduced_share
         FROM otherdata.realtor_historic
-      ), zx AS (
-        SELECT LPAD(zip::text, 5, '0') AS zip5, city, state_id
-        FROM otherdata.zip_city_county_xref
-      ), joined AS (
-        SELECT rh.*, zx.city, zx.state_id
-        FROM rh JOIN zx USING (zip5)
+        UNION ALL
+        SELECT
+          month_date_yyyymm,
+          postal_code,
+          zip_name,
+          median_listing_price,
+          active_listing_count,
+          new_listing_count,
+          pending_listing_count,
+          total_listing_count,
+          price_increased_count,
+          price_reduced_count,
+          median_days_on_market,
+          median_listing_price_per_square_foot,
+          pending_ratio,
+          price_increased_share,
+          price_reduced_share
+        FROM otherdata.realtor_current_month
+      ), labeled AS (
+        SELECT zs.*, zx.city, zx.state_id
+        FROM zip_series zs
+        LEFT JOIN otherdata.zip_city_county_xref zx
+          ON LPAD(zx.zip::text, 5, '0') = LPAD(zs.postal_code::text, 5, '0')
       )
       SELECT 
-        j.zip5 AS zip5,
-        MIN(j.city) AS city,
-        MIN(j.state_id) AS state_id,
-        j.yyyymm AS month_date_yyyymm,
-        MAX(j.active_listing_count) AS active_listing_count,
-        MAX(j.new_listing_count) AS new_listing_count,
-        MAX(j.pending_listing_count) AS pending_listing_count,
-        MAX(j.total_listing_count) AS total_listing_count,
-        MAX(j.price_increased_count) AS price_increased_count,
-        MAX(j.price_reduced_count) AS price_reduced_count,
-        MAX(j.avg_listing_price) AS avg_listing_price,
-        MAX(j.med_listing_price) AS median_listing_price_proxy,
-        MAX(j.median_days_on_market) AS avg_days_on_market,
-        MAX(j.median_price_per_sqft) AS avg_price_per_sqft,
-        CASE WHEN MAX(j.total_listing_count) > 0 THEN MAX(j.pending_listing_count)::numeric / NULLIF(MAX(j.total_listing_count), 0) ELSE NULL END AS pending_ratio,
-        CASE WHEN MAX(j.total_listing_count) > 0 THEN MAX(j.price_increased_count)::numeric / NULLIF(MAX(j.total_listing_count), 0) ELSE NULL END AS price_increased_share,
-        CASE WHEN MAX(j.total_listing_count) > 0 THEN MAX(j.price_reduced_count)::numeric / NULLIF(MAX(j.total_listing_count), 0) ELSE NULL END AS price_reduced_share
-      FROM joined j, params p
-      WHERE j.zip5 = ANY(p.zips_list)
-        AND j.quality_flag = 1
-        AND j.yyyymm >= p.min_yyyymm
-      GROUP BY j.zip5, j.yyyymm
-      ORDER BY j.zip5 ASC, j.yyyymm ASC
+        LPAD(labeled.postal_code::text, 5, '0') AS zip5,
+        COALESCE(labeled.zip_name, labeled.city) AS city,
+        labeled.state_id,
+        labeled.month_date_yyyymm::int AS month_date_yyyymm,
+        NULLIF(labeled.active_listing_count, -1) AS active_listing_count,
+        NULLIF(labeled.new_listing_count, -1) AS new_listing_count,
+        NULLIF(labeled.pending_listing_count, -1) AS pending_listing_count,
+        NULLIF(labeled.total_listing_count, -1) AS total_listing_count,
+        NULLIF(labeled.price_increased_count, -1) AS price_increased_count,
+        NULLIF(labeled.price_reduced_count, -1) AS price_reduced_count,
+        NULLIF(labeled.median_listing_price, -1) AS avg_listing_price,
+        NULLIF(labeled.median_listing_price, -1) AS median_listing_price,
+        NULLIF(labeled.median_listing_price, -1) AS median_listing_price_proxy,
+        NULLIF(labeled.median_days_on_market, -1) AS avg_days_on_market,
+        NULLIF(labeled.median_listing_price_per_square_foot, -1) AS avg_price_per_sqft,
+        NULLIF(labeled.pending_ratio, -1) AS pending_ratio,
+        NULLIF(labeled.price_increased_share, -1) AS price_increased_share,
+        NULLIF(labeled.price_reduced_share, -1) AS price_reduced_share
+      FROM labeled, params p
+      WHERE LPAD(labeled.postal_code::text, 5, '0') = ANY(p.zips_list)
+        AND labeled.month_date_yyyymm::int >= p.min_yyyymm
+      ORDER BY zip5 ASC, month_date_yyyymm ASC
     `;
-    const zipList = Array.isArray(zipArray) ? zipArray : String(zipArray || '').split(',');
-    const cleaned = zipList.map(v => String(v || '').trim()).filter(v => v.length > 0);
-    if (cleaned.length === 0) {
-      return { rows: [], rowCount: 0 };
-    }
     return await query(queryText, [ cleaned, Number(months || 24) ]);
   },
 
   // Latest single row for a ZIP from otherdata.realtor_historic
   getZipLatestByZip: async (zip) => {
     const queryText = `
-      WITH latest AS (
+      WITH zip_series AS (
+        SELECT * FROM otherdata.realtor_historic
+        UNION ALL
+        SELECT * FROM otherdata.realtor_current_month
+      ), latest AS (
         SELECT 
           month_date_yyyymm::int AS month_date_yyyymm,
           LPAD(postal_code::text, 5, '0') AS zip5,
@@ -412,14 +476,12 @@ const dbQueries = {
           NULLIF(median_listing_price, -1) AS median_listing_price,
           NULLIF(median_days_on_market, -1) AS median_days_on_market,
           NULLIF(median_listing_price_per_square_foot, -1) AS median_listing_price_per_square_foot,
-          GREATEST(COALESCE(NULLIF(active_listing_count, -1), 0), 0) AS active_listing_count,
-          GREATEST(COALESCE(NULLIF(new_listing_count, -1), 0), 0) AS new_listing_count,
-          GREATEST(COALESCE(NULLIF(pending_listing_count, -1), 0), 0) AS pending_listing_count,
-          GREATEST(COALESCE(NULLIF(total_listing_count, -1), 0), 0) AS total_listing_count,
-          quality_flag
-        FROM otherdata.realtor_historic
+          NULLIF(active_listing_count, -1) AS active_listing_count,
+          NULLIF(new_listing_count, -1) AS new_listing_count,
+          NULLIF(pending_listing_count, -1) AS pending_listing_count,
+          NULLIF(total_listing_count, -1) AS total_listing_count
+        FROM zip_series
         WHERE LPAD(postal_code::text, 5, '0') = LPAD($1::text, 5, '0')
-          AND quality_flag = 1
         ORDER BY month_date_yyyymm DESC
         LIMIT 1
       )
@@ -427,7 +489,7 @@ const dbQueries = {
         l.*, z.city, z.state_id
       FROM latest l
       LEFT JOIN otherdata.zip_city_county_xref z
-        ON z.zip::text = l.zip5
+        ON LPAD(z.zip::text, 5, '0') = l.zip5
       LIMIT 1
     `;
     return await query(queryText, [ String(zip || '').trim() ]);
@@ -435,79 +497,80 @@ const dbQueries = {
 
   // Multi-county comparison: time series for an array of county FIPS
   getCountySeriesMultiByFips: async (countyFipsArray, months = 24) => {
+    const fipsArray = Array.isArray(countyFipsArray) ? countyFipsArray : String(countyFipsArray || '').split(',');
+    const cleaned = fipsArray.map(v => String(v || '').trim()).filter(v => v.length > 0);
+    if (cleaned.length === 0) {
+      return { rows: [], rowCount: 0 };
+    }
+
     const queryText = `
       WITH params AS (
         SELECT 
           ARRAY(SELECT DISTINCT LPAD(TRIM(x)::text, 5, '0') FROM unnest($1::text[]) x) AS fips_list,
           GREATEST(1, LEAST(120, $2::int)) AS months_back,
           to_char(date_trunc('month', now()) - ($2::int || ' months')::interval, 'YYYYMM')::int AS min_yyyymm
-      ), zx AS (
-        SELECT LPAD(zip::text, 5, '0') AS zip5, county_fips, county_name, state_id
-        FROM otherdata.zip_city_county_xref
-      ), rh AS (
+      ), county_series AS (
         SELECT 
-          month_date_yyyymm::int AS yyyymm,
-          LPAD(postal_code::text, 5, '0') AS zip5,
-          NULLIF(average_listing_price, -1) AS avg_listing_price,
-          NULLIF(median_listing_price, -1) AS med_listing_price,
-          NULLIF(median_days_on_market, -1) AS median_days_on_market,
-          NULLIF(median_listing_price_per_square_foot, -1) AS median_price_per_sqft,
-          GREATEST(COALESCE(NULLIF(total_listing_count, -1), 0), 0) AS total_listing_count,
-          GREATEST(COALESCE(NULLIF(active_listing_count, -1), 0), 0) AS active_listing_count,
-          GREATEST(COALESCE(NULLIF(new_listing_count, -1), 0), 0) AS new_listing_count,
-          GREATEST(COALESCE(NULLIF(pending_listing_count, -1), 0), 0) AS pending_listing_count,
-          GREATEST(COALESCE(NULLIF(price_increased_count, -1), 0), 0) AS price_increased_count,
-          GREATEST(COALESCE(NULLIF(price_reduced_count, -1), 0), 0) AS price_reduced_count,
-          quality_flag
-        FROM otherdata.realtor_historic
-      ), joined AS (
-        SELECT rh.*, zx.county_fips AS zx_fips, zx.county_name, zx.state_id
-        FROM rh JOIN zx USING (zip5)
+          month_date_yyyymm,
+          county_fips,
+          county_name,
+          average_listing_price,
+          median_listing_price,
+          median_listing_price_per_square_foot,
+          median_days_on_market,
+          active_listing_count,
+          new_listing_count,
+          pending_listing_count,
+          total_listing_count,
+          price_increased_count,
+          price_reduced_count,
+          pending_ratio,
+          price_increased_share,
+          price_reduced_share
+        FROM otherdata.realtor_county_historic
+        UNION ALL
+        SELECT 
+          month_date_yyyymm,
+          county_fips,
+          county_name,
+          average_listing_price,
+          median_listing_price,
+          median_listing_price_per_square_foot,
+          median_days_on_market,
+          active_listing_count,
+          new_listing_count,
+          pending_listing_count,
+          total_listing_count,
+          price_increased_count,
+          price_reduced_count,
+          pending_ratio,
+          price_increased_share,
+          price_reduced_share
+        FROM otherdata.realtor_county_current_month
       )
       SELECT 
-        j.zx_fips AS county_fips,
-        MIN(j.county_name) AS county_name,
-        MIN(j.state_id) AS state_id,
-        j.yyyymm AS month_date_yyyymm,
-        SUM(j.active_listing_count) AS active_listing_count,
-        SUM(j.new_listing_count) AS new_listing_count,
-        SUM(j.pending_listing_count) AS pending_listing_count,
-        SUM(j.total_listing_count) AS total_listing_count,
-        SUM(j.price_increased_count) AS price_increased_count,
-        SUM(j.price_reduced_count) AS price_reduced_count,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(COALESCE(j.avg_listing_price, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS avg_listing_price,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(COALESCE(j.med_listing_price, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS median_listing_price_proxy,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(COALESCE(j.median_days_on_market, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS avg_days_on_market,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(COALESCE(j.median_price_per_sqft, 0) * j.total_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS avg_price_per_sqft,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(j.pending_listing_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS pending_ratio,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(j.price_increased_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS price_increased_share,
-        CASE WHEN SUM(j.total_listing_count) > 0 THEN
-          SUM(j.price_reduced_count)::numeric / NULLIF(SUM(j.total_listing_count), 0)
-        ELSE NULL END AS price_reduced_share
-      FROM joined j, params p
-      WHERE j.zx_fips = ANY(p.fips_list)
-        AND j.quality_flag = 1
-        AND j.yyyymm >= p.min_yyyymm
-      GROUP BY j.zx_fips, j.yyyymm
-      ORDER BY j.zx_fips ASC, j.yyyymm ASC
+        LPAD(cs.county_fips::text, 5, '0') AS county_fips,
+        cs.county_name,
+        cs.month_date_yyyymm::int AS month_date_yyyymm,
+        NULLIF(cs.active_listing_count, -1) AS active_listing_count,
+        NULLIF(cs.new_listing_count, -1) AS new_listing_count,
+        NULLIF(cs.pending_listing_count, -1) AS pending_listing_count,
+        NULLIF(cs.total_listing_count, -1) AS total_listing_count,
+        NULLIF(cs.price_increased_count, -1) AS price_increased_count,
+        NULLIF(cs.price_reduced_count, -1) AS price_reduced_count,
+        NULLIF(cs.average_listing_price, -1) AS avg_listing_price,
+        NULLIF(cs.median_listing_price, -1) AS median_listing_price,
+        NULLIF(cs.median_listing_price, -1) AS median_listing_price_proxy,
+        NULLIF(cs.median_days_on_market, -1) AS avg_days_on_market,
+        NULLIF(cs.median_listing_price_per_square_foot, -1) AS avg_price_per_sqft,
+        NULLIF(cs.pending_ratio, -1) AS pending_ratio,
+        NULLIF(cs.price_increased_share, -1) AS price_increased_share,
+        NULLIF(cs.price_reduced_share, -1) AS price_reduced_share
+      FROM county_series cs, params p
+      WHERE LPAD(cs.county_fips::text, 5, '0') = ANY(p.fips_list)
+        AND cs.month_date_yyyymm::int >= p.min_yyyymm
+      ORDER BY county_fips ASC, month_date_yyyymm ASC
     `;
-    const fipsArray = Array.isArray(countyFipsArray) ? countyFipsArray : String(countyFipsArray || '').split(',');
-    const cleaned = fipsArray.map(v => String(v || '').trim()).filter(v => v.length > 0);
-    if (cleaned.length === 0) {
-      return { rows: [], rowCount: 0 };
-    }
     return await query(queryText, [ cleaned, Number(months || 24) ]);
   },
 
@@ -1155,6 +1218,55 @@ const dbQueries = {
       LIMIT 50
     `;
     return await query(queryText, params);
+  }
+  ,
+
+  // ZIP comparison persistence (mirror county, but per-zip)
+  getZipComparison: async (reportId) => {
+    const queryText = `
+      SELECT $1::bigint as report_id,
+             MIN(chart_id) as chart_id,
+             series_id,
+             array_agg(zip_code ORDER BY zip_code) as zip_codes
+      FROM customer.report_charts_zip
+      WHERE report_id = $1
+      GROUP BY series_id
+      LIMIT 1
+    `;
+    return await query(queryText, [Number(reportId)]);
+  }
+  ,
+
+  saveZipComparison: async (reportId, seriesId, zipIds) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const existing = await client.query(`
+        SELECT chart_id FROM customer.report_charts_zip WHERE report_id = $1 LIMIT 1
+      `, [Number(reportId)]);
+      let chartId;
+      if (existing.rowCount > 0) {
+        chartId = existing.rows[0].chart_id;
+        await client.query(`DELETE FROM customer.report_charts_zip WHERE report_id = $1 AND chart_id = $2`, [Number(reportId), chartId]);
+      } else {
+        const maxRes = await client.query(`SELECT COALESCE(MAX(chart_id), 0) AS max_chart_id FROM customer.report_charts_zip`);
+        chartId = Number(maxRes.rows[0].max_chart_id) + 1;
+      }
+      const cleaned = Array.isArray(zipIds) ? zipIds.map(z => String(z || '').padStart(5, '0')).slice(0, 50) : [];
+      for (const zip of cleaned) {
+        await client.query(`
+          INSERT INTO customer.report_charts_zip (report_id, chart_id, series_id, zip_code)
+          VALUES ($1, $2, $3, $4)
+        `, [Number(reportId), chartId, seriesId || 'avg_listing_price', zip]);
+      }
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 };
 

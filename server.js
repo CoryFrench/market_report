@@ -2343,6 +2343,39 @@ app.get('/api/zone-parcels/:zoneName', async (req, res) => {
   }
 });
 
+// ZIP comparison persistence (mirrors county, per report)
+app.get('/api/reports/:reportId/zip-comparison', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    console.log('GET /api/reports/%s/zip-comparison', reportId);
+    const result = await dbQueries.getZipComparison(Number(reportId));
+    if (!result || result.rowCount === 0) {
+      // Default when no record: series avg_listing_price, zip 33477
+      return res.json({ success: true, data: { report_id: Number(reportId), series_id: 'avg_listing_price', zip_codes: ['33477'] } });
+    }
+    const row = result.rows[0];
+    const zips = Array.isArray(row.zip_codes) ? row.zip_codes.map(z => String(z || '').padStart(5, '0')) : [];
+    return res.json({ success: true, data: { report_id: row.report_id, series_id: row.series_id || 'avg_listing_price', zip_codes: zips } });
+  } catch (error) {
+    console.error('Error fetching report_charts_zip:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch saved ZIP comparison', message: error.message });
+  }
+});
+
+app.put('/api/reports/:reportId/zip-comparison', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const { seriesId, zipIds } = req.body || {};
+    const cleanedZips = Array.isArray(zipIds) ? zipIds.map(z => String(z || '').trim()).filter(Boolean) : [];
+    console.log('PUT /api/reports/%s/zip-comparison', reportId, cleanedZips);
+    await dbQueries.saveZipComparison(Number(reportId), seriesId || 'avg_listing_price', cleanedZips);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving report_charts_zip:', error);
+    return res.status(500).json({ success: false, error: 'Failed to save ZIP comparison', message: error.message });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

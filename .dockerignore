@@ -1,0 +1,14 @@
+# Exclude dependencies and junk from build context
+node_modules
+**/node_modules/**
+npm-debug.log
+.DS_Store
+
+# Exclude nested vendor/linked trees that break tar on Windows
+luxury_report/
+luxury_report/**
+
+# VCS
+.git
+.gitignore
+
