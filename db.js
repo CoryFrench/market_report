@@ -42,6 +42,29 @@ const query = async (text, params) => {
 
 // Database query functions for each table
 const dbQueries = {
+  // Retrieve the active portal password hash (returns null if not configured)
+  getReportPortalPasswordHash: async () => {
+    const queryText = `
+      SELECT password_hash
+      FROM customer.report_portal_credentials
+      WHERE is_active IS TRUE
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    try {
+      const result = await query(queryText);
+      if (result.rowCount === 0) return null;
+      return result.rows[0].password_hash;
+    } catch (error) {
+      // 42P01: undefined_table, 42703: undefined_column
+      if (error && (error.code === '42P01' || error.code === '42703')) {
+        console.warn('Report portal password storage not found in database.');
+        return null;
+      }
+      throw error;
+    }
+  },
+
   // Get all basic report data
   getReportBasic: async (reportId = null) => {
     const baseQuery = `

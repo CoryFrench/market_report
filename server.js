@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const bcrypt = require('bcryptjs');
 let nodemailer = null;
 try { nodemailer = require('nodemailer'); } catch (_) { /* optional */ }
 require('dotenv').config();
@@ -8,6 +9,48 @@ const { testConnection, dbQueries, pool } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const PASSWORD_CACHE_TTL_MS = Number(process.env.REPORT_PORTAL_PASSWORD_CACHE_MS || 5 * 60 * 1000);
+
+let cachedPortalPasswordHash = undefined;
+let cachedPortalPasswordFetchedAt = 0;
+
+const getPortalPasswordHash = async (forceReload = false) => {
+  const now = Date.now();
+  const cacheValid = cachedPortalPasswordHash !== undefined
+    && (now - cachedPortalPasswordFetchedAt) < PASSWORD_CACHE_TTL_MS;
+
+  if (!forceReload && cacheValid) {
+    return cachedPortalPasswordHash;
+  }
+
+  const hash = await dbQueries.getReportPortalPasswordHash();
+  cachedPortalPasswordHash = hash;
+  cachedPortalPasswordFetchedAt = now;
+  return hash;
+};
+
+const verifyPortalPassword = async (candidate) => {
+  const normalized = typeof candidate === 'string' ? candidate.normalize('NFKC') : '';
+  const supplied = normalized.trim();
+  if (!supplied) {
+    return { ok: false, reason: 'missing_input' };
+  }
+
+  const attempt = async (forceReload) => {
+    const hash = await getPortalPasswordHash(forceReload);
+    if (!hash) {
+      return { ok: false, reason: 'not_configured' };
+    }
+    const matches = await bcrypt.compare(supplied, hash);
+    return { ok: matches, reason: matches ? null : 'mismatch' };
+  };
+
+  let result = await attempt(false);
+  if (!result.ok && result.reason === 'mismatch') {
+    result = await attempt(true);
+  }
+  return result;
+};
 
 // Middleware
 app.use(cors());
@@ -509,6 +552,31 @@ app.get('/api/reports/:urlSlug/neighborhood-sales', async (req, res) => {
 // Create new report
 app.post('/api/reports/create', async (req, res) => {
   try {
+    const passwordCheck = await verifyPortalPassword(req.body?.portalPassword);
+    if (!passwordCheck.ok) {
+      switch (passwordCheck.reason) {
+        case 'missing_input':
+          return res.status(401).json({
+            success: false,
+            error: 'Access password is required to create a report.'
+          });
+        case 'not_configured':
+          return res.status(503).json({
+            success: false,
+            error: 'Report access password is not configured. Please contact support.'
+          });
+        default:
+          return res.status(403).json({
+            success: false,
+            error: 'Invalid access password.'
+          });
+      }
+    }
+
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'portalPassword')) {
+      delete req.body.portalPassword;
+    }
+
     const { 
       agentName, 
       firstName, 
