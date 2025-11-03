@@ -891,6 +891,19 @@ body {
     border-color: rgba(198, 169, 106, 0.5);
 }
 
+.chart-controls .fred-select {
+    width: auto;
+    min-width: 200px;
+    flex: 0 0 auto;
+}
+
+#ci-chart-controls .chart-indicator-control {
+    margin-left: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .locations-container h4 {
     color: #1a365d;
     margin-bottom: 20px;

@@ -560,20 +560,6 @@
                     <h2>ZIP Insights</h2>
                     <div class="section-content">
                         <div class="chart-section" id="county-insights" style="display: none;">
-                            <div class="chart-indicator-control" style="display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;">
-                                <label for="county-insights-metric-select" style="font-weight: bold; color: #333;">Metric:</label>
-                                <select id="county-insights-metric-select" class="fred-select" style="min-width: 260px;">
-                                    <option value="avg_listing_price" selected>Average Listing Price</option>
-                                    <option value="median_listing_price_proxy">Median Listing Price (proxy)</option>
-                                    <option value="avg_price_per_sqft">Average Price per Sq Ft</option>
-                                    <option value="avg_days_on_market">Average Days on Market</option>
-                                    <option value="active_listing_count">Active Listings</option>
-                                    <option value="new_listing_count">New Listings</option>
-                                    <option value="pending_ratio">Pending Ratio</option>
-                                    <option value="price_increased_share">Price Increased Share</option>
-                                    <option value="price_reduced_share">Price Reduced Share</option>
-                                </select>
-                            </div>
                             <div class="comparison-controls" id="ci-controls-section" style="margin-bottom: 12px;">
                                 <div class="locations-container">
                                     <h4 id="ci-controls-title">ZIP Insights Comparison</h4>
@@ -587,8 +573,22 @@
                                     </button>
                                 </div>
                             </div>
-                            <div class="chart-controls" id="ci-chart-controls" style="display:none; margin-bottom: 8px;">
+                            <div class="chart-controls" id="ci-chart-controls" style="display:none;">
                                 <button id="ci-back-to-controls-btn" class="back-to-controls-btn">← Change ZIPs</button>
+                                <div class="chart-indicator-control">
+                                    <label for="county-insights-metric-select">Metric:</label>
+                                    <select id="county-insights-metric-select" class="fred-select">
+                                        <option value="avg_listing_price" selected>Average Listing Price</option>
+                                        <option value="median_listing_price_proxy">Median Listing Price (proxy)</option>
+                                        <option value="avg_price_per_sqft">Average Price per Sq Ft</option>
+                                        <option value="avg_days_on_market">Average Days on Market</option>
+                                        <option value="active_listing_count">Active Listings</option>
+                                        <option value="new_listing_count">New Listings</option>
+                                        <option value="pending_ratio">Pending Ratio</option>
+                                        <option value="price_increased_share">Price Increased Share</option>
+                                        <option value="price_reduced_share">Price Reduced Share</option>
+                                    </select>
+                                </div>
                             </div>
                             <div id="county-insights-chart-container" style="position: relative; height: 420px; width: 100%; display: none;">
                                 <canvas id="county-insights-chart"></canvas>
@@ -4520,19 +4520,26 @@
                 countyInsightsChart.destroy();
                 countyInsightsChart = null;
             }
-            const PRIMARY_ZIP = '33477';
-            const PRIMARY_COLOR = '#2c7be5';
-            const secondaryPalette = ['#e83e8c', '#28a745', '#fd7e14', '#6f42c1', '#17a2b8', '#20c997', '#ffc107', '#6610f2', '#ff6f61', '#ff9f1c'];
-            let secondaryIndex = 0;
             const ctx = canvas.getContext('2d');
+            const jupiterColor = '#003366';
+            const basePalette = ['#e83e8c', '#28a745', '#fd7e14', '#6f42c1', '#20c997', '#ffc107', '#6610f2', '#d63384', '#adb5bd'];
+            const isJupiterLabel = (label) => {
+                const text = String(label || '');
+                return /jupiter/i.test(text) && /\bfl\b/i.test(text);
+            };
+            let paletteIndex = 0;
+            const nextPaletteColor = () => {
+                if (basePalette.length === 0) return '#999999';
+                const color = basePalette[paletteIndex % basePalette.length];
+                paletteIndex += 1;
+                return color;
+            };
             const datasets = series.map((s) => {
-                const zipId = String(s.zip || '').padStart(5, '0');
-                const isPrimary = zipId === PRIMARY_ZIP;
-                const color = isPrimary
-                    ? PRIMARY_COLOR
-                    : secondaryPalette[(secondaryIndex++) % secondaryPalette.length];
+                const label = s.label;
+                const isJupiter = isJupiterLabel(label);
+                const color = isJupiter ? jupiterColor : nextPaletteColor();
                 return {
-                    label: s.label,
+                    label: label,
                     data: s.data,
                     yAxisID: isRatioMetric(s.key) ? 'y2' : 'y',
                     backgroundColor: `${color}20`,
