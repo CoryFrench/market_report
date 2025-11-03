@@ -540,6 +540,20 @@
                             </div>
                             <div class="chart-controls" id="ci-chart-controls" style="display:none; margin-bottom: 8px;">
                                 <button id="ci-back-to-controls-btn" class="back-to-controls-btn">← Change ZIPs</button>
+                                <div class="chart-indicator-control">
+                                    <label for="county-insights-metric-select">Metric:</label>
+                                    <select id="county-insights-metric-select" class="fred-select" style="min-width: 200px;">
+                                        <option value="avg_listing_price" selected>Average Listing Price</option>
+                                        <option value="median_listing_price_proxy">Median Listing Price (proxy)</option>
+                                        <option value="avg_price_per_sqft">Average Price per Sq Ft</option>
+                                        <option value="avg_days_on_market">Average Days on Market</option>
+                                        <option value="active_listing_count">Active Listings</option>
+                                        <option value="new_listing_count">New Listings</option>
+                                        <option value="pending_ratio">Pending Ratio</option>
+                                        <option value="price_increased_share">Price Increased Share</option>
+                                        <option value="price_reduced_share">Price Reduced Share</option>
+                                    </select>
+                                </div>
                             </div>
                             <div id="county-insights-chart-container" style="position: relative; height: 420px; width: 100%; display: none;">
                                 <canvas id="county-insights-chart"></canvas>
@@ -3890,12 +3904,18 @@
 
                 function ciShowControlsView() {
                     document.getElementById('ci-controls-section').style.display = 'block';
-                    document.getElementById('ci-chart-controls').style.display = 'none';
+                    const chartControlsEl = document.getElementById('ci-chart-controls');
+                    if (chartControlsEl) {
+                        chartControlsEl.style.display = 'none';
+                    }
                     document.getElementById('county-insights-chart-container').style.display = 'none';
                 }
                 function ciShowChartView() {
                     document.getElementById('ci-controls-section').style.display = 'none';
-                    document.getElementById('ci-chart-controls').style.display = 'block';
+                    const chartControlsEl = document.getElementById('ci-chart-controls');
+                    if (chartControlsEl) {
+                        chartControlsEl.style.display = 'flex';
+                    }
                     document.getElementById('county-insights-chart-container').style.display = 'block';
                 }
 
@@ -4148,19 +4168,37 @@
                 countyInsightsChart.destroy();
                 countyInsightsChart = null;
             }
-            const palette = ['#2c7be5', '#e83e8c', '#28a745', '#fd7e14', '#6f42c1', '#17a2b8', '#20c997', '#ffc107', '#6610f2'];
+            const basePalette = ['#e83e8c', '#28a745', '#fd7e14', '#6f42c1', '#20c997', '#ffc107', '#6610f2', '#d63384', '#adb5bd'];
+            const jupiterColor = '#003366';
+            const isJupiterLabel = (label) => {
+                const text = String(label || '');
+                if (!text) return false;
+                return /jupiter/i.test(text) && (/\bfl\b/i.test(text) || /\bflorida\b/i.test(text));
+            };
+            let paletteIndex = 0;
+            const nextPaletteColor = () => {
+                if (basePalette.length === 0) return '#999999';
+                const color = basePalette[paletteIndex % basePalette.length];
+                paletteIndex += 1;
+                return color;
+            };
             const ctx = canvas.getContext('2d');
-            const datasets = series.map((s, idx) => ({
-                label: s.label,
-                data: s.data,
-                yAxisID: isRatioMetric(s.key) ? 'y2' : 'y',
-                backgroundColor: palette[idx % palette.length] + '20',
-                borderColor: palette[idx % palette.length],
-                borderWidth: 3,
-                fill: false,
-                tension: 0.3,
-                pointRadius: 0
-            }));
+            const datasets = series.map((s) => {
+                const label = s.label;
+                const isJupiter = isJupiterLabel(label);
+                const color = isJupiter ? jupiterColor : nextPaletteColor();
+                return {
+                    label: label,
+                    data: s.data,
+                    yAxisID: isRatioMetric(s.key) ? 'y2' : 'y',
+                    backgroundColor: color + '20',
+                    borderColor: color,
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0
+                };
+            });
             countyInsightsChart = new Chart(ctx, {
                 type: 'line',
                 data: { datasets },
