@@ -357,97 +357,25 @@
             });
         })();
     </script>
+    <script>
+        const HTML_ESCAPE_MAP = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+            '/': '&#47;'
+        };
+
+        function escapeHtml(value) {
+            if (value === null || value === undefined) return '';
+            return String(value).replace(/[&<>"'/]/g, char => HTML_ESCAPE_MAP[char] || char);
+        }
+    </script>
     <style>
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
-        }
-        
-        /* Mobile header fix - highest priority */
-        @media screen and (max-width: 768px) {
-            .container .letterhead .header-info {
-                display: flex !important;
-                flex-direction: row !important;
-                justify-content: space-around !important;
-                align-items: center !important;
-                gap: 15px !important;
-                padding: 0 !important;
-                width: 100% !important;
-            }
-            
-            .container .letterhead .header-info .header-item {
-                display: block !important;
-                text-align: center !important;
-                flex: 1 1 45% !important;
-                max-width: 45% !important;
-            }
-            
-            /* Hide ZIP block on mobile */
-            #zipHeaderItem {
-                display: none !important;
-                visibility: hidden !important;
-                opacity: 0 !important;
-                position: absolute !important;
-                left: -9999px !important;
-                width: 0 !important;
-                height: 0 !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                overflow: hidden !important;
-            }
-        }
-        
-        @media screen and (max-width: 480px) {
-            .container .letterhead .header-info {
-                display: flex !important;
-                flex-direction: row !important;
-                justify-content: space-around !important;
-                align-items: center !important;
-                gap: 12px !important;
-                padding: 0 !important;
-                width: 100% !important;
-            }
-            
-            .container .letterhead .header-info .header-item {
-                display: block !important;
-                text-align: center !important;
-                flex: 1 1 45% !important;
-                max-width: 45% !important;
-            }
-            
-            /* Hide ZIP block on small mobile */
-            #zipHeaderItem {
-                display: none !important;
-                visibility: hidden !important;
-                opacity: 0 !important;
-                position: absolute !important;
-                left: -9999px !important;
-                width: 0 !important;
-                height: 0 !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                overflow: hidden !important;
-            }
-        }
-
-        /* Desktop/tablet header layout */
-        .container .letterhead .header-info {
-            display: grid;
-            grid-template-columns: 1fr auto 1fr auto; /* by | logo | for | zip(hidden) */
-            align-items: center;
-            gap: 16px;
-            padding: 8px 0;
-        }
-        .container .letterhead .header-info .header-item {
-            text-align: center;
-        }
-        .container .letterhead .header-info .header-logo {
-            text-align: center;
-        }
-        #headerLogo {
-            max-height: 60px;
-            width: auto;
-            display: inline-block;
         }
         
         /* Development Chart Legend Clickable Styling */
@@ -785,20 +713,6 @@
                     <h2>ZIP Insights</h2>
                     <div class="section-content">
                         <div class="chart-section" id="county-insights" style="display: none;">
-                            <div class="chart-indicator-control" style="display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;">
-                                <label for="county-insights-metric-select" style="font-weight: bold; color: #333;">Metric:</label>
-                                <select id="county-insights-metric-select" class="fred-select" style="min-width: 260px;">
-                                    <option value="avg_listing_price" selected>Average Listing Price</option>
-                                    <option value="median_listing_price_proxy">Median Listing Price (proxy)</option>
-                                    <option value="avg_price_per_sqft">Average Price per Sq Ft</option>
-                                    <option value="avg_days_on_market">Average Days on Market</option>
-                                    <option value="active_listing_count">Active Listings</option>
-                                    <option value="new_listing_count">New Listings</option>
-                                    <option value="pending_ratio">Pending Ratio</option>
-                                    <option value="price_increased_share">Price Increased Share</option>
-                                    <option value="price_reduced_share">Price Reduced Share</option>
-                                </select>
-                            </div>
                             <div class="comparison-controls" id="ci-controls-section" style="margin-bottom: 12px;">
                                 <div class="locations-container">
                                     <h4 id="ci-controls-title">ZIP Insights Comparison</h4>
@@ -812,8 +726,8 @@
                                     </button>
                                 </div>
                             </div>
-                            <div class="chart-controls" id="ci-chart-controls" style="display:none; margin-bottom: 8px;">
-                                <button id="ci-back-to-controls-btn" class="back-to-controls-btn">← Change ZIPs</button>
+                            <div class="chart-controls" id="ci-chart-controls" style="display:none;">
+                                <button id="ci-back-to-controls-btn" class="back-to-controls-btn">Change ZIPs</button>
                                 <div class="chart-indicator-control">
                                     <label for="county-insights-metric-select">Metric:</label>
                                     <select id="county-insights-metric-select" class="fred-select" style="min-width: 200px;">
@@ -972,6 +886,13 @@
         ];
         const DEFAULT_COUNTY_METRIC = REALTOR_METRICS[0]?.key || 'avg_listing_price';
         const realtorSeriesKeys = new Set(REALTOR_METRICS.map(m => m.key));
+        let priceChartInstance = null;
+        let priceChartMetric = 'avg_price';
+        let priceChartData = [];
+        const PRICE_METRIC_CONFIG = {
+            avg_price: { label: 'Average Sale Price', color: '#27ae60' },
+            median_price: { label: 'Median Sale Price', color: '#8e44ad' }
+        };
 
         function formatMetricValue(value, meta) {
             if (value == null || Number.isNaN(value)) return '-';
@@ -1166,8 +1087,8 @@
             if (data.interest_areas && data.interest_areas.length > 0) {
                 const areasHtml = data.interest_areas.map(area => `
                     <div class="info-item">
-                        <div class="info-label">Interest ${area.interest_id}</div>
-                        <div class="info-value">${area.city}, ${area.state}</div>
+                        <div class="info-label">Interest ${escapeHtml(area?.interest_id ?? '')}</div>
+                        <div class="info-value">${escapeHtml(area?.city ?? '')}, ${escapeHtml(area?.state ?? '')}</div>
                     </div>
                 `).join('');
                 document.getElementById('interestAreasContent').innerHTML = `<div class="info-grid">${areasHtml}</div>`;
@@ -1251,19 +1172,21 @@
             if (addressLines.length > 0) {
                 let styledAddress = '';
                 addressLines.forEach((line, index) => {
+                    const rawLine = line == null ? '' : String(line);
+                    const safeLine = escapeHtml(rawLine);
                     // Determine line type based on content pattern rather than position
-                    const isCityStateZip = line.includes(',') && /\d{5}/.test(line); // Contains comma and 5-digit zip
+                    const isCityStateZip = rawLine.includes(',') && /\d{5}/.test(rawLine); // Contains comma and 5-digit zip
                     const isStreetAddress = index === 0 || (index === 1 && !isCityStateZip);
                     
                     if (isStreetAddress) {
                         // Street address lines - larger and bolder
-                        styledAddress += `<div style="font-size: 18px; font-weight: 600; color: #2c3e50; margin-bottom: 4px; line-height: 1.3;">${line}</div>`;
+                        styledAddress += `<div style="font-size: 18px; font-weight: 600; color: #2c3e50; margin-bottom: 4px; line-height: 1.3;">${safeLine}</div>`;
                     } else if (isCityStateZip) {
                         // City, State, Zip line - medium weight
-                        styledAddress += `<div style="font-size: 20px; font-weight: 500; color: #34495e; margin-bottom: 8px; line-height: 1.3;">${line}</div>`;
+                        styledAddress += `<div style="font-size: 20px; font-weight: 500; color: #34495e; margin-bottom: 8px; line-height: 1.3;">${safeLine}</div>`;
                     } else {
                         // Development/Subdivision - lighter styling with subtle separation
-                        styledAddress += `<div style="font-size: 18px; font-weight: 400; color: #7f8c8d; margin-bottom: 3px; line-height: 1.4; font-style: italic;">${line}</div>`;
+                        styledAddress += `<div style="font-size: 18px; font-weight: 400; color: #7f8c8d; margin-bottom: 3px; line-height: 1.4; font-style: italic;">${safeLine}</div>`;
                     }
                 });
                 addressElement.innerHTML = styledAddress;
@@ -1352,14 +1275,16 @@
                                 // Build address content to merge into one unified card
                                 let addressHtml = addressLines.length > 0
                                     ? addressLines.map((line, idx) => {
-                                        const isCityStateZip = line.includes(',') && /\d{5}/.test(line);
+                                        const rawLine = line == null ? '' : String(line);
+                                        const safeLine = escapeHtml(rawLine);
+                                        const isCityStateZip = rawLine.includes(',') && /\d{5}/.test(rawLine);
                                         const isPrimary = idx === 0 || (idx === 1 && !isCityStateZip);
                                         const style = isPrimary
                                             ? 'font-size:18px;font-weight:600;color:#2c3e50;margin-bottom:4px;line-height:1.3;'
                                             : (isCityStateZip
                                                 ? 'font-size:20px;font-weight:500;color:#34495e;margin-bottom:6px;line-height:1.3;'
                                                 : 'font-size:16px;font-weight:400;color:#7f8c8d;margin-bottom:3px;line-height:1.4;font-style:italic;');
-                                        return `<div style="${style}">${line}</div>`;
+                                        return `<div style="${style}">${safeLine}</div>`;
                                     }).join('')
                                     : '<div style="font-size:16px;color:#95a5a6;font-style:italic;">Address information not available</div>';
 
@@ -1368,7 +1293,7 @@
                                     try { window._inferredDevelopment = best.development_name; } catch {}
                                     try { currentDevelopmentName = best.development_name; } catch {}
                                     try { setupChartButton(best.development_name); } catch {}
-                                    const devLine = `<div style=\"font-size:16px;font-weight:400;color:#7f8c8d;margin-bottom:3px;line-height:1.4;font-style:italic;\">${best.development_name}</div>`;
+                                    const devLine = `<div style=\"font-size:16px;font-weight:400;color:#7f8c8d;margin-bottom:3px;line-height:1.4;font-style:italic;\">${escapeHtml(best.development_name)}</div>`;
                                     addressHtml = addressHtml + devLine;
                                 }
 
@@ -1408,6 +1333,57 @@
                                 } else if (window.isPalmBeachCounty === false && data.zip_code) {
                                     try { await loadZipStats(String(data.zip_code)); } catch {}
                                 }
+                                // For non-Palm Beach, also augment left-side Home Info details via RentCast property profile
+                                if (window.isPalmBeachCounty === false) {
+                                    try {
+                                        const addrParts = [];
+                                        if (data.address_line_1) addrParts.push(String(data.address_line_1).trim());
+                                        if (data.home_city || data.home_state || data.zip_code) {
+                                            const cityStateZip = [String(data.home_city || '').trim(), String(data.home_state || '').trim(), String(data.zip_code || '').trim()]
+                                                .filter(Boolean)
+                                                .join(', ');
+                                            if (cityStateZip) addrParts.push(cityStateZip);
+                                        }
+                                        const fullAddress = addrParts.join(', ');
+                                        if (fullAddress.length >= 5) {
+                                            const resp = await fetch(`${API_BASE}/property-profile?address=${encodeURIComponent(fullAddress)}`);
+                                            const pr = await resp.json();
+                                            if (resp.ok && pr && pr.success && pr.data) {
+                                                const p = pr.data;
+                                                const detailsCard = document.createElement('div');
+                                                detailsCard.setAttribute('data-rentcast-profile', '1');
+                                                detailsCard.style.marginTop = '12px';
+                                                const fmtQty = (v) => {
+                                                    const n = Number(v);
+                                                    return Number.isFinite(n) ? n.toLocaleString() : 'N/A';
+                                                };
+                                                const fmtCurr0 = (v) => {
+                                                    const n = Number(v);
+                                                    return Number.isFinite(n) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n) : 'N/A';
+                                                };
+                                                detailsCard.innerHTML = `
+                                                    <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
+                                                        <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
+                                                            <div><span style="color:#7f8c8d">🛏️ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
+                                                            <div><span style="color:#7f8c8d">🛁 Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
+                                                            <div><span style="color:#7f8c8d">📐 Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
+                                                            <div><span style="color:#7f8c8d">📏 Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
+                                                            <div><span style="color:#7f8c8d">🏗️ Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
+                                                            <div><span style="color:#7f8c8d">💲 Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
+                                                        </div>
+                                                    </div>
+                                                `;
+                                                const mapButton = document.getElementById('mapButton');
+                                                const buttonsRow = mapButton ? mapButton.parentElement : null;
+                                                if (buttonsRow && buttonsRow.parentElement === leftPanel) {
+                                                    leftPanel.insertBefore(detailsCard, buttonsRow);
+                                                } else if (leftPanel) {
+                                                    leftPanel.appendChild(detailsCard);
+                                                }
+                                            }
+                                        }
+                                    } catch (_) { /* ignore profile errors */ }
+                                }
                             }
                         }
                     }
@@ -1427,6 +1403,61 @@
             
             // Setup chart button click handler
             setupChartButton(data.development && data.development.trim() ? data.development.trim() : null);
+
+            // For non-Palm Beach, augment Home Info with RentCast property profile regardless of county tax lookup result
+            if (window.isPalmBeachCounty === false) {
+                (async () => {
+                    try {
+                        const leftPanelHost = document.querySelector('#homeStatsContent > div:first-child');
+                        if (!leftPanelHost) return;
+                        // Avoid duplicate injection
+                        if (leftPanelHost.querySelector('[data-rentcast-profile="1"]')) return;
+                        const parts = [];
+                        if (data.address_line_1) parts.push(String(data.address_line_1).trim());
+                        const cityStateZip = [String(data.home_city || '').trim(), String(data.home_state || '').trim(), String(data.zip_code || '').trim()]
+                            .filter(Boolean)
+                            .join(', ');
+                        if (cityStateZip) parts.push(cityStateZip);
+                        const fullAddress = parts.join(', ');
+                        if (fullAddress.length < 5) return;
+                        const endpoint = `${API_BASE}/property-profile?address=${encodeURIComponent(fullAddress)}`;
+                        const resp = await fetch(endpoint);
+                        const pr = await resp.json();
+                        if (!resp.ok || !pr || !pr.success || !pr.data) return;
+                        const p = pr.data;
+                        const detailsCard = document.createElement('div');
+                        detailsCard.setAttribute('data-rentcast-profile', '1');
+                        detailsCard.style.marginTop = '12px';
+                        const fmtQty = (v) => {
+                            const n = Number(v);
+                            return Number.isFinite(n) ? n.toLocaleString() : 'N/A';
+                        };
+                        const fmtCurr0 = (v) => {
+                            const n = Number(v);
+                            return Number.isFinite(n) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n) : 'N/A';
+                        };
+                        detailsCard.innerHTML = `
+                            <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
+                                <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
+                                    <div><span style="color:#7f8c8d">🛏️ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
+                                    <div><span style="color:#7f8c8d">🛁 Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
+                                    <div><span style="color:#7f8c8d">📐 Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
+                                    <div><span style="color:#7f8c8d">📏 Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
+                                    <div><span style="color:#7f8c8d">🏗️ Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
+                                    <div><span style="color:#7f8c8d">💲 Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
+                                </div>
+                            </div>
+                        `;
+                        const mapButton = document.getElementById('mapButton');
+                        const buttonsRow = mapButton ? mapButton.parentElement : null;
+                        if (buttonsRow && buttonsRow.parentElement === leftPanelHost) {
+                            leftPanelHost.insertBefore(detailsCard, buttonsRow);
+                        } else {
+                            leftPanelHost.appendChild(detailsCard);
+                        }
+                    } catch (_) { /* ignore profile errors */ }
+                })();
+            }
         }
         
         // Function to setup chart button click handler (idempotent and re-runnable)
@@ -1540,9 +1571,15 @@
                         
                         <!-- Average Price Chart -->
                         <div style="flex: 1;">
-                            <h4 style="text-align: center; color: #34495e; margin-bottom: 15px;">Average Sale Price per Year</h4>
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; flex-wrap: wrap; gap: 12px;">
+                                <h4 id="priceChartHeading" style="color: #34495e; margin: 0;">Average Sale Price per Year</h4>
+                                <div id="priceMetricToggle" class="price-toggle-group" role="group" aria-label="Sale price metric toggle">
+                                    <button type="button" class="price-toggle-btn active" data-metric="avg_price" aria-pressed="true">Average</button>
+                                    <button type="button" class="price-toggle-btn" data-metric="median_price" aria-pressed="false">Median</button>
+                                </div>
+                            </div>
                             <div style="height: 300px; position: relative;">
-                                <canvas id="avgPriceChart" style="width: 100%; height: 100%;"></canvas>
+                                <canvas id="priceChart" style="width: 100%; height: 100%;"></canvas>
                             </div>
                         </div>
                     </div>
@@ -1598,7 +1635,8 @@
             // Render Chart.js charts
             setTimeout(() => {
                 renderPopupChart('salesCountChart', chartData, 'sales_count', '#3498db', 'Number of Sales');
-                renderPopupChart('avgPriceChart', chartData, 'avg_price', '#27ae60', 'Average Sale Price');
+                renderOverlayPriceChart(chartData, priceChartMetric);
+                setupPriceMetricToggle();
             }, 100);
         }
         
@@ -1665,8 +1703,6 @@
             // Destroy existing chart instance
             if (canvasId === 'salesCountChart' && salesCountChartInstance) {
                 salesCountChartInstance.destroy();
-            } else if (canvasId === 'avgPriceChart' && avgPriceChartInstance) {
-                avgPriceChartInstance.destroy();
             }
             
             // Prepare data for Chart.js
@@ -1783,9 +1819,139 @@
             
             if (canvasId === 'salesCountChart') {
                 salesCountChartInstance = newChart;
-            } else if (canvasId === 'avgPriceChart') {
-                avgPriceChartInstance = newChart;
             }
+        }
+
+        function renderOverlayPriceChart(data, metric = 'avg_price') {
+            const canvas = document.getElementById('priceChart');
+            if (!canvas) {
+                console.error('priceChart canvas not found');
+                return;
+            }
+
+            priceChartData = Array.isArray(data) ? data.slice() : [];
+            priceChartMetric = metric in PRICE_METRIC_CONFIG ? metric : 'avg_price';
+
+            const metricConfig = PRICE_METRIC_CONFIG[priceChartMetric] || PRICE_METRIC_CONFIG.avg_price;
+            const heading = document.getElementById('priceChartHeading');
+            if (heading) {
+                heading.textContent = `${metricConfig.label} per Year`;
+            }
+
+            const chartData = priceChartData.map(item => ({
+                x: item.sale_year ? item.sale_year.toString() : '',
+                y: parseFloat(item[priceChartMetric]) || 0
+            }));
+
+            if (priceChartInstance) {
+                priceChartInstance.destroy();
+                priceChartInstance = null;
+            }
+
+            const ctx = canvas.getContext('2d');
+            priceChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: metricConfig.label,
+                        data: chartData,
+                        backgroundColor: `${metricConfig.color}20`,
+                        borderColor: metricConfig.color,
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: metricConfig.color,
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        pointHoverBackgroundColor: metricConfig.color,
+                        pointHoverBorderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { left: 16, right: 16, top: 8, bottom: 12 } },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: (tooltipItems) => `Year ${tooltipItems[0].label}`,
+                                label: (context) => {
+                                    const value = context.parsed.y || 0;
+                                    return `${metricConfig.label}: $${Math.round(value).toLocaleString()}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'category',
+                            title: {
+                                display: true,
+                                text: 'Year',
+                                color: '#2c3e50',
+                                font: { weight: 'bold' }
+                            },
+                            grid: { display: false },
+                            ticks: {
+                                color: '#2c3e50',
+                                font: { weight: '500' }
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: metricConfig.label,
+                                color: '#2c3e50',
+                                font: { weight: 'bold' }
+                            },
+                            grid: { color: '#f0f0f0' },
+                            ticks: {
+                                color: '#666',
+                                callback: (value) => '$' + Math.round(value).toLocaleString()
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 800,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+
+            updatePriceMetricToggleState();
+        }
+
+        function setupPriceMetricToggle() {
+            const toggleGroup = document.getElementById('priceMetricToggle');
+            if (!toggleGroup) return;
+
+            const buttons = toggleGroup.querySelectorAll('button[data-metric]');
+            buttons.forEach(button => {
+                const metric = button.getAttribute('data-metric');
+                button.onclick = () => {
+                    if (!metric || priceChartMetric === metric) return;
+                    priceChartMetric = metric;
+                    renderOverlayPriceChart(priceChartData, priceChartMetric);
+                };
+            });
+
+            updatePriceMetricToggleState();
+        }
+
+        function updatePriceMetricToggleState() {
+            const toggleGroup = document.getElementById('priceMetricToggle');
+            if (!toggleGroup) return;
+            const buttons = toggleGroup.querySelectorAll('button[data-metric]');
+            buttons.forEach(button => {
+                const metric = button.getAttribute('data-metric');
+                const isActive = metric === priceChartMetric;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
         }
         
         // Function to close chart overlay and clean up chart instances
@@ -1798,9 +1964,12 @@
                 salesCountChartInstance.destroy();
                 salesCountChartInstance = null;
             }
-            if (avgPriceChartInstance) {
-                avgPriceChartInstance.destroy();
-                avgPriceChartInstance = null;
+            if (priceChartInstance) {
+                priceChartInstance.destroy();
+                priceChartInstance = null;
+                priceChartData = [];
+                priceChartMetric = 'avg_price';
+                updatePriceMetricToggleState();
             }
         }
         
@@ -2539,7 +2708,6 @@
         
         // Chart.js instances for popup charts
         let salesCountChartInstance = null;
-        let avgPriceChartInstance = null;
         
         // Available states for county selection (alphabetically sorted)
         const availableStates = [
@@ -2606,8 +2774,10 @@
                     console.log('Found saved comparison:', savedData);
                     
                     // Set the series selection
-                    if (savedData.series_id) {
+                    if (savedData.series_id && realtorSeriesKeys.has(savedData.series_id)) {
                         document.getElementById('series-select').value = savedData.series_id;
+                    } else {
+                        document.getElementById('series-select').value = DEFAULT_COUNTY_METRIC;
                     }
                     
                     // Load the county locations and populate dropdowns
@@ -2947,7 +3117,7 @@
             
             // Reset series selection to default
             const seriesSelect = document.getElementById('series-select');
-            const defaultSeries = 'ACTIVE_COUNTY_INVENTORY';
+            const defaultSeries = DEFAULT_COUNTY_METRIC;
             if (seriesOptionsCache && seriesOptionsCache[defaultSeries]) {
                 seriesSelect.value = defaultSeries;
             } else if (seriesSelect.options.length > 1) {
@@ -2971,7 +3141,7 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        seriesId: 'ACTIVE_COUNTY_INVENTORY',
+                        seriesId: DEFAULT_COUNTY_METRIC,
                         countyIds: ['12099'] // Default Palm Beach County
                     })
                 });
@@ -4228,6 +4398,14 @@
                 const zipFromReport = String(reportData.zip_code || '').trim();
 
                 const metricSelect = document.getElementById('county-insights-metric-select');
+                metricSelect.innerHTML = '';
+                REALTOR_METRICS.forEach(metric => {
+                    const option = document.createElement('option');
+                    option.value = metric.key;
+                    option.textContent = metric.label;
+                    metricSelect.appendChild(option);
+                });
+
                 const chartSection = document.getElementById('county-insights');
                 const loadingEl = document.getElementById('county-insights-loading');
                 const errorEl = document.getElementById('county-insights-error');
@@ -4251,19 +4429,46 @@
 
                 function ciShowControlsView() {
                     document.getElementById('ci-controls-section').style.display = 'block';
-                    const chartControlsEl = document.getElementById('ci-chart-controls');
-                    if (chartControlsEl) {
-                        chartControlsEl.style.display = 'none';
-                    }
+                    document.getElementById('ci-chart-controls').style.display = 'none';
                     document.getElementById('county-insights-chart-container').style.display = 'none';
                 }
                 function ciShowChartView() {
                     document.getElementById('ci-controls-section').style.display = 'none';
-                    const chartControlsEl = document.getElementById('ci-chart-controls');
-                    if (chartControlsEl) {
-                        chartControlsEl.style.display = 'flex';
-                    }
+                    const controls = document.getElementById('ci-chart-controls');
+                    if (controls) controls.style.display = 'flex';
                     document.getElementById('county-insights-chart-container').style.display = 'block';
+                }
+
+                function formatCityState(city, state) {
+                    try {
+                        const rawCity = String(city || '').trim();
+                        const rawState = String(state || '').trim();
+                        const state2 = rawState.length === 2
+                            ? rawState.toUpperCase()
+                            : (rawState ? rawState.split(/\s+/).map(p => p[0]?.toUpperCase()).join('') : '');
+
+                        // Remove any trailing ", <state>" already present in city (e.g., "Jupiter, fl")
+                        let cityClean = rawCity;
+                        if (state2) {
+                            const reAbbr = new RegExp(`\\s*,\\s*${state2}$`, 'i');
+                            cityClean = cityClean.replace(reAbbr, '');
+                        }
+                        if (rawState) {
+                            const reFull = new RegExp(`\\s*,\\s*${rawState}$`, 'i');
+                            cityClean = cityClean.replace(reFull, '');
+                        }
+                        // Generic cleanup: strip any trailing ", XX"
+                        cityClean = cityClean.replace(/,\s*[A-Za-z]{2}\s*$/, '');
+
+                        // Title-case city
+                        const titled = cityClean.replace(/\b([A-Za-zÀ-ÖØ-öø-ÿ])(\S*)/g, (_m, a, b) => a.toUpperCase() + b.toLowerCase());
+
+                        // Append state if not already present
+                        if (state2 && !new RegExp(`,\\s*${state2}$`, 'i').test(titled)) {
+                            return `${titled}, ${state2}`;
+                        }
+                        return titled;
+                    } catch { return city || ''; }
                 }
 
                 async function rebuildCiSelections() {
@@ -4293,6 +4498,8 @@
                         const dropdownLabel = document.getElementById(`ci-zip-dropdown-label-${i}`);
                         if (prev[i-1]) {
                             input.value = prev[i-1];
+                        } else if (Array.isArray(window.__savedZipCodes) && window.__savedZipCodes[i-1]) {
+                            input.value = String(window.__savedZipCodes[i-1]).padStart(5, '0');
                         } else if (i === 1 && zipFromReport && /^\d{5}$/.test(zipFromReport)) {
                             input.value = zipFromReport;
                         }
@@ -4384,37 +4591,54 @@
 
                 const fetchAndRender = async () => {
                     try {
+                        console.debug('ZIP insights initial fetch start', { zipFromReport, apiBase: API_BASE });
                         chartSection.style.display = 'block';
                         loadingEl.style.display = 'flex';
                         errorEl.style.display = 'none';
 
                         let rows = null;
-                        // Try ZIP series first
-                        try {
-                            const url = new URL(`${API_BASE}/zip-series`, window.location.origin);
-                            if (zipFromReport) url.searchParams.set('zip', zipFromReport);
-                            url.searchParams.set('months', '36');
-                            const resp = await fetch(url.toString().replace(window.location.origin, ''));
-                            const json = await resp.json();
-                            if (resp.ok && json.success && Array.isArray(json.data) && json.data.length > 0) {
-                                rows = json.data;
-                            }
-                        } catch (_) {}
-
-                        // Fallback to county-series by ZIP
-                        if (!rows) {
-                            const url2 = new URL(`${API_BASE}/county-series`, window.location.origin);
-                            if (zipFromReport) url2.searchParams.set('zip', zipFromReport);
-                            url2.searchParams.set('months', '36');
-                            const resp2 = await fetch(url2.toString().replace(window.location.origin, ''));
-                            const json2 = await resp2.json();
-                            if (!resp2.ok || !json2.success || !Array.isArray(json2.data) || json2.data.length === 0) {
-                                throw new Error(json2.error || 'No data');
-                            }
-                            // Map to rows compatible with metric selection
+                        const url2 = new URL(`${API_BASE}/zip-series`, window.location.origin);
+                        if (zipFromReport) url2.searchParams.set('zip', zipFromReport);
+                        url2.searchParams.set('months', '36');
+                        const resp2 = await fetch(url2.toString().replace(window.location.origin, ''));
+                        const json2 = await resp2.json();
+                        console.debug('ZIP insights initial API response', { status: resp2.status, success: json2.success, count: json2.data?.length, sample: json2.data?.slice?.(0, 5) });
+                        if (resp2.ok && json2.success && Array.isArray(json2.data) && json2.data.length > 0) {
                             rows = json2.data.map(r => ({
+                                zip5: String(r.zip5 || zipFromReport || '').padStart(5, '0'),
+                                city: r.city || r.zip_name || r.county_name || '',
+                                month_date_yyyymm: r.month_date_yyyymm || r.yyyymm,
+                                avg_listing_price: r.avg_listing_price,
+                                med_listing_price: r.median_listing_price,
+                                median_listing_price_proxy: r.median_listing_price_proxy || r.median_listing_price,
+                                median_days_on_market: r.avg_days_on_market || r.median_days_on_market,
+                                avg_days_on_market: r.avg_days_on_market,
+                                median_price_per_sqft: r.avg_price_per_sqft,
+                                avg_price_per_sqft: r.avg_price_per_sqft,
+                                active_listing_count: r.active_listing_count,
+                                new_listing_count: r.new_listing_count,
+                                pending_listing_count: r.pending_listing_count,
+                                total_listing_count: r.total_listing_count,
+                                pending_ratio: r.pending_ratio,
+                                price_increased_share: r.price_increased_share,
+                                price_reduced_share: r.price_reduced_share
+                            }));
+                        }
+
+                        if (!rows) {
+                            const urlFallback = new URL(`${API_BASE}/county-series`, window.location.origin);
+                            if (zipFromReport) urlFallback.searchParams.set('zip', zipFromReport);
+                            urlFallback.searchParams.set('months', '36');
+                            const respFallback = await fetch(urlFallback.toString().replace(window.location.origin, ''));
+                            const jsonFallback = await respFallback.json();
+                            console.debug('ZIP insights county fallback', { status: respFallback.status, success: jsonFallback.success, count: jsonFallback.data?.length, sample: jsonFallback.data?.slice?.(0, 5) });
+                            if (!respFallback.ok || !jsonFallback.success || !Array.isArray(jsonFallback.data) || jsonFallback.data.length === 0) {
+                                throw new Error(jsonFallback.error || 'No data');
+                            }
+                            rows = jsonFallback.data.map(r => ({
                                 zip5: String(zipFromReport || '').padStart(5, '0'),
                                 city: r.county_name || '',
+                                state_id: r.state_id || r.state || r.state_name || '',
                                 month_date_yyyymm: r.yyyymm,
                                 avg_listing_price: r.avg_listing_price,
                                 med_listing_price: r.median_listing_price_proxy,
@@ -4433,13 +4657,14 @@
                             }));
                         }
 
+
                         const metric = metricSelect.value || 'avg_listing_price';
-                        const cityName = rows[0].city || '';
+                        const cityName = formatCityState(rows[0].city || '', rows[0].state_id || rows[0].state || rows[0].state_name);
                         const zipLabel = String(rows[0].zip5 || '').padStart(5, '0');
                         const title = `${metricLabel(metric)}`;
-                        // Prefer actual median_listing_price if metric is median and field exists
                         const effectiveMetric = (metric === 'med_listing_price' && rows[0].median_listing_price) ? 'median_listing_price' : metric;
                         const series = [{ key: effectiveMetric, label: `${zipLabel}${cityName ? ' - ' + cityName : ''}`, data: rows.map(r => ({ x: parseYyyymmToDate(r.month_date_yyyymm), y: toNumberOrNull(r[effectiveMetric]) })) }];
+                        console.debug('ZIP insights initial dataset', { metric, effectiveMetric, series });
                         renderCountyInsightsChart(series, title);
                         ciShowChartView();
                         loadingEl.style.display = 'none';
@@ -4452,6 +4677,7 @@
 
                 async function ciRenderForSelections(metric, selections) {
                     try {
+                        console.debug('zip comparison request', { metric, selections });
                         chartSection.style.display = 'block';
                         loadingEl.style.display = 'flex';
                         errorEl.style.display = 'none';
@@ -4461,6 +4687,7 @@
                         url.searchParams.set('months', '36');
                         const resp = await fetch(url.toString().replace(window.location.origin, ''));
                         const json = await resp.json();
+                        console.debug('zip comparison API response', { status: resp.status, success: json.success, count: json.data?.length, sample: json.data?.slice?.(0, 5) });
                         if (!resp.ok || !json.success || !Array.isArray(json.data) || json.data.length === 0) throw new Error(json.error || 'No data');
                         const byZip = {}; const names = {};
                         for (const r of json.data) {
@@ -4468,9 +4695,12 @@
                             if (!byZip[id]) byZip[id] = [];
                             byZip[id].push({ x: parseYyyymmToDate(r.month_date_yyyymm), y: toNumberOrNull(r[metric]) });
                             const city = r.city || '';
-                            names[id] = `${id}${city ? ' - ' + city : ''}`;
+                            const state = r.state_id || r.state || r.state_name || '';
+                            const disp = (city || state) ? formatCityState(city, state) : '';
+                            names[id] = `${id}${disp ? ' - ' + disp : ''}`;
                         }
                         const series = Object.keys(byZip).map((id) => ({ key: metric, label: `${names[id]}`, data: byZip[id] }));
+                        console.debug('zip comparison datasets', { metric, series });
                         renderCountyInsightsChart(series, metricLabel(metric));
                         ciShowChartView();
                         loadingEl.style.display = 'none';
@@ -4481,33 +4711,104 @@
                     }
                 }
 
+                function resolveZipReportId() {
+                    try {
+                        const candidates = [reportData?.report_id, reportData?.reportId, reportData?.id, reportData?.reportid];
+                        for (const value of candidates) {
+                            const num = Number(value);
+                            if (Number.isFinite(num) && num > 0) return num;
+                        }
+                    } catch (_) {}
+                    try {
+                        if (typeof urlSlug === 'string' && urlSlug.length > 0) {
+                            const m = urlSlug.match(/(\d+)/);
+                            if (m) {
+                                const num = Number(m[1]);
+                                if (Number.isFinite(num) && num > 0) return num;
+                            }
+                        }
+                    } catch (_) {}
+                    return null;
+                }
+                function sanitizeZipList(list) {
+                    return Array.isArray(list)
+                        ? list.map(z => String(z || '').trim()).filter(z => /^\d{5}$/.test(z)).slice(0, 5)
+                        : [];
+                }
+                async function loadSavedZipComparison() {
+                    const reportId = resolveZipReportId();
+                    if (!reportId) return null;
+                    try {
+                        const resp = await fetch(`${API_BASE}/reports/${reportId}/zip-comparison`);
+                        const json = await resp.json();
+                        if (!resp.ok || !json.success || !json.data) return null;
+                        const zips = sanitizeZipList(json.data.zip_codes);
+                        return { series_id: json.data.series_id || 'avg_listing_price', zip_codes: zips };
+                    } catch (_) { return null; }
+                }
+                function applySavedZipComparison(saved) {
+                    if (!saved || !Array.isArray(saved.zip_codes) || saved.zip_codes.length === 0) return;
+                    if (saved.series_id && metricSelect.querySelector(`option[value="${saved.series_id}"]`)) {
+                        metricSelect.value = saved.series_id;
+                    }
+                    try { window.__savedZipCodes = saved.zip_codes.slice(); } catch (_) {}
+                    window.ciSelectionCount = Math.min(5, saved.zip_codes.length || 1);
+                }
+                async function saveZipComparison(metric, selections) {
+                    const reportId = resolveZipReportId();
+                    if (!reportId) return;
+                    const payloadZips = sanitizeZipList((selections || []).map(s => s.zip));
+                    if (payloadZips.length === 0) return;
+                    try {
+                        await fetch(`${API_BASE}/reports/${reportId}/zip-comparison`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ seriesId: metric || 'avg_listing_price', zipIds: payloadZips })
+                        });
+                    } catch (_) {}
+                }
+
                 metricSelect.addEventListener('change', async () => {
                     const selections = selectedZips();
                     const metric = metricSelect.value || 'avg_listing_price';
                     if (selections.length > 0) {
                         await ciRenderForSelections(metric, selections);
+                        await saveZipComparison(metric, selections);
                     } else {
                         await fetchAndRender();
                     }
                 });
                 await rebuildCiSelections();
+                const savedZipComparison = await loadSavedZipComparison();
+                applySavedZipComparison(savedZipComparison);
+                await rebuildCiSelections();
+                if (savedZipComparison && Array.isArray(savedZipComparison.zip_codes) && savedZipComparison.zip_codes.length > 0) {
+                    const metric = savedZipComparison.series_id || (metricSelect.value || 'avg_listing_price');
+                    const selections = savedZipComparison.zip_codes.map(zip => ({ zip, label: zip }));
+                    await ciRenderForSelections(metric, selections);
+                } else {
+                    await fetchAndRender();
+                }
                 ciCompareBtn.addEventListener('click', async () => {
-                    const selections = selectedZips();
-                    const metric = metricSelect.value || 'avg_listing_price';
-                    if (selections.length > 0) {
-                        await ciRenderForSelections(metric, selections);
-                    } else if (zipFromReport) {
-                        await fetchAndRender();
-                    }
-                });
-                const ciBackBtn = document.getElementById('ci-back-to-controls-btn');
-                ciBackBtn.addEventListener('click', ciShowControlsView);
-                await fetchAndRender();
-            } catch (e) {
-                console.warn('initCountyInsights failed:', e);
-            }
-        }
-
+                     const selections = selectedZips();
+                     const metric = metricSelect.value || 'avg_listing_price';
+                     if (selections.length > 0) {
+                         await ciRenderForSelections(metric, selections);
+                         await saveZipComparison(metric, selections);
+                         try { window.__savedZipCodes = selections.map(s => String(s.zip || '').padStart(5,'0')); } catch (_) {}
+                     } else if (zipFromReport) {
+                         await fetchAndRender();
+                     }
+                 });
+                 const ciBackBtn = document.getElementById('ci-back-to-controls-btn');
+                 ciBackBtn.addEventListener('click', async () => {
+                     ciShowControlsView();
+                     try { await rebuildCiSelections(); } catch (_) {}
+                 });
+             } catch (e) {
+                 console.warn('initCountyInsights failed:', e);
+             }
+         }
         function renderCountyInsightsChart(series, title) {
             const canvas = document.getElementById('county-insights-chart');
             if (!canvas) return;
