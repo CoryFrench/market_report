@@ -1587,9 +1587,15 @@
                             </div>
                         </div>
                         
-                        <!-- Average Price Chart -->
+                        <!-- Price Chart -->
                         <div style="flex: 1;">
-                            <h4 style="text-align: center; color: #34495e; margin-bottom: 15px;">Average Sale Price per Year</h4>
+                            <h4 style="text-align: center; color: #34495e; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;">
+                                <select id="priceMetricSelect" style="border: none; background: transparent; font-size: 16px; font-weight: 600; color: #34495e; padding: 2px 6px; border-radius: 4px; appearance: none; -webkit-appearance: none; -moz-appearance: none; cursor: pointer;">
+                                    <option value="avg" selected>Average</option>
+                                    <option value="median">Median</option>
+                                </select>
+                                <span style="font-weight: 500;">Sale Price per Year</span>
+                            </h4>
                             <div style="height: 300px; position: relative;">
                                 <canvas id="avgPriceChart" style="width: 100%; height: 100%;"></canvas>
                             </div>
@@ -1645,9 +1651,25 @@
             content.innerHTML = chartHtml;
             
             // Render Chart.js charts
+            const priceMetricOptions = {
+                avg: { field: 'avg_price', label: 'Average Sale Price', color: '#27ae60' },
+                median: { field: 'median_price', label: 'Median Sale Price', color: '#8e44ad' }
+            };
+
+            function renderPriceChart(metricKey) {
+                const config = priceMetricOptions[metricKey] || priceMetricOptions.avg;
+                renderPopupChart('avgPriceChart', chartData, config.field, config.color, config.label);
+            }
+
             setTimeout(() => {
                 renderPopupChart('salesCountChart', chartData, 'sales_count', '#3498db', 'Number of Sales');
-                renderPopupChart('avgPriceChart', chartData, 'avg_price', '#27ae60', 'Average Sale Price');
+                const selectEl = document.getElementById('priceMetricSelect');
+                renderPriceChart(selectEl?.value || 'avg');
+                if (selectEl) {
+                    selectEl.addEventListener('change', (event) => {
+                        renderPriceChart(event.target.value);
+                    }, { once: false });
+                }
             }, 100);
         }
         // Function to render simple bar chart
@@ -1726,7 +1748,7 @@
             const ctx = canvas.getContext('2d');
             
             // Determine if this is a price chart for formatting
-            const isPrice = valueField === 'avg_price';
+            const isPrice = /price/i.test(valueField);
             
             // Create Chart.js configuration
             const config = {
