@@ -1218,6 +1218,197 @@ const dbQueries = {
       LIMIT 50
     `;
     return await query(queryText, params);
+  },
+
+  resolveStateNameByInput: async (stateInput) => {
+    const raw = typeof stateInput === 'string' ? stateInput.trim() : '';
+    if (!raw) {
+      return null;
+    }
+
+    if (raw.length === 2) {
+      const lookup = await query(`
+        SELECT DISTINCT state_name
+        FROM otherdata.zip_city_county_xref
+        WHERE upper(state_id) = upper($1)
+        ORDER BY state_name
+        LIMIT 1
+      `, [raw]);
+      if (lookup.rowCount > 0) {
+        return lookup.rows[0].state_name;
+      }
+      return raw.toUpperCase();
+    }
+
+    return raw;
+  },
+
+  getStateMigrationTopStates: async (stateName, direction = 'inflow', limit = 5) => {
+    const normalizedState = typeof stateName === 'string' ? stateName.trim() : '';
+    if (!normalizedState) {
+      return { rowCount: 0, rows: [] };
+    }
+
+    const normalizedDirection = direction === 'outflow' ? 'outflow' : 'inflow';
+    const tableName = normalizedDirection === 'outflow'
+      ? 'irs.state_out_migration'
+      : 'irs.state_in_migration';
+    const targetFipsColumn = normalizedDirection === 'outflow' ? 'y1_statefips' : 'y2_statefips';
+    const partnerFipsColumn = normalizedDirection === 'outflow' ? 'y2_statefips' : 'y1_statefips';
+    const partnerNameColumn = normalizedDirection === 'outflow' ? 'y2_state_name' : 'y1_state_name';
+    const safeLimit = Math.max(1, Math.min(parseInt(limit, 10) || 5, 25));
+    const fetchLimit = Math.min(100, safeLimit * 6);
+    const normalizedStateLower = normalizedState.toLowerCase();
+
+    const stateLookup = await query(`
+      SELECT LPAD(fips::text, 2, '0') AS fips, state
+      FROM irs.state_fips_xref
+      WHERE upper(state) = upper($1)
+      LIMIT 1
+    `, [ normalizedState ]);
+
+    if (stateLookup.rowCount === 0) {
+      return { rowCount: 0, rows: [] };
+    }
+
+    const targetFips = stateLookup.rows[0].fips;
+
+    const queryText = `
+      WITH latest_year AS (
+        SELECT MAX(year2year) AS value
+        FROM ${tableName}
+        WHERE LPAD(${targetFipsColumn}::text, 2, '0') = $1
+      )
+      SELECT
+        COALESCE(NULLIF(${partnerNameColumn}, ''), partner_lookup.state, 'Unknown') AS partner_state,
+        year2year AS tax_year,
+        n1 AS returns,
+        n2 AS individuals,
+        COALESCE(agi::numeric, 0)::numeric AS agi,
+        (SELECT value FROM latest_year) AS latest_year
+      FROM ${tableName}
+      LEFT JOIN irs.state_fips_xref AS partner_lookup
+        ON LPAD(${partnerFipsColumn}::text, 2, '0') = LPAD(partner_lookup.fips::text, 2, '0')
+      WHERE LPAD(${targetFipsColumn}::text, 2, '0') = $1
+        AND (
+          (SELECT value FROM latest_year) IS NULL
+          OR year2year = (SELECT value FROM latest_year)
+        )
+      ORDER BY returns DESC, partner_state ASC
+      LIMIT $2
+    `;
+
+    const rawResult = await query(queryText, [ targetFips, fetchLimit ]);
+    const blockedPatterns = [
+      /total migration/i,
+      /non-migrant/i,
+      /foreign/i,
+      /same state/i
+    ];
+    const filteredRows = rawResult.rows.filter(row => {
+      const name = (row.partner_state || '').trim();
+      if (!name) return false;
+      const lower = name.toLowerCase();
+      if (lower === normalizedStateLower) return false;
+      if (blockedPatterns.some(pattern => pattern.test(lower))) return false;
+      return true;
+    }).slice(0, safeLimit);
+
+    return { rowCount: filteredRows.length, rows: filteredRows };
+  },
+
+  getCountyMetadataByFips: async (countyFips) => {
+    const normalized = String(countyFips || '').replace(/\D/g, '').padStart(5, '0');
+    if (!/^\d{5}$/.test(normalized)) {
+      return { rowCount: 0, rows: [] };
+    }
+
+    const queryText = `
+      SELECT 
+        LPAD(statefips::text, 2, '0') AS state_fips,
+        LPAD(countyfips::text, 3, '0') AS county_fips,
+        LPAD(statefips::text, 2, '0') || LPAD(countyfips::text, 3, '0') AS fips,
+        state AS state_name,
+        countyname AS county_name
+      FROM irs.county_fips_xref
+      WHERE LPAD(statefips::text, 2, '0') || LPAD(countyfips::text, 3, '0') = $1
+      LIMIT 1
+    `;
+
+    return await query(queryText, [normalized]);
+  },
+
+  getCountyMigrationTopCounties: async (countyFips, direction = 'inflow', limit = 10) => {
+    const normalizedFips = String(countyFips || '').replace(/\D/g, '').padStart(5, '0');
+    if (!/^\d{5}$/.test(normalizedFips)) {
+      return { rowCount: 0, rows: [], latestYear: null };
+    }
+
+    const stateFips = normalizedFips.slice(0, 2);
+    const countyCode = normalizedFips.slice(2);
+    const normalizedDirection = direction === 'outflow' ? 'outflow' : 'inflow';
+    const tableName = normalizedDirection === 'outflow'
+      ? 'irs.county_out_migration'
+      : 'irs.county_in_migration';
+    const targetStateColumn = normalizedDirection === 'outflow' ? 'y1_statefips' : 'y2_statefips';
+    const targetCountyColumn = normalizedDirection === 'outflow' ? 'y1_countyfips' : 'y2_countyfips';
+    const partnerStateColumn = normalizedDirection === 'outflow' ? 'y2_statefips' : 'y1_statefips';
+    const partnerCountyColumn = normalizedDirection === 'outflow' ? 'y2_countyfips' : 'y1_countyfips';
+    const partnerNameColumn = normalizedDirection === 'outflow' ? 'y2_countyname' : 'y1_countyname';
+    const requestedLimit = Math.max(1, Math.min(parseInt(limit, 10) || 10, 25));
+    const fetchLimit = Math.min(150, requestedLimit * 6);
+
+    const queryText = `
+      WITH latest_year AS (
+        SELECT MAX(year2year) AS value
+        FROM ${tableName}
+        WHERE LPAD(${targetStateColumn}::text, 2, '0') = $1
+          AND LPAD(${targetCountyColumn}::text, 3, '0') = $2
+      )
+      SELECT
+        LPAD(${partnerStateColumn}::text, 2, '0') || LPAD(${partnerCountyColumn}::text, 3, '0') AS partner_fips,
+        COALESCE(NULLIF(${partnerNameColumn}, ''), partner_lookup.countyname, 'Unknown') AS partner_county,
+        COALESCE(partner_lookup.state, 'Unknown') AS partner_state,
+        year2year AS tax_year,
+        n1 AS returns,
+        n2 AS individuals,
+        COALESCE(agi::numeric, 0)::numeric AS agi,
+        (SELECT value FROM latest_year) AS latest_year
+      FROM ${tableName}
+      LEFT JOIN irs.county_fips_xref AS partner_lookup
+        ON ${partnerStateColumn} = partner_lookup.statefips
+       AND ${partnerCountyColumn} = partner_lookup.countyfips
+      WHERE LPAD(${targetStateColumn}::text, 2, '0') = $1
+        AND LPAD(${targetCountyColumn}::text, 3, '0') = $2
+        AND (
+          (SELECT value FROM latest_year) IS NULL
+          OR year2year = (SELECT value FROM latest_year)
+        )
+      ORDER BY returns DESC, partner_county ASC
+      LIMIT $3
+    `;
+
+    const rawResult = await query(queryText, [stateFips, countyCode, fetchLimit]);
+    const blockedPatterns = [
+      /total migration/i,
+      /non-migrant/i,
+      /same county/i,
+      /same state/i,
+      /foreign/i,
+      /within county/i
+    ];
+
+    const filteredRows = rawResult.rows.filter(row => {
+      const partnerFips = String(row.partner_fips || '').padStart(5, '0');
+      const label = `${row.partner_county || ''} ${row.partner_state || ''}`.toLowerCase();
+      if (!partnerFips.trim() || partnerFips === normalizedFips) return false;
+      if (!label.trim()) return false;
+      if (blockedPatterns.some(pattern => pattern.test(label))) return false;
+      return true;
+    }).slice(0, requestedLimit);
+
+    const latestYear = filteredRows[0]?.latest_year ?? null;
+    return { rowCount: filteredRows.length, rows: filteredRows, latestYear };
   }
   ,
 

@@ -52,6 +52,7 @@
                 const targets = [
                     document.getElementById('comparison-chart-container'),
                     document.getElementById('dev-comparison-chart-container'),
+                    document.getElementById('wealth-migration-chart-container'),
                     ...getNationalWrappers()
                 ].filter(Boolean);
                 targets.forEach(sizeChartContainer);
@@ -67,6 +68,7 @@
             const watchEls = [
                 document.getElementById('comparison-chart-container'),
                 document.getElementById('dev-comparison-chart-container'),
+                document.getElementById('wealth-migration-chart-container'),
                 ...getNationalWrappers()
             ].filter(Boolean);
             watchEls.forEach(el => ro.observe(el));
@@ -520,7 +522,7 @@
                 </div>                                <!-- Development Comparison Chart View -->
                                 <div class="chart-section" id="dev-chart-section" style="display: none;">
                                     <div class="chart-controls">
-                                        <button id="back-to-dev-controls-btn" class="back-to-controls-btn">← Change Neighbourhood</button>
+                                        <button id="back-to-dev-controls-btn" class="back-to-controls-btn">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Change Neighbourhood</button>
                                     </div>
                                     <div id="dev-comparison-chart-header" class="chart-header" style="display: none;">
                                         <h3 id="dev-chart-title">Development Sales Comparison</h3>
@@ -574,7 +576,7 @@
                                 </div>
                             </div>
                             <div class="chart-controls" id="ci-chart-controls" style="display:none;">
-                                <button id="ci-back-to-controls-btn" class="back-to-controls-btn">← Change ZIPs</button>
+                                <button id="ci-back-to-controls-btn" class="back-to-controls-btn">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Change ZIPs</button>
                                 <div class="chart-indicator-control">
                                     <label for="county-insights-metric-select">Metric:</label>
                                     <select id="county-insights-metric-select" class="fred-select">
@@ -594,7 +596,7 @@
                                 <canvas id="county-insights-chart"></canvas>
                                 <div id="county-insights-loading" class="chart-loading-message" style="display: none;">
                                     <div class="loading-spinner-small"></div>
-                                    <p>Loading ZIP insights…</p>
+                                    <p>Loading ZIP insightsÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦</p>
                                 </div>
                                 <div id="county-insights-error" class="chart-error-message" style="display: none;">
                                     <p>Insights unavailable for this ZIP at the moment.</p>
@@ -637,7 +639,7 @@
                                 
                                 <div class="chart-section" id="chart-section" style="display: none;">
                                     <div class="chart-controls">
-                                        <button id="back-to-controls-btn" class="back-to-controls-btn">← Change County</button>
+                                        <button id="back-to-controls-btn" class="back-to-controls-btn">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Change County</button>
                                         <div class="chart-indicator-control" style="margin-left: 20px; display: inline-flex; align-items: center; gap: 10px;">
                                             <label for="chart-series-select" style="font-weight: bold; color: #333;">Indicator:</label>
                                             <select id="chart-series-select" class="fred-select" style="min-width: 200px;">
@@ -710,9 +712,57 @@
             </div>
         </div>
 
+        
+        <div class="section" id="wealth-migration-section" style="order: 50;">
+            <h2>Wealth Migration</h2>
+            <div class="section-content">
+            <div class="wealth-migration-card">
+                    <div class="wealth-migration-header">
+                        <div class="wealth-migration-summary">
+                            <p class="wealth-migration-eyebrow">Focus County</p>
+                            <div class="wealth-focus-line" id="wealthMigrationFocus">
+                                <label for="wealthMigrationCountySelect" class="sr-only">County</label>
+                                <span class="wealth-focus-select-wrapper">
+                                    <select id="wealthMigrationCountySelect" class="wealth-focus-select wealth-focus-select--county" disabled>
+                                        <option value="">Select a state</option>
+                                    </select>
+                                </span>
+                                <span class="wealth-focus-comma">,</span>
+                                <label for="wealthMigrationStateSelect" class="sr-only">State</label>
+                                <span class="wealth-focus-select-wrapper">
+                                    <select id="wealthMigrationStateSelect" class="wealth-focus-select wealth-focus-select--state"></select>
+                                </span>
+                            </div>
+                            <p class="wealth-migration-subtitle" id="wealthMigrationYear">Awaiting data</p>
+                        </div>
+                        <div class="wealth-migration-toggle" role="group" aria-label="Select migration direction">
+                            <button type="button" class="wealth-toggle-btn active" data-direction="inflow">Inbound</button>
+                            <button type="button" class="wealth-toggle-btn" data-direction="outflow">Outbound</button>
+                        </div>
+                    </div>
+                    <div class="wealth-migration-body">
+                        <div class="wealth-chart-wrapper" id="wealth-migration-chart-container">
+                            <canvas id="wealthMigrationChart" aria-label="Wealth migration chart"></canvas>
+                            <div id="wealthMigrationChartLoading" class="chart-loading-message" style="display:none;">
+                                <div class="loading-spinner-small"></div>
+                                <p>Loading wealth migration insights...</p>
+                            </div>
+                            <div id="wealthMigrationChartFallback" class="chart-empty-state" hidden>
+                                <p>Wealth migration chart is unavailable for this county.</p>
+                            </div>
+                        </div>
+                        <div class="wealth-migration-list">
+                            <h4 id="wealthMigrationListTitle">Top Origins (Counties)</h4>
+                            <ol id="wealthMigrationList" class="wealth-list"></ol>
+                            <div id="wealthMigrationListEmpty" class="info-value" style="display:none;">No migration records were found for this direction.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="footer">
             <div class="footer-content">
-                <p>© 2025 Waterfront Properties. All rights reserved.</p>
+                <p>&copy; 2025 Waterfront Properties. All rights reserved.</p>
                 <p>This report was compiled by Waterfront Properties and provided exclusively for the intended recipient.</p>
             </div>
         </div>
@@ -835,6 +885,7 @@
             
             // Home Stats - Display property information
             displayHomeStats(data);
+            initializeWealthMigrationSection(data);
             
             // FRED Charts - Load the charts after displaying the report
             loadFredCharts(data.report_id);
@@ -956,7 +1007,7 @@
                 }
             } catch (_) {}
             
-            // Enrich Home Stats via property lookup (address → parcel → tax fields)
+            // Enrich Home Stats via property lookup (address ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ parcel ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ tax fields)
             (async () => {
                 try {
                     const params = new URLSearchParams();
@@ -1007,7 +1058,7 @@
                                 const fullBaths = formatInt(best.number_of_full_bathrooms);
                                 const halfBaths = formatInt(best.number_of_half_bathrooms);
                                 const halfBathsHtml = (halfBaths !== 'N/A' && parseInt(halfBaths, 10) > 0)
-                                    ? `<div><span style=\"color:#7f8c8d\">🚿 Half Bath:</span> <strong>${halfBaths}</strong></div>`
+                                    ? `<div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¿ Half Bath:</span> <strong>${halfBaths}</strong></div>`
                                     : '';
                                 const marketValue = formatCurrency0(best.total_market_value);
 
@@ -1037,17 +1088,17 @@
                                 infoBlock.innerHTML = `
                                     <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
                                         <div style="display:flex; align-items:flex-start; gap:10px; margin-bottom:12px;">
-                                            <div style="font-size:20px; line-height:1;">📍</div>
+                                            <div style="font-size:20px; line-height:1;">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â</div>
                                             <div style="flex:1;">${addressHtml}</div>
                                         </div>
                                         <div style="height:1px; background:#e9ecef; margin:10px 0 14px 0;"></div>
                                         <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
-                                            <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${bedrooms}</strong></div>
-                                            <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${livingSqFt}</strong></div>
-                                            <div><span style=\"color:#7f8c8d\">🛁 Bath:</span> <strong>${fullBaths}</strong></div>
-                                            <div><span style=\"color:#7f8c8d\">🏗️ Year Built:</span> <strong>${yearBuilt}</strong></div>
+                                            <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Bedrooms:</span> <strong>${bedrooms}</strong></div>
+                                            <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Living SqFt:</span> <strong>${livingSqFt}</strong></div>
+                                            <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Bath:</span> <strong>${fullBaths}</strong></div>
+                                            <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Year Built:</span> <strong>${yearBuilt}</strong></div>
                                             ${halfBathsHtml}
-                                            <div><span style=\"color:#7f8c8d\">💲 Tax Value:</span> <strong>${marketValue}</strong></div>
+                                            <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â² Tax Value:</span> <strong>${marketValue}</strong></div>
                                         </div>
                                     </div>
                                 `;
@@ -1098,12 +1149,12 @@
                                                 detailsCard.innerHTML = `
                                                     <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
                                                         <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
-                                                            <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
-                                                            <div><span style=\"color:#7f8c8d\">🛁 Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
-                                                            <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
-                                                            <div><span style=\"color:#7f8c8d\">📏 Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
-                                                            <div><span style=\"color:#7f8c8d\">🏗️ Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
-                                                            <div><span style=\"color:#7f8c8d\">💲 Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â² Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
                                                         </div>
                                                     </div>
                                                 `;
@@ -1171,12 +1222,12 @@
                         detailsCard.innerHTML = `
                             <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
                                 <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
-                                    <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">🛁 Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">📏 Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">🏗️ Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">💲 Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â² Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
                                 </div>
                             </div>
                         `;
@@ -1264,7 +1315,7 @@
                 console.error('Error loading chart data:', error);
                 content.innerHTML = `
                     <div style="text-align: center; padding: 40px;">
-                        <div style="color: #e74c3c; font-size: 48px; margin-bottom: 20px;">📊</div>
+                        <div style="color: #e74c3c; font-size: 48px; margin-bottom: 20px;">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â </div>
                         <h3 style="color: #2c3e50; margin-bottom: 10px;">Chart Data Unavailable</h3>
                         <p style="color: #7f8c8d;">Unable to load sales data for this development.</p>
                     </div>
@@ -1280,7 +1331,7 @@
             if (!chartData || chartData.length === 0) {
                 content.innerHTML = `
                     <div style="text-align: center; padding: 40px;">
-                        <div style="color: #f39c12; font-size: 48px; margin-bottom: 20px;">📈</div>
+                        <div style="color: #f39c12; font-size: 48px; margin-bottom: 20px;">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Â¹ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â </div>
                         <h3 style="color: #2c3e50; margin-bottom: 10px;">No Sales Data</h3>
                         <p style="color: #7f8c8d;">No recorded sales found for ${data.developmentName} in the last 10 years.</p>
                     </div>
@@ -1994,7 +2045,436 @@
                 </div>
             `;
         }
-        
+
+        function normalizeCountyLabel(value) {
+            return String(value || '')
+                .toLowerCase()
+                .replace(/county$/i, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function determineStateForWealthMigration(reportData) {
+            if (!reportData) {
+                return DEFAULT_WEALTH_MIGRATION_STATE;
+            }
+            const candidates = [
+                reportData.home_state,
+                reportData.state,
+                reportData.county_state,
+                reportData.zip_state
+            ];
+            for (const candidate of candidates) {
+                if (!candidate) continue;
+                const trimmed = String(candidate).trim();
+                if (!trimmed) continue;
+                if (trimmed.length === 2) {
+                    return STATE_ABBR_TO_NAME[trimmed.toUpperCase()] || trimmed.toUpperCase();
+                }
+                return trimmed;
+            }
+            return DEFAULT_WEALTH_MIGRATION_STATE;
+        }
+
+        async function setupWealthMigrationSelectors(reportData) {
+            const stateSelect = document.getElementById('wealthMigrationStateSelect');
+            const countySelect = document.getElementById('wealthMigrationCountySelect');
+            if (!stateSelect || !countySelect) return;
+
+            const defaultState = determineStateForWealthMigration(reportData);
+            wealthMigrationState = defaultState;
+
+            stateSelect.innerHTML = '<option value="">Select State</option>';
+            availableStates.forEach(stateName => {
+                const option = document.createElement('option');
+                option.value = stateName;
+                option.textContent = stateName;
+                stateSelect.appendChild(option);
+            });
+            stateSelect.value = defaultState;
+
+            stateSelect.addEventListener('change', async (event) => {
+                const selectedState = event.target.value || DEFAULT_WEALTH_MIGRATION_STATE;
+                wealthMigrationState = selectedState;
+                await loadWealthMigrationCounties(selectedState);
+            });
+
+            countySelect.addEventListener('change', () => {
+                const selectedFips = countySelect.value;
+                wealthMigrationCountyFips = selectedFips || null;
+                wealthMigrationCountyName = selectedFips
+                    ? (countySelect.selectedOptions[0]?.textContent?.trim() || '')
+                    : '';
+                if (wealthMigrationCountyFips) {
+                    fetchWealthMigrationData(wealthMigrationState, wealthMigrationCountyFips);
+                } else {
+                    showWealthMigrationFallback('Select a county to view wealth migration trends.');
+                }
+            });
+
+            await loadWealthMigrationCounties(defaultState, reportData?.county || reportData?.county_name || '', reportData?.county_fips);
+        }
+
+        async function loadWealthMigrationCounties(stateName, preferCountyName = '', preferCountyFips = '') {
+            const countySelect = document.getElementById('wealthMigrationCountySelect');
+            if (!countySelect) return;
+            countySelect.disabled = true;
+            countySelect.innerHTML = '<option value="">Loading counties...</option>';
+
+            try {
+                const response = await fetch(`${API_BASE}/counties?state=${encodeURIComponent(stateName)}`);
+                const payload = await response.json();
+                if (!response.ok || !payload.success) {
+                    throw new Error(payload.error || `Failed to load counties for ${stateName}`);
+                }
+                const counties = Array.isArray(payload.data) ? payload.data : [];
+                if (counties.length === 0) {
+                    throw new Error(`No counties available for ${stateName}`);
+                }
+
+                countySelect.innerHTML = '<option value="">Select County</option>';
+                counties.forEach(county => {
+                    const option = document.createElement('option');
+                    option.value = county.id;
+                    option.textContent = county.name;
+                    countySelect.appendChild(option);
+                });
+
+                const preferLabel = normalizeCountyLabel(preferCountyName);
+                let selectedFips = null;
+
+                if (preferCountyFips) {
+                    const normalizedPreferFips = String(preferCountyFips).replace(/\D/g, '').padStart(5, '0');
+                    if (counties.find(c => c.id === normalizedPreferFips)) {
+                        selectedFips = normalizedPreferFips;
+                    }
+                }
+
+                if (!selectedFips && preferLabel) {
+                    const match = counties.find(c => normalizeCountyLabel(c.name) === preferLabel);
+                    if (match) {
+                        selectedFips = match.id;
+                    }
+                }
+
+                if (!selectedFips && counties.find(c => c.id === wealthMigrationCountyFips)) {
+                    selectedFips = wealthMigrationCountyFips;
+                }
+
+                if (!selectedFips) {
+                    selectedFips = counties[0].id;
+                }
+
+                countySelect.value = selectedFips;
+                wealthMigrationCountyFips = selectedFips;
+                wealthMigrationCountyName = countySelect.selectedOptions[0]?.textContent?.trim() || '';
+                countySelect.disabled = false;
+                await fetchWealthMigrationData(stateName, selectedFips);
+            } catch (error) {
+                console.error('Wealth migration counties load error:', error);
+                countySelect.innerHTML = '<option value="">Counties unavailable</option>';
+                wealthMigrationCountyFips = null;
+                wealthMigrationCountyName = '';
+                showWealthMigrationFallback('County list unavailable for this state.');
+            } finally {
+                countySelect.disabled = countySelect.options.length <= 1;
+            }
+        }
+
+        function initializeWealthMigrationSection(reportData) {
+            const section = document.getElementById('wealth-migration-section');
+            if (!section) return;
+
+            setupWealthMigrationSelectors(reportData).catch(error => {
+                console.error('Wealth migration initialization failed:', error);
+                showWealthMigrationFallback('Wealth migration controls are unavailable.');
+            });
+
+            const toggleButtons = section.querySelectorAll('.wealth-toggle-btn');
+            toggleButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    if (button.classList.contains('active')) return;
+                    toggleButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    wealthMigrationDirection = button.dataset.direction === 'outflow' ? 'outflow' : 'inflow';
+                    updateWealthMigrationHeader();
+                    renderWealthMigrationChart(wealthMigrationDirection);
+                    renderWealthMigrationList(wealthMigrationDirection);
+                });
+            });
+        }
+
+        function normalizeWealthRows(rows, limit = WEALTH_MIGRATION_LIMIT, targetYear = null) {
+            if (!Array.isArray(rows)) return [];
+            const yearOf = row => {
+                const candidates = ['tax_year', 'taxYear', 'year'];
+                for (const key of candidates) {
+                    if (row && row[key] !== undefined && row[key] !== null) {
+                        const value = Number(row[key]);
+                        if (!Number.isNaN(value)) return value;
+                    }
+                }
+                return null;
+            };
+            const filteredRows = (() => {
+                const allYears = rows
+                    .map(row => yearOf(row))
+                    .filter(year => year !== null);
+                const latest = targetYear !== null
+                    ? Number(targetYear)
+                    : (allYears.length ? Math.max(...allYears) : null);
+                if (latest === null) return rows;
+                return rows.filter(row => yearOf(row) === latest);
+            })();
+
+            const combined = new Map();
+            filteredRows.forEach(row => {
+                if (!row) return;
+                const county = String(row.partner_county || 'Unknown').trim() || 'Unknown';
+                const state = String(row.partner_state || '').trim();
+                const key = `${county}|${state}`;
+                const target = combined.get(key) || {
+                    partner_county: county,
+                    partner_state: state,
+                    returns: 0,
+                    individuals: 0,
+                    agi: 0
+                };
+                target.returns += Number(row.returns) || 0;
+                target.individuals += Number(row.individuals) || 0;
+                target.agi += Number(row.agi) || 0;
+                combined.set(key, target);
+            });
+            return Array.from(combined.values())
+                .sort((a, b) => (Number(b.returns) || 0) - (Number(a.returns) || 0))
+                .slice(0, limit);
+        }
+
+        async function fetchWealthMigrationData(stateName, countyFips, limit = WEALTH_MIGRATION_LIMIT) {
+            const loadingEl = document.getElementById('wealthMigrationChartLoading');
+            if (loadingEl) {
+                loadingEl.style.display = 'flex';
+            }
+            if (!countyFips) {
+                showWealthMigrationFallback('Select a county to view wealth migration trends.');
+                if (loadingEl) loadingEl.style.display = 'none';
+                return;
+            }
+            try {
+                const params = new URLSearchParams();
+                if (stateName) params.set('state', stateName);
+                params.set('countyFips', countyFips);
+                params.set('limit', String(limit));
+                const response = await fetch(`${API_BASE}/wealth-migration?${params.toString()}`);
+                const payload = await response.json();
+                if (!response.ok || !payload.success) {
+                    throw new Error(payload.error || `Status ${response.status}`);
+                }
+
+                wealthMigrationPayload = {
+                    stateName: payload.stateName || stateName || DEFAULT_WEALTH_MIGRATION_STATE,
+                    countyName: payload.countyName || wealthMigrationCountyName || '',
+                    countyFips: payload.countyFips || countyFips,
+                    latestYear: payload.latestYear || null,
+                    inflow: normalizeWealthRows(payload.inflow, limit, payload.latestYear || null),
+                    outflow: normalizeWealthRows(payload.outflow, limit, payload.latestYear || null)
+                };
+
+                updateWealthMigrationHeader();
+                renderWealthMigrationChart(wealthMigrationDirection);
+                renderWealthMigrationList(wealthMigrationDirection);
+                updateChartContainers();
+            } catch (error) {
+                console.error('Wealth migration load error:', error);
+                showWealthMigrationFallback('Wealth migration data is unavailable right now.');
+            } finally {
+                if (loadingEl) {
+                    loadingEl.style.display = 'none';
+                }
+            }
+        }
+
+        function updateWealthMigrationHeader() {
+            const yearEl = document.getElementById('wealthMigrationYear');
+            if (yearEl) {
+                yearEl.textContent = wealthMigrationPayload.latestYear
+                    ? `Tax Year ${wealthMigrationPayload.latestYear}`
+                    : 'Latest available tax year';
+            }
+            const listTitle = document.getElementById('wealthMigrationListTitle');
+            if (listTitle) {
+                listTitle.textContent = wealthMigrationDirection === 'outflow'
+                    ? 'Top Destinations (Counties)'
+                    : 'Top Origins (Counties)';
+            }
+        }
+
+        function getWealthDataset(direction) {
+            const dir = direction === 'outflow' ? 'outflow' : 'inflow';
+            const rows = wealthMigrationPayload[dir] || [];
+            return rows.slice(0, WEALTH_MIGRATION_LIMIT);
+        }
+
+        function renderWealthMigrationChart(direction) {
+            const canvas = document.getElementById('wealthMigrationChart');
+            const fallbackEl = document.getElementById('wealthMigrationChartFallback');
+            if (!canvas) return;
+
+            const dataset = getWealthDataset(direction);
+            if (wealthMigrationChartInstance) {
+                wealthMigrationChartInstance.destroy();
+                wealthMigrationChartInstance = null;
+            }
+
+            if (!dataset.length) {
+                if (fallbackEl) {
+                    fallbackEl.hidden = false;
+                    fallbackEl.style.display = 'flex';
+                }
+                return;
+            }
+
+            if (fallbackEl) {
+                fallbackEl.hidden = true;
+                fallbackEl.style.display = 'none';
+            }
+
+            const ctx = canvas.getContext('2d');
+            wealthMigrationChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: dataset.map(row => {
+                        const parts = [];
+                        if (row.partner_county) parts.push(row.partner_county);
+                        if (row.partner_state) parts.push(row.partner_state);
+                        return parts.length > 0 ? parts.join(', ') : 'Unknown';
+                    }),
+                    datasets: [{
+                        label: 'Tax Returns',
+                        data: dataset.map(row => Number(row.returns) || 0),
+                        backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                        borderRadius: 8,
+                        barThickness: 18
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: context => {
+                                    const entry = dataset[context.dataIndex];
+                                    const lines = [`Returns: ${formatWealthCount(context.raw)}`];
+                                    if (entry && Number(entry.returns) > 0) {
+                                        const avgIncome = Number(entry.agi || 0) / Number(entry.returns);
+                                        if (avgIncome > 0) {
+                                            lines.push(`Avg AGI: ${formatWealthCurrency(avgIncome)}`);
+                                        }
+                                    }
+                                    return lines;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(15, 23, 42, 0.08)'
+                            },
+                            ticks: {
+                                callback: value => formatWealthCount(value)
+                            }
+                        },
+                        y: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderWealthMigrationList(direction) {
+            const list = document.getElementById('wealthMigrationList');
+            const placeholder = document.getElementById('wealthMigrationListEmpty');
+            if (!list) return;
+            list.innerHTML = '';
+
+            const dataset = getWealthDataset(direction);
+            if (!dataset.length) {
+                if (placeholder) placeholder.style.display = 'block';
+                return;
+            }
+            if (placeholder) placeholder.style.display = 'none';
+
+            dataset.forEach((row, index) => {
+                const li = document.createElement('li');
+                li.className = 'wealth-list-item';
+                const avgIncome = Number(row.returns) > 0 ? Number(row.agi || 0) / Number(row.returns) : 0;
+                li.innerHTML = `
+                    <div class="wealth-list-rank">#${index + 1}</div>
+                    <div class="wealth-list-details">
+                        <p class="wealth-list-state">${escapeHtml(row.partner_county || 'Unknown')}</p>
+                        <p class="wealth-list-substate">${escapeHtml(row.partner_state || '')}</p>
+                        <div class="wealth-list-meta">
+                            <span>Returns: ${formatWealthCount(row.returns)}</span>
+                            <span>Individuals: ${formatWealthCount(row.individuals)}</span>
+                            <span>AGI: ${formatWealthCurrency(row.agi)}</span>
+                            ${avgIncome ? `<span>Avg AGI: ${formatWealthCurrency(avgIncome)}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        function showWealthMigrationFallback(message) {
+            if (wealthMigrationChartInstance) {
+                wealthMigrationChartInstance.destroy();
+                wealthMigrationChartInstance = null;
+            }
+            const fallbackEl = document.getElementById('wealthMigrationChartFallback');
+            if (fallbackEl) {
+                fallbackEl.hidden = false;
+                fallbackEl.style.display = 'flex';
+                fallbackEl.textContent = message || 'Wealth migration data is unavailable right now.';
+            }
+            const placeholder = document.getElementById('wealthMigrationListEmpty');
+            if (placeholder) {
+                placeholder.style.display = 'block';
+                placeholder.textContent = message || 'Wealth migration data is unavailable right now.';
+            }
+            const list = document.getElementById('wealthMigrationList');
+            if (list) {
+                list.innerHTML = '';
+            }
+        }
+
+        function formatWealthCurrency(value) {
+            const num = Number(value);
+            if (!Number.isFinite(num) || num <= 0) {
+                return 'N/A';
+            }
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                maximumFractionDigits: 0
+            }).format(num);
+        }
+
+        function formatWealthCount(value) {
+            const num = Number(value);
+            if (!Number.isFinite(num)) {
+                return 'N/A';
+            }
+            return num.toLocaleString();
+        }
+
         // Function to display stats error
         function displayStatsError(message) {
             const statsSection = document.querySelector('#homeStatsContent > div:last-child');
@@ -2002,7 +2482,7 @@
                 statsSection.innerHTML = `
                     <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 150px;">
                         <div style="text-align: center;">
-                            <div style="color: #e74c3c; font-size: 32px; margin-bottom: 15px;">📊</div>
+                            <div style="color: #e74c3c; font-size: 32px; margin-bottom: 15px;">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â </div>
                             <h3 style="margin: 0; color: #2c3e50; font-size: 18px; font-weight: 300; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;">Stats</h3>
                             <div style="width: 60px; height: 2px; background: linear-gradient(90deg, #3498db, #27ae60); margin: 8px auto 15px;"></div>
                             <p style="margin: 0; color: #e74c3c; font-size: 13px;">${message}</p>
@@ -2037,27 +2517,27 @@
             'DJIA': 'Dow Jones Industrial Average'
         };
 
-        // National chart explanations (1–2 sentences each)
+        // National chart explanations (1ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“2 sentences each)
         const FRED_SERIES_DESCRIPTIONS = {
             'GDP': 'Total output of the U.S. economy. Rising GDP signals economic expansion; declines can indicate slowdowns or recessions.',
             'CPIAUCSL': 'Consumer price index measuring average price changes for urban consumers. Higher CPI indicates stronger inflation.',
             'PPIACO': 'Producer Price Index for all commodities. Tracks prices received by domestic producers and can lead consumer inflation.',
             'FEDFUNDS': 'Effective federal funds rate targeted by the Federal Reserve. Influences borrowing costs across the economy.',
-            'MORTGAGE30US': 'Average interest rate on 30‑year fixed mortgages. Affects home affordability and buyer demand.',
-            'MORTGAGE15US': 'Average interest rate on 15‑year fixed mortgages. Lower terms often have lower rates than 30‑year loans.',
+            'MORTGAGE30US': 'Average interest rate on 30ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¹Ã…â€œyear fixed mortgages. Affects home affordability and buyer demand.',
+            'MORTGAGE15US': 'Average interest rate on 15ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¹Ã…â€œyear fixed mortgages. Lower terms often have lower rates than 30ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¹Ã…â€œyear loans.',
             'RHVRUSQ156N': 'National rental vacancy rate. Higher values suggest looser rental markets; lower values indicate tighter supply.',
             'LREM64TTUSM156S': 'Total U.S. employment level. Growth points to a strengthening labor market and economy.',
-            'POPTHM': 'Estimated U.S. population. Long‑term growth supports housing demand and economic activity.',
-            'M2REAL': 'Inflation‑adjusted broad money supply (Real M2). Changes can reflect liquidity conditions in the economy.',
+            'POPTHM': 'Estimated U.S. population. LongÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¹Ã…â€œterm growth supports housing demand and economic activity.',
+            'M2REAL': 'InflationÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¹Ã…â€œadjusted broad money supply (Real M2). Changes can reflect liquidity conditions in the economy.',
             'FPCPITOTLZGUSA': 'Annual consumer price inflation (World Bank). Indicates the pace of general price increases.',
             'GFDEBTN': 'Total U.S. federal public debt outstanding. Useful for context on fiscal conditions and interest costs.',
-            'DGS10': '10‑year U.S. Treasury yield. Key benchmark for long‑term borrowing costs and mortgage rates.',
-            'DGS2': '2‑year U.S. Treasury yield. Closely tracks expectations for Fed policy over the near term.',
+            'DGS10': '10ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¹Ã…â€œyear U.S. Treasury yield. Key benchmark for longÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¹Ã…â€œterm borrowing costs and mortgage rates.',
+            'DGS2': '2ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¹Ã…â€œyear U.S. Treasury yield. Closely tracks expectations for Fed policy over the near term.',
             'ACTLISCOUUS': 'Number of homes actively listed for sale nationwide. Lower inventory often supports price growth.',
             'MSPUS': 'Median sale price of U.S. homes. Reflects typical transaction prices and market trends.',
             'NEWLISCOUUS': 'New residential listings entering the market. A gauge of seller activity and fresh supply.',
             'MEDDAYONMARUS': 'Median number of days homes spend on the market. Fewer days indicate stronger buyer demand.',
-            'USSTHPI': 'FHFA national home price index. Measures changes in single‑family home values over time.',
+            'USSTHPI': 'FHFA national home price index. Measures changes in singleÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¹Ã…â€œfamily home values over time.',
             'UNRATE': 'U.S. unemployment rate. Lower rates indicate a tighter labor market and stronger economy.',
             'DJIA': 'Dow Jones Industrial Average stock index. A snapshot of large U.S. companies and market sentiment.'
         };
@@ -2480,6 +2960,33 @@
         ];
         const DEFAULT_COUNTY_METRIC = REALTOR_METRICS[0]?.key || 'avg_listing_price';
         const realtorSeriesKeys = new Set(REALTOR_METRICS.map(m => m.key));
+        const STATE_ABBR_TO_NAME = {
+            AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado',
+            CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho',
+            IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana',
+            ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota',
+            MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada',
+            NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina',
+            ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania',
+            RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas',
+            UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia',
+            WI: 'Wisconsin', WY: 'Wyoming', DC: 'District of Columbia'
+        };
+        const DEFAULT_WEALTH_MIGRATION_STATE = 'Florida';
+        const WEALTH_MIGRATION_LIMIT = 15;
+        let wealthMigrationChartInstance = null;
+        let wealthMigrationDirection = 'inflow';
+        let wealthMigrationState = DEFAULT_WEALTH_MIGRATION_STATE;
+        let wealthMigrationCountyFips = null;
+        let wealthMigrationCountyName = '';
+        let wealthMigrationPayload = {
+            stateName: DEFAULT_WEALTH_MIGRATION_STATE,
+            countyName: '',
+            countyFips: null,
+            latestYear: null,
+            inflow: [],
+            outflow: []
+        };
         let selectionCount = 1;
         const maxSelections = 5;
         
@@ -3440,7 +3947,7 @@
             
             // Add tile layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
+                attribution: 'ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â© OpenStreetMap contributors'
             }).addTo(map);
             
             // Color mode state and helpers
@@ -3650,8 +4157,8 @@
                     const pct = (n) => totalCount > 0 ? (Math.round((n / totalCount) * 1000) / 10).toFixed(1) : '0.0';
                     legend.innerHTML = `
                         <div style="font-weight:600;margin-bottom:6px;">Legend: Sold Since Covid</div>
-                        ${swatch(COLOR_MAP.green, `Sold since Covid — ${yesCount} (${pct(yesCount)}%)`)}
-                        ${swatch(COLOR_MAP.gray, `Not sold since Covid — ${noCount} (${pct(noCount)}%)`)}
+                        ${swatch(COLOR_MAP.green, `Sold since Covid ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ${yesCount} (${pct(yesCount)}%)`)}
+                        ${swatch(COLOR_MAP.gray, `Not sold since Covid ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ${noCount} (${pct(noCount)}%)`)}
                     `;
                 } else if (colorMode === 'tax_sale_price' || colorMode === 'tax_market_value') {
                     if (!valueThresholds || valueMin == null || valueMax == null) { legend.innerHTML = ''; return; }
@@ -4644,7 +5151,7 @@
         }
 
         function formatMetricValue(value, meta) {
-            if (value == null || Number.isNaN(value)) return '—';
+            if (value == null || Number.isNaN(value)) return 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â';
             if (!meta || meta.valueType === 'number') {
                 return Number(value).toLocaleString();
             }
@@ -5503,7 +6010,7 @@
                     chartHeader.style.display = 'block';
                 }
 
-                // Non-blocking save to DB (neighbourhood) — persist mixed items (developments + zones)
+                // Non-blocking save to DB (neighbourhood) ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â persist mixed items (developments + zones)
                 try {
                     const slug = (typeof urlSlug !== 'undefined') ? urlSlug : (window.location.pathname.split('/').pop());
                     const seriesIdToSave = (typeof currentDevelopmentChart === 'string' && currentDevelopmentChart) ? currentDevelopmentChart : 'sales';
@@ -6060,7 +6567,7 @@
             console.log('showDevelopmentActionsPopup called:', { event, developmentName });
             
             // Remove the link emoji from the development name if it exists
-            const cleanDevelopmentName = String(developmentName || '').replace(/^🔗\s*/, '').trim();
+            const cleanDevelopmentName = String(developmentName || '').replace(/^ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â\s*/, '').trim();
             console.log('Clean development name:', cleanDevelopmentName);
             
             const popup = document.getElementById('developmentActionsPopup');
@@ -6353,7 +6860,7 @@
                     border-radius: 8px;
                     transition: all 0.2s ease;
                 " onmouseover="this.style.background='#e9ecef'" onmouseout="this.style.background='none'">
-                    ×
+                    ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â
                 </button>
             </div>
 
@@ -6402,7 +6909,7 @@
                     z-index: 1000;
                 ">
                     <div style="text-align: center; max-width: 400px; padding: 40px;">
-                        <div style="color: #e74c3c; font-size: 48px; margin-bottom: 20px;">🗺️</div>
+                        <div style="color: #e74c3c; font-size: 48px; margin-bottom: 20px;">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â</div>
                         <h3 style="margin: 0 0 15px; color: #2c3e50; font-size: 20px;">Unable to Load Map</h3>
                         <p style="margin: 0; color: #6c757d; font-size: 14px;" id="mapErrorMessage">
                             <span id="mapErrorContext">Could not load parcel data for this development.</span>
@@ -6414,3 +6921,4 @@
     </div>
 </body>
 </html>
+

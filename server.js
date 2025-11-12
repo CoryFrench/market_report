@@ -1964,6 +1964,108 @@ app.get('/api/zipcity/by-county', async (req, res) => {
   }
 });
 
+app.get('/api/wealth-migration', async (req, res) => {
+  try {
+    const fallbackState = 'Florida';
+    const limitCandidate = parseInt(req.query.limit, 10);
+    const safeLimit = Math.max(1, Math.min(Number.isNaN(limitCandidate) ? 15 : limitCandidate, 30));
+    const rawState = (req.query.state || req.query.targetState || req.query.homeState || '').trim();
+    const rawCountyName = (req.query.countyName || req.query.countyLabel || '').trim();
+    let resolvedState = rawState;
+    let resolvedCountyFips = (req.query.countyFips || req.query.county || '').replace(/\D/g, '');
+
+    try {
+      const resolved = await dbQueries.resolveStateNameByInput(rawState);
+      if (resolved) {
+        resolvedState = resolved;
+      }
+    } catch (err) {
+      console.warn('resolveStateNameByInput failed; falling back to raw state:', err.message);
+    }
+
+    if (!resolvedState || resolvedState.trim().length === 0) {
+      resolvedState = fallbackState;
+    }
+
+    if (resolvedCountyFips.length > 5) {
+      resolvedCountyFips = resolvedCountyFips.slice(-5);
+    }
+    if (resolvedCountyFips.length > 0) {
+      resolvedCountyFips = resolvedCountyFips.padStart(5, '0');
+    } else {
+      resolvedCountyFips = '';
+    }
+
+    if (!resolvedCountyFips && rawCountyName) {
+      try {
+        const countyLookup = await dbQueries.getCountyFipsByNameState(rawCountyName, resolvedState);
+        if (countyLookup && countyLookup.rowCount > 0) {
+          const candidate = countyLookup.rows[0];
+          resolvedCountyFips = String(candidate.fips || candidate.county_fips || '').replace(/\D/g, '').padStart(5, '0');
+        }
+      } catch (err) {
+        console.warn('getCountyFipsByNameState failed; continuing without county match:', err.message);
+      }
+    }
+
+    if (!resolvedCountyFips) {
+      try {
+        const counties = await dbQueries.getCountiesByState(resolvedState);
+        resolvedCountyFips = counties.rows[0]?.id || '';
+      } catch (err) {
+        console.warn('getCountiesByState failed while resolving wealth migration county:', err.message);
+      }
+    }
+
+    if (!resolvedCountyFips) {
+      return res.status(400).json({
+        success: false,
+        error: 'Unable to resolve county for wealth migration analysis'
+      });
+    }
+
+    const countyMetaResult = await dbQueries.getCountyMetadataByFips(resolvedCountyFips);
+    if (!countyMetaResult || countyMetaResult.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'County metadata not found for wealth migration analysis'
+      });
+    }
+    const countyMeta = countyMetaResult.rows[0];
+
+    const [inflowResult, outflowResult] = await Promise.all([
+      dbQueries.getCountyMigrationTopCounties(countyMeta.fips, 'inflow', safeLimit),
+      dbQueries.getCountyMigrationTopCounties(countyMeta.fips, 'outflow', safeLimit)
+    ]);
+
+    const latestYear = inflowResult.latestYear
+      || outflowResult.latestYear
+      || inflowResult.rows[0]?.latest_year
+      || outflowResult.rows[0]?.latest_year
+      || null;
+
+    return res.json({
+      success: true,
+      stateName: countyMeta.state_name,
+      countyName: countyMeta.county_name,
+      countyFips: countyMeta.fips,
+      requestedState: rawState || null,
+      requestedCounty: rawCountyName || req.query.county || null,
+      limit: safeLimit,
+      latestYear,
+      inflow: inflowResult.rows,
+      outflow: outflowResult.rows
+    });
+  } catch (error) {
+    console.error('Error in /api/wealth-migration:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch wealth migration data',
+      message: error.message
+    });
+  }
+});
+
 // Get parcel geometry data for development map
 app.get('/api/development-parcels/:developmentName', async (req, res) => {
   try {
