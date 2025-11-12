@@ -1892,6 +1892,129 @@ app.get('/api/zip-comparison', async (req, res) => {
   }
 });
 
+// County/state helpers for migration tooling
+const reportApiPrefixes = ['', '/report'];
+
+const handleStateList = async (req, res) => {
+  try {
+    const result = await dbQueries.getCountyStateList();
+    return res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows.map(row => ({
+        stateName: row.state_name,
+        state: row.state_name,
+        State: row.state_name,
+        stateFips: row.state_fips,
+        fips: row.state_fips,
+        FipsCode: row.state_fips
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching state list:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch states',
+      message: error.message
+    });
+  }
+};
+
+reportApiPrefixes.forEach(prefix => {
+  app.get(`${prefix}/api/states`, handleStateList);
+});
+
+const handleMigrationCounties = async (req, res) => {
+  try {
+    const stateFips = String(req.query.stateFips || '').trim();
+    if (!stateFips) {
+      return res.status(400).json({
+        success: false,
+        error: 'stateFips query parameter is required'
+      });
+    }
+
+    const result = await dbQueries.getCountiesByStateFips(stateFips);
+    return res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows.map(row => ({
+        CountyFips: row.county_fips,
+        countyFips: row.county_fips,
+        CountyName: row.county_name,
+        countyName: row.county_name
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching migration counties:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch counties for migration',
+      message: error.message
+    });
+  }
+};
+
+app.get('/migration/counties', handleMigrationCounties);
+reportApiPrefixes.forEach(prefix => {
+  app.get(`${prefix}/api/migration/counties`, handleMigrationCounties);
+});
+
+const handleCountyMigrationData = async (req, res) => {
+  try {
+    const stateFips = String(req.query.stateFips || '').replace(/\D/g, '').padStart(2, '0');
+    const countyFips = String(req.query.countyFips || '').replace(/\D/g, '').padStart(3, '0');
+
+    if (!/^\d{2}$/.test(stateFips) || !/^\d{3}$/.test(countyFips)) {
+      return res.status(400).json({
+        success: false,
+        error: 'stateFips (2 digits) and countyFips (3 digits) are required'
+      });
+    }
+
+    const combinedFips = `${stateFips}${countyFips}`;
+    const countyMetaResult = await dbQueries.getCountyMetadataByFips(combinedFips);
+    if (!countyMetaResult || countyMetaResult.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'County metadata not found'
+      });
+    }
+
+    const countyMeta = countyMetaResult.rows[0];
+    const [inflowResult, outflowResult] = await Promise.all([
+      dbQueries.getCountyMigrationSeries(stateFips, countyFips, 'inflow'),
+      dbQueries.getCountyMigrationSeries(stateFips, countyFips, 'outflow')
+    ]);
+
+    const latestYear = Math.max(
+      inflowResult.rows?.[0]?.to_year || 0,
+      outflowResult.rows?.[0]?.to_year || 0
+    ) || null;
+
+    return res.json({
+      success: true,
+      stateName: countyMeta.state_name,
+      countyName: countyMeta.county_name,
+      countyFips: countyMeta.fips,
+      latestYear,
+      inflow: inflowResult.rows,
+      outflow: outflowResult.rows
+    });
+  } catch (error) {
+    console.error('Error fetching county migration data:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch county migration data',
+      message: error.message
+    });
+  }
+};
+
+reportApiPrefixes.forEach(prefix => {
+  app.get(`${prefix}/api/county-migration`, handleCountyMigrationData);
+});
+
 // Counties API endpoint for Areas of Interest comparison
 app.get('/api/counties', async (req, res) => {
   try {

@@ -960,6 +960,71 @@ const dbQueries = {
     return await query(queryText, [state]);
   },
 
+  // County/state helpers for wealth migration tooling
+  getCountyStateList: async () => {
+    const queryText = `
+      SELECT DISTINCT
+        LPAD(statefips::text, 2, '0') AS state_fips,
+        state AS state_name
+      FROM irs.county_fips_xref
+      WHERE state IS NOT NULL
+      ORDER BY state_name
+    `;
+    return await query(queryText);
+  },
+
+  getCountiesByStateFips: async (stateFips) => {
+    if (!stateFips) {
+      return { rowCount: 0, rows: [] };
+    }
+
+    const queryText = `
+      SELECT
+        LPAD(countyfips::text, 3, '0') AS county_fips,
+        countyname AS county_name
+      FROM irs.county_fips_xref
+      WHERE LPAD(statefips::text, 2, '0') = LPAD($1::text, 2, '0')
+      ORDER BY county_name
+    `;
+    return await query(queryText, [stateFips]);
+  },
+
+  getCountyMigrationSeries: async (stateFips, countyFips, direction = 'inflow') => {
+    const normalizedState = String(stateFips || '').replace(/\D/g, '').padStart(2, '0');
+    const normalizedCounty = String(countyFips || '').replace(/\D/g, '').padStart(3, '0');
+
+    if (!/^\d{2}$/.test(normalizedState) || !/^\d{3}$/.test(normalizedCounty)) {
+      return { rowCount: 0, rows: [] };
+    }
+
+    const isOutflow = direction === 'outflow';
+    const tableName = isOutflow ? 'irs.county_out_migration' : 'irs.county_in_migration';
+    const targetStateColumn = isOutflow ? 'y1_statefips' : 'y2_statefips';
+    const targetCountyColumn = isOutflow ? 'y1_countyfips' : 'y2_countyfips';
+    const partnerStateNameColumn = isOutflow ? 'y2_state' : 'y1_state';
+    const partnerCountyNameColumn = isOutflow ? 'y2_countyname' : 'y1_countyname';
+    const partnerStateFipsColumn = isOutflow ? 'y2_statefips' : 'y1_statefips';
+    const partnerCountyFipsColumn = isOutflow ? 'y2_countyfips' : 'y1_countyfips';
+
+    const queryText = `
+      SELECT
+        ${partnerStateNameColumn} AS state_name,
+        ${partnerCountyNameColumn} AS county_name,
+        LPAD(${partnerStateFipsColumn}::text, 2, '0') || LPAD(${partnerCountyFipsColumn}::text, 3, '0') AS partner_fips,
+        year1year AS from_year,
+        year2year AS to_year,
+        n1 AS returns,
+        n2 AS individuals,
+        (COALESCE(agi, 0)::numeric * 1000) AS agi
+      FROM ${tableName}
+      WHERE LPAD(${targetStateColumn}::text, 2, '0') = $1
+        AND LPAD(${targetCountyColumn}::text, 3, '0') = $2
+      ORDER BY year2year DESC, n1 DESC, ${partnerCountyNameColumn} ASC
+    `;
+
+    return await query(queryText, [normalizedState, normalizedCounty]);
+  },
+
   // Get area (county) comparison for a specific report (new table)
   getAreaComparison: async (reportId) => {
     const queryText = `

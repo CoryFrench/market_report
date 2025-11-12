@@ -141,6 +141,18 @@
             inflow: [],
             outflow: []
         };
+        let wealthMigrationStateOptions = [];
+        let wealthMigrationStateLookup = new Map();
+        let wealthMigrationStateFips = '12';
+        const WEALTH_MIGRATION_EXCLUDE_PATTERNS = [
+            /non-?migrant/i,
+            /total migration\s*-\s*same state/i,
+            /total migration\s*-\s*different state/i,
+            /total migration\s*-\s*us(?: and foreign)?/i,
+            /total migration-?us/i,
+            /total migration/i,
+            /within county/i
+        ];
 
         function formatMetricValue(value, meta) {
             if (value == null || Number.isNaN(value)) return 'â€”';
@@ -467,14 +479,14 @@
                                 <div class="wealth-migration-summary">
                                     <p class="wealth-migration-eyebrow">Focus County</p>
                                     <div class="wealth-focus-line" id="wealthMigrationFocus">
-                                        <label for="wealthMigrationCountySelect" class="sr-only">County</label>
+                                        <label for="wealthMigrationCountySelect" class="sr-only"></label>
                                         <span class="wealth-focus-select-wrapper">
                                             <select id="wealthMigrationCountySelect" class="wealth-focus-select wealth-focus-select--county" disabled>
                                                 <option value="">Select a state</option>
                                             </select>
                                         </span>
                                         <span class="wealth-focus-comma">,</span>
-                                        <label for="wealthMigrationStateSelect" class="sr-only">State</label>
+                                        <label for="wealthMigrationStateSelect" class="sr-only"></label>
                                         <span class="wealth-focus-select-wrapper">
                                             <select id="wealthMigrationStateSelect" class="wealth-focus-select wealth-focus-select--state"></select>
                                         </span>
@@ -2152,100 +2164,174 @@
             return DEFAULT_WEALTH_MIGRATION_STATE;
         }
 
+        async function loadWealthMigrationStates() {
+            try {
+                const response = await fetch(`${API_BASE}/states`);
+                const payload = await response.json();
+                if (!response.ok || !payload.success) {
+                    throw new Error(payload.error || 'Unable to load states');
+                }
+                const states = Array.isArray(payload.data) ? payload.data : [];
+                wealthMigrationStateOptions = states
+                    .map(entry => ({
+                        name: entry.stateName || entry.state || entry.State || '',
+                        fips: String(entry.stateFips || entry.fips || entry.FipsCode || '').padStart(2, '0')
+                    }))
+                    .filter(entry => entry.name && /^\d{2}$/.test(entry.fips))
+                    .sort((a, b) => a.name.localeCompare(b.name));
+                wealthMigrationStateLookup = new Map(
+                    wealthMigrationStateOptions.map(entry => [entry.fips, entry.name])
+                );
+                return wealthMigrationStateOptions;
+            } catch (error) {
+                console.error('Wealth migration states load error:', error);
+                wealthMigrationStateOptions = [];
+                wealthMigrationStateLookup = new Map();
+                return [];
+            }
+        }
+
+        function resolveWealthMigrationStateOption(preferredName) {
+            if (!wealthMigrationStateOptions.length) {
+                return null;
+            }
+            const normalizedName = String(preferredName || '').trim().toLowerCase();
+            if (normalizedName) {
+                const match = wealthMigrationStateOptions.find(
+                    option => option.name.toLowerCase() === normalizedName
+                );
+                if (match) {
+                    return match;
+                }
+            }
+            return wealthMigrationStateOptions.find(option => option.name === DEFAULT_WEALTH_MIGRATION_STATE)
+                || wealthMigrationStateOptions[0];
+        }
+
         async function setupWealthMigrationSelectors(reportData) {
             const stateSelect = document.getElementById('wealthMigrationStateSelect');
             const countySelect = document.getElementById('wealthMigrationCountySelect');
             if (!stateSelect || !countySelect) return;
 
-            const defaultState = determineStateForWealthMigration(reportData);
-            wealthMigrationState = defaultState;
+            stateSelect.innerHTML = '<option value=\"\">Loading states...</option>';
+            const states = await loadWealthMigrationStates();
+            if (!states.length) {
+                stateSelect.innerHTML = '<option value=\"\">States unavailable</option>';
+                countySelect.innerHTML = '<option value=\"\">Counties unavailable</option>';
+                showWealthMigrationFallback('Wealth migration controls are unavailable.');
+                return;
+            }
 
-            stateSelect.innerHTML = '<option value="">Select State</option>';
-            availableStates.forEach(stateName => {
-                const option = document.createElement('option');
-                option.value = stateName;
-                option.textContent = stateName;
-                stateSelect.appendChild(option);
-            });
-            stateSelect.value = defaultState;
+            const preferredStateName = determineStateForWealthMigration(reportData);
+            const defaultStateOption = resolveWealthMigrationStateOption(preferredStateName);
+
+            stateSelect.innerHTML = states.map(option => `
+                <option value="${option.fips}">${option.name}</option>
+            `).join('');
+            stateSelect.value = defaultStateOption?.fips || states[0].fips;
+            wealthMigrationStateFips = stateSelect.value;
+            wealthMigrationState = wealthMigrationStateLookup.get(wealthMigrationStateFips) || DEFAULT_WEALTH_MIGRATION_STATE;
 
             stateSelect.addEventListener('change', async (event) => {
-                const selectedState = event.target.value || DEFAULT_WEALTH_MIGRATION_STATE;
-                wealthMigrationState = selectedState;
-                await loadWealthMigrationCounties(selectedState);
+                const selectedFips = event.target.value;
+                wealthMigrationStateFips = selectedFips;
+                wealthMigrationState = wealthMigrationStateLookup.get(selectedFips) || DEFAULT_WEALTH_MIGRATION_STATE;
+                await loadWealthMigrationCounties(selectedFips);
             });
 
             countySelect.addEventListener('change', () => {
-                const selectedFips = countySelect.value;
-                wealthMigrationCountyFips = selectedFips || null;
-                wealthMigrationCountyName = selectedFips
+                const selectedCountyFips = countySelect.value;
+                wealthMigrationCountyFips = selectedCountyFips ? `${wealthMigrationStateFips}${selectedCountyFips}` : null;
+                wealthMigrationCountyName = selectedCountyFips
                     ? (countySelect.selectedOptions[0]?.textContent?.trim() || '')
                     : '';
-                if (wealthMigrationCountyFips) {
-                    fetchWealthMigrationData(wealthMigrationState, wealthMigrationCountyFips);
+                if (selectedCountyFips) {
+                    fetchWealthMigrationData(wealthMigrationStateFips, selectedCountyFips);
                 } else {
                     showWealthMigrationFallback('Select a county to view wealth migration trends.');
                 }
             });
 
-            await loadWealthMigrationCounties(defaultState, reportData?.county || reportData?.county_name || '', reportData?.county_fips);
+            await loadWealthMigrationCounties(
+                wealthMigrationStateFips,
+                reportData?.county || reportData?.county_name || '',
+                reportData?.county_fips
+            );
         }
 
-        async function loadWealthMigrationCounties(stateName, preferCountyName = '', preferCountyFips = '') {
+        async function loadWealthMigrationCounties(stateFips, preferCountyName = '', preferCountyFips = '') {
             const countySelect = document.getElementById('wealthMigrationCountySelect');
             if (!countySelect) return;
             countySelect.disabled = true;
             countySelect.innerHTML = '<option value="">Loading counties...</option>';
 
             try {
-                const response = await fetch(`${API_BASE}/counties?state=${encodeURIComponent(stateName)}`);
+                if (!stateFips) {
+                    throw new Error('State FIPS is required to load counties');
+                }
+                const response = await fetch(`${API_BASE}/migration/counties?stateFips=${encodeURIComponent(stateFips)}`);
                 const payload = await response.json();
                 if (!response.ok || !payload.success) {
-                    throw new Error(payload.error || `Failed to load counties for ${stateName}`);
+                    throw new Error(payload.error || `Failed to load counties for ${stateFips}`);
                 }
                 const counties = Array.isArray(payload.data) ? payload.data : [];
                 if (counties.length === 0) {
-                    throw new Error(`No counties available for ${stateName}`);
+                    throw new Error(`No counties available for ${stateFips}`);
                 }
 
                 countySelect.innerHTML = '<option value="">Select County</option>';
                 counties.forEach(county => {
                     const option = document.createElement('option');
-                    option.value = county.id;
-                    option.textContent = county.name;
+                    const optionValue = String(
+                        county.CountyFips || county.countyFips || county.county_fips || county.id || ''
+                    ).replace(/\D/g, '').padStart(3, '0');
+                    const optionLabel = county.CountyName || county.countyName || county.county_name || county.name || '';
+                    if (!optionValue || !optionLabel) return;
+                    option.value = optionValue;
+                    option.textContent = optionLabel;
                     countySelect.appendChild(option);
                 });
 
                 const preferLabel = normalizeCountyLabel(preferCountyName);
-                let selectedFips = null;
-
-                if (preferCountyFips) {
-                    const normalizedPreferFips = String(preferCountyFips).replace(/\D/g, '').padStart(5, '0');
-                    if (counties.find(c => c.id === normalizedPreferFips)) {
-                        selectedFips = normalizedPreferFips;
-                    }
+                let normalizedPreferFips = String(preferCountyFips || '').replace(/\D/g, '');
+                if (normalizedPreferFips.length === 5) {
+                    normalizedPreferFips = normalizedPreferFips.slice(-3);
+                }
+                if (normalizedPreferFips && normalizedPreferFips.length !== 3) {
+                    normalizedPreferFips = '';
                 }
 
-                if (!selectedFips && preferLabel) {
-                    const match = counties.find(c => normalizeCountyLabel(c.name) === preferLabel);
+                let selectedCountyCode = '';
+                if (normalizedPreferFips && Array.from(countySelect.options).some(opt => opt.value === normalizedPreferFips)) {
+                    selectedCountyCode = normalizedPreferFips;
+                }
+                if (!selectedCountyCode && preferLabel) {
+                    const match = Array.from(countySelect.options).find(option =>
+                        normalizeCountyLabel(option.textContent) === preferLabel
+                    );
                     if (match) {
-                        selectedFips = match.id;
+                        selectedCountyCode = match.value;
                     }
                 }
-
-                if (!selectedFips && counties.find(c => c.id === wealthMigrationCountyFips)) {
-                    selectedFips = wealthMigrationCountyFips;
+                if (!selectedCountyCode && wealthMigrationCountyFips?.startsWith(stateFips)) {
+                    selectedCountyCode = wealthMigrationCountyFips.slice(-3);
+                }
+                if (!selectedCountyCode) {
+                    const palmBeach = Array.from(countySelect.options).find(option =>
+                        option.textContent === 'Palm Beach County'
+                    );
+                    selectedCountyCode = palmBeach?.value || countySelect.options[1]?.value || '';
                 }
 
-                if (!selectedFips) {
-                    selectedFips = counties[0].id;
-                }
-
-                countySelect.value = selectedFips;
-                wealthMigrationCountyFips = selectedFips;
+                countySelect.value = selectedCountyCode;
+                wealthMigrationCountyFips = selectedCountyCode ? `${stateFips}${selectedCountyCode}` : null;
                 wealthMigrationCountyName = countySelect.selectedOptions[0]?.textContent?.trim() || '';
                 countySelect.disabled = false;
-                await fetchWealthMigrationData(stateName, selectedFips);
+                if (selectedCountyCode) {
+                    await fetchWealthMigrationData(stateFips, selectedCountyCode);
+                } else {
+                    showWealthMigrationFallback('Select a county to view wealth migration trends.');
+                }
             } catch (error) {
                 console.error('Wealth migration counties load error:', error);
                 countySelect.innerHTML = '<option value="">Counties unavailable</option>';
@@ -2280,34 +2366,77 @@
             });
         }
 
-        async function fetchWealthMigrationData(stateName, countyFips, limit = WEALTH_MIGRATION_LIMIT) {
+        async function fetchWealthMigrationData(stateFips, countyFips, limit = WEALTH_MIGRATION_LIMIT) {
             const loadingEl = document.getElementById('wealthMigrationChartLoading');
             if (loadingEl) {
                 loadingEl.style.display = 'flex';
             }
-            if (!countyFips) {
+            const normalizedStateFips = String(stateFips || '').replace(/\D/g, '').padStart(2, '0');
+            const normalizedCountyFips = String(countyFips || '').replace(/\D/g, '').padStart(3, '0');
+            if (!/^\d{2}$/.test(normalizedStateFips) || !/^\d{3}$/.test(normalizedCountyFips)) {
                 showWealthMigrationFallback('Select a county to view wealth migration trends.');
                 if (loadingEl) loadingEl.style.display = 'none';
                 return;
             }
             try {
-                const params = new URLSearchParams();
-                if (stateName) params.set('state', stateName);
-                params.set('countyFips', countyFips);
-                params.set('limit', String(limit));
-                const response = await fetch(`${API_BASE}/wealth-migration?${params.toString()}`);
+                const params = new URLSearchParams({
+                    stateFips: normalizedStateFips,
+                    countyFips: normalizedCountyFips
+                });
+                const response = await fetch(`${API_BASE}/county-migration?${params.toString()}`);
                 const payload = await response.json();
                 if (!response.ok || !payload.success) {
                     throw new Error(payload.error || `Status ${response.status}`);
                 }
 
+                const normalizeMigrationRows = (rows) => {
+                    if (!Array.isArray(rows)) {
+                        return { rows: [], latest: null };
+                    }
+                    const prepared = rows.map(row => ({
+                        partner_county: row.partner_county || row.countyName || row.county_name || '',
+                        partner_state: row.partner_state || row.stateName || row.state_name || '',
+                        returns: Number(row.returns) || 0,
+                        individuals: Number(row.individuals) || 0,
+                        agi: Number(row.agi) || 0,
+                        toYear: Number(row.toYear || row.to_year || row.tax_year || row.year2year || row.latestYear || row.latest_year || null) || null
+                    })).filter(row => {
+                        const label = `${row.partner_county} ${row.partner_state}`.trim();
+                        return row.partner_county &&
+                            !WEALTH_MIGRATION_EXCLUDE_PATTERNS.some(pattern => pattern.test(label));
+                    });
+                    const latest = prepared.reduce((max, row) => row.toYear && row.toYear > max ? row.toYear : max, 0);
+                    const seen = new Set();
+                    const deduped = [];
+                    prepared
+                        .filter(row => !latest || row.toYear === latest)
+                        .forEach(row => {
+                            const key = `${row.partner_county}|${row.partner_state}`;
+                            if (seen.has(key)) {
+                                return;
+                            }
+                            seen.add(key);
+                            deduped.push(row);
+                        });
+                    return { rows: deduped.slice(0, limit), latest: latest || null };
+                };
+
+                const inflowResult = normalizeMigrationRows(payload.inflow);
+                const outflowResult = normalizeMigrationRows(payload.outflow);
+                const resolvedCountyName = payload.countyName || wealthMigrationCountyName || '';
+                const resolvedStateName = payload.stateName
+                    || wealthMigrationStateLookup.get(normalizedStateFips)
+                    || wealthMigrationState
+                    || DEFAULT_WEALTH_MIGRATION_STATE;
+                wealthMigrationCountyFips = `${normalizedStateFips}${normalizedCountyFips}`;
+                wealthMigrationCountyName = resolvedCountyName;
                 wealthMigrationPayload = {
-                    stateName: payload.stateName || stateName || DEFAULT_WEALTH_MIGRATION_STATE,
-                    countyName: payload.countyName || wealthMigrationCountyName || '',
-                    countyFips: payload.countyFips || countyFips,
-                    latestYear: payload.latestYear || null,
-                    inflow: Array.isArray(payload.inflow) ? payload.inflow : [],
-                    outflow: Array.isArray(payload.outflow) ? payload.outflow : []
+                    stateName: resolvedStateName,
+                    countyName: resolvedCountyName,
+                    countyFips: `${normalizedStateFips}${normalizedCountyFips}`,
+                    latestYear: inflowResult.latest || outflowResult.latest || payload.latestYear || null,
+                    inflow: inflowResult.rows,
+                    outflow: outflowResult.rows
                 };
 
                 updateWealthMigrationHeader();
