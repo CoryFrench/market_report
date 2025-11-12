@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Professional Area Analysis Report</title>
-    <link rel="stylesheet" href="/luxury/styles.css">
-    <link rel="icon" type="image/png" href="/luxury/logo.png">
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" type="image/png" href="/logo.png">
     <!-- Chart.js for interactive charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
@@ -83,17 +83,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // Define API_BASE early so all subsequent scripts can use it
-        (function(){
-            const p = window.location.pathname || '/';
-            const firstSeg = '/' + (p.split('/')[1] || '');
-            if (firstSeg === '/luxury') {
-                window.API_BASE = '/luxury/api';
-            } else if (firstSeg === '/report') {
-                window.API_BASE = '/report/api';
-            } else {
-                window.API_BASE = '/api';
-            }
-        })();
+        window.API_BASE = window.location.pathname.startsWith('/report/') ? '/report/api' : '/api';
         const API_BASE = window.API_BASE;
 
         const HTML_ESCAPE_MAP = {
@@ -153,7 +143,7 @@
         };
 
         function formatMetricValue(value, meta) {
-            if (value == null || Number.isNaN(value)) return '—';
+            if (value == null || Number.isNaN(value)) return 'â€”';
             if (!meta || meta.valueType === 'number') {
                 return Number(value).toLocaleString();
             }
@@ -274,6 +264,71 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Mobile header fix - mimic original report styling */
+        @media screen and (max-width: 768px) {
+            .container .letterhead .header-info {
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: space-around !important;
+                align-items: center !important;
+                gap: 15px !important;
+                padding: 0 !important;
+                width: 100% !important;
+            }
+
+            .container .letterhead .header-info .header-item {
+                display: block !important;
+                text-align: center !important;
+                flex: 1 1 45% !important;
+                max-width: 45% !important;
+            }
+
+            #zipHeaderItem {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                position: absolute !important;
+                left: -9999px !important;
+                width: 0 !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+            .container .letterhead .header-info {
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: space-around !important;
+                align-items: center !important;
+                gap: 12px !important;
+                padding: 0 !important;
+                width: 100% !important;
+            }
+
+            .container .letterhead .header-info .header-item {
+                display: block !important;
+                text-align: center !important;
+                flex: 1 1 45% !important;
+                max-width: 45% !important;
+            }
+
+            #zipHeaderItem {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                position: absolute !important;
+                left: -9999px !important;
+                width: 0 !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+            }
+        }
         
         /* Development Chart Legend Clickable Styling */
         #dev-comparison-chart + div .chartjs-legend li,
@@ -358,6 +413,14 @@
         #devLegend .legend-actions a:hover {
             text-decoration: underline;
         }
+
+        .container .letterhead .header-info {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr auto;
+            align-items: center;
+            gap: 16px;
+            padding: 8px 0;
+        }
     </style>
 </head>
 <body>
@@ -369,7 +432,7 @@
                     <div class="header-value" id="agentName">Agent Name</div>
                 </div>
                 <div class="header-logo">
-                    <img id="headerLogo" src="/luxury/logo.png" alt="Logo" />
+                    <img id="headerLogo" src="/logo.png" alt="Logo" />
                 </div>
                 <div class="header-item">
                     <div class="header-label">Prepared for</div>
@@ -714,7 +777,7 @@
                                 <canvas id="county-insights-chart"></canvas>
                                 <div id="county-insights-loading" class="chart-loading-message" style="display: none;">
                                     <div class="loading-spinner-small"></div>
-                                    <p>Loading ZIP insights…</p>
+                                    <p>Loading ZIP insightsâ€¦</p>
                                 </div>
                                 <div id="county-insights-error" class="chart-error-message" style="display: none;">
                                     <p>Insights unavailable for this ZIP at the moment.</p>
@@ -832,7 +895,7 @@
 
         <div class="footer">
             <div class="footer-content">
-                <p>© 2025 Waterfront Properties. All rights reserved.</p>
+                <p>Â© 2025 Waterfront Properties. All rights reserved.</p>
                 <p>This report was compiled by Waterfront Properties and provided exclusively for the intended recipient.</p>
             </div>
         </div>
@@ -987,7 +1050,7 @@
                 if (DIRECTIONALS.has(alnum.toUpperCase())) return alnum.toUpperCase();
                 if (ROMAN_NUMERALS.has(alnum.toUpperCase())) return alnum.toUpperCase();
                 const lower = raw.toLowerCase();
-                return lower.replace(/([A-Za-zÀ-ÖØ-öø-ÿ])(\S*)/, (_m, a, b) => a.toUpperCase() + b);
+                return lower.replace(/([A-Za-z])(\S*)/, (_m, a, b) => a.toUpperCase() + b);
             }
             function toTitleCaseSmart(str) {
                 if (!str) return str;
@@ -1076,7 +1139,7 @@
                 }
             } catch (_) {}
             
-            // Enrich Home Stats via property lookup (address → parcel → tax fields)
+            // Enrich Home Stats via property lookup (address â†’ parcel â†’ tax fields)
             (async () => {
                 try {
                     const params = new URLSearchParams();
@@ -1161,20 +1224,19 @@
                                     addressHtml = addressHtml + devLine;
                                 }
 
-                                infoBlock.innerHTML = `
+                                                                infoBlock.innerHTML = `
                                     <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
                                         <div style="display:flex; align-items:flex-start; gap:10px; margin-bottom:12px;">
-                                            <div style="font-size:20px; line-height:1;">📍</div>
                                             <div style="flex:1;">${addressHtml}</div>
                                         </div>
                                         <div style="height:1px; background:#e9ecef; margin:10px 0 14px 0;"></div>
                                         <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
-                                            <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${bedrooms}</strong></div>
-                                            <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${livingSqFt}</strong></div>
-                                            <div><span style=\"color:#7f8c8d\">🛁 Bath:</span> <strong>${fullBaths}</strong></div>
-                                            <div><span style=\"color:#7f8c8d\">🏗️ Year Built:</span> <strong>${yearBuilt}</strong></div>
+                                            <div><span style="color:#7f8c8d">🛏️ Bedrooms:</span> <strong>${bedrooms}</strong></div>
+                                            <div><span style="color:#7f8c8d">📐 Living SqFt:</span> <strong>${livingSqFt}</strong></div>
+                                            <div><span style="color:#7f8c8d">🛁 Bath:</span> <strong>${fullBaths}</strong></div>
+                                            <div><span style="color:#7f8c8d">🏗️ Year Built:</span> <strong>${yearBuilt}</strong></div>
                                             ${halfBathsHtml}
-                                            <div><span style=\"color:#7f8c8d\">💲 Tax Value:</span> <strong>${marketValue}</strong></div>
+                                            <div><span style="color:#7f8c8d">💲Tax Value:</span> <strong>${marketValue}</strong></div>
                                         </div>
                                     </div>
                                 `;
@@ -1227,12 +1289,12 @@
                                                 detailsCard.innerHTML = `
                                                     <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
                                                         <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
-                                                            <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
-                                                            <div><span style=\"color:#7f8c8d\">🛁 Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
-                                                            <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
-                                                            <div><span style=\"color:#7f8c8d\">📏 Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
-                                                            <div><span style=\"color:#7f8c8d\">🏗️ Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
-                                                            <div><span style=\"color:#7f8c8d\">💲 Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">ðŸ›ï¸ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">ðŸ› Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">ðŸ“ Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">ðŸ“ Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">ðŸ—ï¸ Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
+                                                            <div><span style=\"color:#7f8c8d\">ðŸ’² Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
                                                         </div>
                                                     </div>
                                                 `;
@@ -1307,12 +1369,12 @@
                         detailsCard.innerHTML = `
                             <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
                                 <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
-                                    <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">🛁 Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">📏 Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">🏗️ Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">💲 Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ðŸ›ï¸ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ðŸ› Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ðŸ“ Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ðŸ“ Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ðŸ—ï¸ Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ðŸ’² Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
                                 </div>
                             </div>
                         `;
@@ -1375,7 +1437,7 @@
                         resultsHost.innerHTML = `
                             <div style="display:flex;align-items:center;gap:10px;color:#7f8c8d;">
                                 <div style="border:3px solid #f3f3f3;border-top:3px solid #3498db;border-radius:50%;width:18px;height:18px;animation:spin 2s linear infinite;"></div>
-                                <span>Fetching property details…</span>
+                                <span>Fetching property detailsâ€¦</span>
                             </div>`;
                     }
                     // If ZIP provided, refresh right-side stats
@@ -1411,12 +1473,12 @@
                         const card = `
                             <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
                                 <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
-                                    <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">🛁 Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">📏 Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">🏗️ Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
-                                    <div><span style=\"color:#7f8c8d\">💲 Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ðŸ›ï¸ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ðŸ› Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ðŸ“ Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ðŸ“ Lot Size:</span> <strong>${fmtQty(p.lotSize)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ðŸ—ï¸ Year Built:</span> <strong>${fmtQty(p.yearBuilt)}</strong></div>
+                                    <div><span style=\"color:#7f8c8d\">ðŸ’² Tax Assessment:</span> <strong>${fmtCurr0(p.taxAssessmentValue)}</strong></div>
                                 </div>
                             </div>`;
                         if (resultsHost) resultsHost.innerHTML = card;
@@ -1498,7 +1560,7 @@
                 console.error('Error loading chart data:', error);
                 content.innerHTML = `
                     <div style="text-align: center; padding: 40px;">
-                        <div style="color: #e74c3c; font-size: 48px; margin-bottom: 20px;">📊</div>
+                        <div style="color: #e74c3c; font-size: 48px; margin-bottom: 20px;">ðŸ“Š</div>
                         <h3 style="color: #2c3e50; margin-bottom: 10px;">Chart Data Unavailable</h3>
                         <p style="color: #7f8c8d;">Unable to load sales data for this development.</p>
                     </div>
@@ -1514,7 +1576,7 @@
             if (!chartData || chartData.length === 0) {
                 content.innerHTML = `
                     <div style="text-align: center; padding: 40px;">
-                        <div style="color: #f39c12; font-size: 48px; margin-bottom: 20px;">📈</div>
+                        <div style="color: #f39c12; font-size: 48px; margin-bottom: 20px;">ðŸ“ˆ</div>
                         <h3 style="color: #2c3e50; margin-bottom: 10px;">No Sales Data</h3>
                         <p style="color: #7f8c8d;">No recorded sales found for ${data.developmentName} in the last 10 years.</p>
                     </div>
@@ -2476,7 +2538,7 @@
                 statsSection.innerHTML = `
                     <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 150px;">
                         <div style="text-align: center;">
-                            <div style="color: #e74c3c; font-size: 32px; margin-bottom: 15px;">📊</div>
+                            <div style="color: #e74c3c; font-size: 32px; margin-bottom: 15px;">ðŸ“Š</div>
                             <h3 style="margin: 0; color: #2c3e50; font-size: 18px; font-weight: 300; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;">Stats</h3>
                             <div style="width: 60px; height: 2px; background: linear-gradient(90deg, #3498db, #27ae60); margin: 8px auto 15px;"></div>
                             <p style="margin: 0; color: #e74c3c; font-size: 13px;">${message}</p>
@@ -2510,27 +2572,27 @@
             'DJIA': 'Dow Jones Industrial Average'
         };
 
-        // National chart explanations (1–2 sentences each)
+        // National chart explanations (1â€“2 sentences each)
         const FRED_SERIES_DESCRIPTIONS = {
             'GDP': 'Total output of the U.S. economy. Rising GDP signals economic expansion; declines can indicate slowdowns or recessions.',
             'CPIAUCSL': 'Consumer price index measuring average price changes for urban consumers. Higher CPI indicates stronger inflation.',
             'PPIACO': 'Producer Price Index for all commodities. Tracks prices received by domestic producers and can lead consumer inflation.',
             'FEDFUNDS': 'Effective federal funds rate targeted by the Federal Reserve. Influences borrowing costs across the economy.',
-            'MORTGAGE30US': 'Average interest rate on 30‑year fixed mortgages. Affects home affordability and buyer demand.',
-            'MORTGAGE15US': 'Average interest rate on 15‑year fixed mortgages. Lower terms often have lower rates than 30‑year loans.',
+            'MORTGAGE30US': 'Average interest rate on 30â€‘year fixed mortgages. Affects home affordability and buyer demand.',
+            'MORTGAGE15US': 'Average interest rate on 15â€‘year fixed mortgages. Lower terms often have lower rates than 30â€‘year loans.',
             'RHVRUSQ156N': 'National rental vacancy rate. Higher values suggest looser rental markets; lower values indicate tighter supply.',
             'LREM64TTUSM156S': 'Total U.S. employment level. Growth points to a strengthening labor market and economy.',
-            'POPTHM': 'Estimated U.S. population. Long‑term growth supports housing demand and economic activity.',
-            'M2REAL': 'Inflation‑adjusted broad money supply (Real M2). Changes can reflect liquidity conditions in the economy.',
+            'POPTHM': 'Estimated U.S. population. Longâ€‘term growth supports housing demand and economic activity.',
+            'M2REAL': 'Inflationâ€‘adjusted broad money supply (Real M2). Changes can reflect liquidity conditions in the economy.',
             'FPCPITOTLZGUSA': 'Annual consumer price inflation (World Bank). Indicates the pace of general price increases.',
             'GFDEBTN': 'Total U.S. federal public debt outstanding. Useful for context on fiscal conditions and interest costs.',
-            'DGS10': '10‑year U.S. Treasury yield. Key benchmark for long‑term borrowing costs and mortgage rates.',
-            'DGS2': '2‑year U.S. Treasury yield. Closely tracks expectations for Fed policy over the near term.',
+            'DGS10': '10â€‘year U.S. Treasury yield. Key benchmark for longâ€‘term borrowing costs and mortgage rates.',
+            'DGS2': '2â€‘year U.S. Treasury yield. Closely tracks expectations for Fed policy over the near term.',
             'ACTLISCOUUS': 'Number of homes actively listed for sale nationwide. Lower inventory often supports price growth.',
             'MSPUS': 'Median sale price of U.S. homes. Reflects typical transaction prices and market trends.',
             'NEWLISCOUUS': 'New residential listings entering the market. A gauge of seller activity and fresh supply.',
             'MEDDAYONMARUS': 'Median number of days homes spend on the market. Fewer days indicate stronger buyer demand.',
-            'USSTHPI': 'FHFA national home price index. Measures changes in single‑family home values over time.',
+            'USSTHPI': 'FHFA national home price index. Measures changes in singleâ€‘family home values over time.',
             'UNRATE': 'U.S. unemployment rate. Lower rates indicate a tighter labor market and stronger economy.',
             'DJIA': 'Dow Jones Industrial Average stock index. A snapshot of large U.S. companies and market sentiment.'
         };
@@ -3937,7 +3999,7 @@
             
             // Add tile layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
+                attribution: 'Â© OpenStreetMap contributors'
             }).addTo(map);
             
             // Color mode state and helpers
@@ -4147,8 +4209,8 @@
                     const pct = (n) => totalCount > 0 ? (Math.round((n / totalCount) * 1000) / 10).toFixed(1) : '0.0';
                     legend.innerHTML = `
                         <div style="font-weight:600;margin-bottom:6px;">Legend: Sold Since Covid</div>
-                        ${swatch(COLOR_MAP.green, `Sold since Covid — ${yesCount} (${pct(yesCount)}%)`)}
-                        ${swatch(COLOR_MAP.gray, `Not sold since Covid — ${noCount} (${pct(noCount)}%)`)}
+                        ${swatch(COLOR_MAP.green, `Sold since Covid â€” ${yesCount} (${pct(yesCount)}%)`)}
+                        ${swatch(COLOR_MAP.gray, `Not sold since Covid â€” ${noCount} (${pct(noCount)}%)`)}
                     `;
                 } else if (colorMode === 'tax_sale_price' || colorMode === 'tax_market_value') {
                     if (!valueThresholds || valueMin == null || valueMax == null) { legend.innerHTML = ''; return; }
@@ -4688,7 +4750,7 @@
                         cityClean = cityClean.replace(/,\s*[A-Za-z]{2}\s*$/, '');
 
                         // Title-case city
-                        const titled = cityClean.replace(/\b([A-Za-zÀ-ÖØ-öø-ÿ])(\S*)/g, (_m, a, b) => a.toUpperCase() + b.toLowerCase());
+                        const titled = cityClean.replace(/\b([A-Za-z])(\S*)/g, (_m, a, b) => a.toUpperCase() + b.toLowerCase());
 
                         // Append state if not already present
                         if (state2 && !new RegExp(`,\\s*${state2}$`, 'i').test(titled)) {
@@ -5903,7 +5965,7 @@
                     chartHeader.style.display = 'block';
                 }
 
-                // Non-blocking save to DB (neighbourhood) — persist mixed items (developments + zones)
+                // Non-blocking save to DB (neighbourhood) â€” persist mixed items (developments + zones)
                 try {
                     const slug = (typeof urlSlug !== 'undefined') ? urlSlug : (window.location.pathname.split('/').pop());
                     const seriesIdToSave = (typeof currentDevelopmentChart === 'string' && currentDevelopmentChart) ? currentDevelopmentChart : 'sales';
@@ -6290,7 +6352,7 @@
             console.log('showDevelopmentActionsPopup called:', { event, developmentName });
             
             // Remove the link emoji from the development name if it exists
-            const cleanDevelopmentName = String(developmentName || '').replace(/^🔗\s*/, '').trim();
+            const cleanDevelopmentName = String(developmentName || '').replace(/^ðŸ”—\s*/, '').trim();
             console.log('Clean development name:', cleanDevelopmentName);
             
             const popup = document.getElementById('developmentActionsPopup');
@@ -6624,7 +6686,7 @@
                     z-index: 1000;
                 ">
                     <div style="text-align: center; max-width: 400px; padding: 40px;">
-                        <div style="color: #e74c3c; font-size: 48px; margin-bottom: 20px;">🗺️</div>
+                        <div style="color: #e74c3c; font-size: 48px; margin-bottom: 20px;">ðŸ—ºï¸</div>
                         <h3 style="margin: 0 0 15px; color: #2c3e50; font-size: 20px;">Unable to Load Map</h3>
                         <p style="margin: 0; color: #6c757d; font-size: 14px;" id="mapErrorMessage">
                             <span id="mapErrorContext">Could not load parcel data for this development.</span>
@@ -6636,3 +6698,4 @@
     </div>
 </body>
 </html>
+
