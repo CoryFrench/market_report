@@ -145,6 +145,14 @@
         ];
         const DEFAULT_COUNTY_METRIC = REALTOR_METRICS[0]?.key || 'avg_listing_price';
         const realtorSeriesKeys = new Set(REALTOR_METRICS.map(m => m.key));
+        const DEVELOPMENT_CHART_TYPES = {
+            sales: { dataKey: 'sales_count', title: 'Sales Count', axisLabel: 'Number of Sales', valueType: 'number' },
+            sales_yoy: { dataKey: 'sales_count', title: 'Sales Count - YoY % Change', axisLabel: 'YoY % Change', valueType: 'percent', decimals: 1, yoy: true },
+            price: { dataKey: 'avg_price', title: 'Average Sale Price', axisLabel: 'Average Sale Price', valueType: 'currency', decimals: 0 },
+            price_yoy: { dataKey: 'avg_price', title: 'Average Sale Price - YoY % Change', axisLabel: 'YoY % Change', valueType: 'percent', decimals: 1, yoy: true },
+            price_per_sqft: { dataKey: 'avg_price_per_sqft', title: 'Price Per Square Foot', axisLabel: 'Average Price Per Square Foot', valueType: 'currency', decimals: 0, requiresPricePerSqft: true },
+            price_per_sqft_yoy: { dataKey: 'avg_price_per_sqft', title: 'Price Per Square Foot - YoY % Change', axisLabel: 'YoY % Change', valueType: 'percent', decimals: 1, yoy: true, requiresPricePerSqft: true }
+        };
         const STATE_ABBR_TO_NAME = {
             AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado',
             CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho',
@@ -203,11 +211,21 @@
                 const decimals = meta.percentDecimals ?? 1;
                 return `${percent.toFixed(decimals)}%`;
             }
+            if (meta.valueType === 'percent') {
+                const decimals = meta.decimals ?? meta.percentDecimals ?? 1;
+                return `${Number(value).toFixed(decimals)}%`;
+            }
             return Number(value).toLocaleString();
         }
 
         function computeYAxisConfig(meta, datasets) {
-            const values = datasets.flatMap(ds => (ds.data || []).map(point => point && point.y).filter(v => v != null && !Number.isNaN(v)));
+            const values = datasets.flatMap(ds => (ds.data || []).map(point => {
+                if (point == null) return null;
+                if (typeof point === 'number') return point;
+                if (typeof point === 'object' && typeof point.y === 'number') return point.y;
+                if (typeof point === 'object' && typeof point.value === 'number') return point.value;
+                return null;
+            }).filter(v => v != null && !Number.isNaN(v)));
             if (values.length === 0) {
                 return {};
             }
@@ -217,6 +235,20 @@
                     suggestedMax: Math.min(1, Math.max(...values) * 1.05 || 0.5),
                     ticks: {
                         callback: (v) => `${Math.round(v * 100)}%`
+                    }
+                };
+            }
+            if (meta && meta.valueType === 'percent') {
+                const min = Math.min(...values);
+                const max = Math.max(...values);
+                const pad = (max - min) * 0.1 || 5;
+                const suggestedMin = Math.min(0, min - pad);
+                const suggestedMax = Math.max(0, max + pad);
+                return {
+                    suggestedMin,
+                    suggestedMax,
+                    ticks: {
+                        callback: (v) => `${Number(v).toFixed(meta.decimals ?? 0)}%`
                     }
                 };
             }
@@ -742,8 +774,11 @@
                                         <label for="development-chart-type-select" style="margin-right: 10px; font-weight: bold;">Chart Type:</label>
                                         <select id="development-chart-type-select" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer; min-width: 150px;">
                                             <option value="sales">Sales Count</option>
+                                            <option value="sales_yoy">Sales Count - YoY % Change</option>
                                             <option value="price">Average Price</option>
+                                            <option value="price_yoy">Average Price - YoY % Change</option>
                                             <option value="price_per_sqft">Price Per Square Foot</option>
+                                            <option value="price_per_sqft_yoy">Price Per Square Foot - YoY % Change</option>
                                         </select>
                                     </div>
                                     <div id="dev-comparison-chart-container" style="position: relative; height: 500px; width: 100%;">
@@ -4835,7 +4870,7 @@
                 // Restore chart type (no auto-regenerate)
                 if (saved.series_id) {
                     const type = String(saved.series_id);
-                    if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
+                    if (DEVELOPMENT_CHART_TYPES[type]) {
                         switchDevelopmentChart(type);
                     }
                 }
@@ -5402,12 +5437,12 @@
                                  if (chartControls) chartControls.style.display = 'block';
                                  const chartHeader = document.getElementById('dev-comparison-chart-header');
                                  if (chartHeader) chartHeader.style.display = 'block';
-                                 if (payload.series_id) {
-                                     const type = String(payload.series_id);
-                                     if (type === 'sales' || type === 'price' || type === 'price_per_sqft') {
-                                         switchDevelopmentChart(type);
-                                     }
-                                 }
+                                if (payload.series_id) {
+                                    const type = String(payload.series_id);
+                                    if (DEVELOPMENT_CHART_TYPES[type]) {
+                                        switchDevelopmentChart(type);
+                                    }
+                                }
                                  rendered = true;
                              }
                          }
@@ -6323,7 +6358,7 @@
         }
 
         // Render development chart based on type using Chart.js
-        function renderDevelopmentChart(chartType) {
+        function renderDevelopmentChart(chartType, chartMetaOverride) {
             console.log('renderDevelopmentChart called with chartType:', chartType);
             const chartCanvas = document.getElementById('dev-comparison-chart');
             console.log('Chart canvas found:', !!chartCanvas);
@@ -6340,6 +6375,10 @@
                 ? window.comparisonEntities
                 : (Array.isArray(window.selectedDevelopments) ? window.selectedDevelopments : []);
             console.log('About to process chart with data:', data, 'entities:', developments);
+            const chartMeta = chartMetaOverride || DEVELOPMENT_CHART_TYPES[chartType] || DEVELOPMENT_CHART_TYPES.sales;
+            const dataKey = chartMeta.dataKey || 'sales_count';
+            const chartTitleLabel = chartMeta.title || 'Sales Count';
+            const isYoYChart = !!chartMeta.yoy;
             
             // Get all years across all developments
             const allYears = new Set();
@@ -6354,31 +6393,41 @@
                 developmentChart.destroy();
             }
             
-            // Determine data key and formatting
-            let dataKey, yAxisLabel;
-            if (chartType === 'sales') {
-                dataKey = 'sales_count';
-                yAxisLabel = 'Number of Sales';
-            } else if (chartType === 'price') {
-                dataKey = 'avg_price';
-                yAxisLabel = 'Average Sale Price';
-            } else if (chartType === 'price_per_sqft') {
-                dataKey = 'avg_price_per_sqft';
-                yAxisLabel = 'Average Price Per Square Foot';
-            }
-            
             // Prepare datasets for Chart.js
             const datasets = developments.map((label, index) => {
                 // Resolve label to underlying entity if mapping exists
                 const entity = labelToEntity[label] || { name: label, type: 'development' };
                 // Prefer label-keyed data (handles identical names across types)
                 const dataKeyForEntity = data[label] || data[entity.name] || {};
-                const developmentData = years.map(year => {
+                let developmentData = years.map(year => {
                     const yearData = dataKeyForEntity[year] ? dataKeyForEntity[year][dataKey] : null;
                     // Treat 0/undefined as missing to avoid drawing along axes
                     if (yearData == null || yearData === 0 || isNaN(yearData)) return null;
                     return yearData;
                 });
+                
+                if (isYoYChart) {
+                    let lastValue = null;
+                    let hasAnchor = false;
+                    developmentData = developmentData.map(value => {
+                        if (!Number.isFinite(value)) {
+                            return hasAnchor ? null : null;
+                        }
+                        if (!hasAnchor) {
+                            hasAnchor = true;
+                            lastValue = value;
+                            return 0;
+                        }
+                        if (!Number.isFinite(lastValue) || lastValue === 0) {
+                            lastValue = value;
+                            return null;
+                        }
+                        const change = ((value - lastValue) / lastValue) * 100;
+                        lastValue = value;
+                        const decimals = chartMeta.decimals ?? 1;
+                        return Number.isFinite(change) ? Number(change.toFixed(decimals)) : null;
+                    });
+                }
                 
                 // Use distinct colors for each development
                 const colors = [
@@ -6419,7 +6468,8 @@
             const yMin = flatValues.length ? Math.min(...flatValues) : 0;
             const yMax = flatValues.length ? Math.max(...flatValues) : 1;
             const yPad = (yMax - yMin) * 0.08;
-            const suggestedMin = Math.max(0, yMin - yPad);
+            const allowNegative = chartMeta.valueType === 'percent';
+            const suggestedMin = allowNegative ? (yMin - yPad) : Math.max(0, yMin - yPad);
             const suggestedMax = yMax + yPad * 0.5;
 
             const config = {
@@ -6441,7 +6491,7 @@
                     plugins: {
                         title: {
                             display: true,
-                            text: `${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'} Trends - ${yAxisLabel}`,
+                            text: `${selectionMode === 'development' ? 'Development' : 'Waterfront Zone'} Trends - ${chartTitleLabel}`,
                             font: {
                                 size: 16,
                                 weight: 'bold'
@@ -6458,7 +6508,7 @@
                             borderWidth: 1,
                             callbacks: {
                                 label: function(context) {
-                                    return `${context.dataset.label}: ${formatMetricValue(context.parsed.y, chartType)}`;
+                                    return `${context.dataset.label}: ${formatMetricValue(context.parsed.y, chartMeta)}`;
                                 }
                             }
                         }
@@ -6487,10 +6537,10 @@
                                     size: 11
                                 },
                                 callback: function(value) {
-                                    return formatMetricValue(value, chartType);
+                                    return formatMetricValue(value, chartMeta);
                                 }
                             }
-                        }, computeYAxisConfig(chartType, datasets))
+                        }, computeYAxisConfig(chartMeta, datasets))
                     },
                     interaction: {
                         mode: 'nearest',
@@ -6504,6 +6554,9 @@
                 }
             };
             
+            config.options.scales.y.suggestedMin = suggestedMin;
+            config.options.scales.y.suggestedMax = suggestedMax;
+
             // Create the chart
             const ctx = chartCanvas.getContext('2d');
             developmentChart = new Chart(ctx, config);
@@ -6694,37 +6747,53 @@
             const chartTypeSelect = document.getElementById('development-chart-type-select');
             if (!chartTypeSelect) return;
             
-            const pricePerSqftOption = chartTypeSelect.querySelector('option[value="price_per_sqft"]');
-            if (pricePerSqftOption) {
-                if (window.hasPricePerSqftData) {
-                    pricePerSqftOption.disabled = false;
-                    pricePerSqftOption.style.color = '';
-                } else {
-                    pricePerSqftOption.disabled = true;
-                    pricePerSqftOption.style.color = '#999';
-                    pricePerSqftOption.textContent = 'Price Per Square Foot (No Data Available)';
+            const sqftOptions = [
+                {
+                    value: 'price_per_sqft',
+                    enabledText: 'Price Per Square Foot',
+                    disabledText: 'Price Per Square Foot (No Data Available)'
+                },
+                {
+                    value: 'price_per_sqft_yoy',
+                    enabledText: 'Price Per Square Foot - YoY % Change',
+                    disabledText: 'Price Per Square Foot - YoY % Change (No Data)'
                 }
-            }
+            ];
+            sqftOptions.forEach(({ value, enabledText, disabledText }) => {
+                const optionEl = chartTypeSelect.querySelector(`option[value="${value}"]`);
+                if (!optionEl) return;
+                if (window.hasPricePerSqftData) {
+                    optionEl.disabled = false;
+                    optionEl.style.color = '';
+                    optionEl.textContent = enabledText;
+                } else {
+                    optionEl.disabled = true;
+                    optionEl.style.color = '#999';
+                    optionEl.textContent = disabledText;
+                }
+            });
         }
 
             // Switch between chart types
         function switchDevelopmentChart(chartType) {
-            // If trying to switch to price_per_sqft but no data available, fall back to sales
-            if (chartType === 'price_per_sqft' && !window.hasPricePerSqftData) {
+            let resolvedType = chartType;
+            let chartMeta = DEVELOPMENT_CHART_TYPES[resolvedType] || DEVELOPMENT_CHART_TYPES.sales;
+            if (chartMeta.requiresPricePerSqft && !window.hasPricePerSqftData) {
                 console.warn('Price per sqft data not available, falling back to sales chart');
-                chartType = 'sales';
+                resolvedType = 'sales';
+                chartMeta = DEVELOPMENT_CHART_TYPES[resolvedType];
             }
             
-            currentDevelopmentChart = chartType;
+            currentDevelopmentChart = resolvedType;
             
             // Update dropdown selection
             const chartTypeSelect = document.getElementById('development-chart-type-select');
-            if (chartTypeSelect && chartTypeSelect.value !== chartType) {
-                chartTypeSelect.value = chartType;
+            if (chartTypeSelect && chartTypeSelect.value !== resolvedType) {
+                chartTypeSelect.value = resolvedType;
             }
             
             // Render the appropriate chart
-            renderDevelopmentChart(chartType);
+            renderDevelopmentChart(resolvedType, chartMeta);
             // Update legend for new datasets
             renderDevelopmentHtmlLegend();
         }
