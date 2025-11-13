@@ -1477,6 +1477,40 @@ const dbQueries = {
   }
   ,
 
+  // Agent directory for signup page
+  getAgentEmails: async () => {
+    const primaryQuery = `
+      SELECT email FROM (
+        SELECT DISTINCT TRIM(email) AS email
+        FROM utils.user_details
+        WHERE email IS NOT NULL
+          AND TRIM(email) <> ''
+      ) t
+      ORDER BY LOWER(email)
+    `;
+    try {
+      return await query(primaryQuery);
+    } catch (primaryErr) {
+      console.error('Primary agent lookup failed, attempting fallback:', primaryErr.message || primaryErr);
+      const fallbackQuery = `
+        SELECT email FROM (
+          SELECT DISTINCT TRIM(email) AS email
+          FROM microservices.directory_agents
+          WHERE email IS NOT NULL
+            AND TRIM(email) <> ''
+        ) t
+        ORDER BY LOWER(email)
+      `;
+      try {
+        return await query(fallbackQuery);
+      } catch (fallbackErr) {
+        console.error('Fallback agent lookup failed:', fallbackErr.message || fallbackErr);
+        throw primaryErr;
+      }
+    }
+  }
+  ,
+
   // ZIP comparison persistence (mirror county, but per-zip)
   getZipComparison: async (reportId) => {
     const queryText = `

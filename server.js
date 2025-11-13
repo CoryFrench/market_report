@@ -1310,6 +1310,24 @@ app.get('/api/property-lookup', async (req, res) => {
 });
 
 // Get all distinct developments for comparison dropdowns
+app.get('/api/agents', async (req, res) => {
+  try {
+    const result = await dbQueries.getAgentEmails();
+    res.json({
+      success: true,
+      count: result.rowCount,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching agent emails:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch agent emails',
+      message: error.message
+    });
+  }
+});
+
 app.get('/api/developments', async (req, res) => {
   try {
     const developmentsQuery = `
