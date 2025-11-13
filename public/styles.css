@@ -2221,6 +2221,9 @@ svg .legend text {
     border: 1px solid #e2e8f0;
     padding: 14px 18px;
     background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
 }
 
 .wealth-list {
@@ -2230,6 +2233,22 @@ svg .legend text {
     display: flex;
     flex-direction: column;
     gap: 12px;
+}
+
+.wealth-migration-scroll {
+    flex: 1;
+    overflow-y: auto;
+    margin-top: 6px;
+    padding-right: 6px;
+}
+
+.wealth-migration-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.wealth-migration-scroll::-webkit-scrollbar-thumb {
+    background: rgba(15, 23, 42, 0.2);
+    border-radius: 999px;
 }
 
 .wealth-list-item {

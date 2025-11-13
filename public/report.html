@@ -57,14 +57,45 @@
                     ...getNationalWrappers()
                 ].filter(Boolean);
                 targets.forEach(sizeChartContainer);
+                syncWealthMigrationListHeight();
                 // Ask charts to reflow
                 [window.leftChartInstance, window.rightChartInstance, window.comparisonChartInstance, window.developmentChart]
                     .forEach(c => { if (c && c.resize) c.resize(); });
             } catch {}
         }
 
+        function syncWealthMigrationListHeight() {
+            try {
+                const card = document.getElementById('wealthMigrationListCard');
+                const scroll = document.getElementById('wealthMigrationScroll');
+                const chart = document.getElementById('wealth-migration-chart-container');
+                if (!card || !scroll) return;
+
+                if (!chart || window.innerWidth <= 900) {
+                    card.style.removeProperty('height');
+                    scroll.style.removeProperty('max-height');
+                    return;
+                }
+
+                const chartHeight = chart.getBoundingClientRect().height;
+                if (!chartHeight || Number.isNaN(chartHeight)) return;
+
+                card.style.height = `${chartHeight}px`;
+
+                const cardStyles = window.getComputedStyle(card);
+                const paddingY = parseFloat(cardStyles.paddingTop || '0') + parseFloat(cardStyles.paddingBottom || '0');
+                const header = document.getElementById('wealthMigrationListTitle');
+                const headerHeight = header ? header.getBoundingClientRect().height : 0;
+                const headerStyles = header ? window.getComputedStyle(header) : null;
+                const headerMargin = headerStyles ? parseFloat(headerStyles.marginBottom || '0') : 0;
+                const available = chartHeight - paddingY - headerHeight - headerMargin;
+                scroll.style.maxHeight = `${Math.max(160, available)}px`;
+            } catch {}
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             updateChartContainers();
+            syncWealthMigrationListHeight();
             const ro = new ResizeObserver(() => updateChartContainers());
             const watchEls = [
                 document.getElementById('comparison-chart-container'),
@@ -269,6 +300,7 @@
                 entry.meta = metricMeta;
                 return entry;
             });
+            syncWealthMigrationListHeight();
         }
     </script>
     <style>
@@ -509,11 +541,13 @@
                                         <p>Wealth migration chart is unavailable for this county.</p>
                                     </div>
                                 </div>
-                                <div class="wealth-migration-list">
-                                    <h4 id="wealthMigrationListTitle">Top Origins (Counties)</h4>
-                                    <ol id="wealthMigrationList" class="wealth-list"></ol>
-                                    <div id="wealthMigrationListEmpty" class="info-value" style="display:none;">No migration records were found for this direction.</div>
-                                </div>
+                <div class="wealth-migration-list" id="wealthMigrationListCard">
+                    <h4 id="wealthMigrationListTitle">Top Origins (Counties)</h4>
+                    <div class="wealth-migration-scroll" id="wealthMigrationScroll">
+                        <ol id="wealthMigrationList" class="wealth-list"></ol>
+                        <div id="wealthMigrationListEmpty" class="info-value" style="display:none;">No migration records were found for this direction.</div>
+                    </div>
+                </div>
                             </div>
                         </div>
                     </div>
@@ -2512,6 +2546,7 @@
                     fallbackEl.hidden = false;
                     fallbackEl.style.display = 'flex';
                 }
+                syncWealthMigrationListHeight();
                 return;
             }
 
@@ -2591,6 +2626,7 @@
                 if (placeholder) {
                     placeholder.style.display = 'block';
                 }
+                syncWealthMigrationListHeight();
                 return;
             }
             if (placeholder) {
@@ -2616,6 +2652,7 @@
                 `;
                 list.appendChild(li);
             });
+            syncWealthMigrationListHeight();
         }
 
         function showWealthMigrationFallback(message) {
