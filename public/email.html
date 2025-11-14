@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Get Your Luxury Report</title>
+    <script>(function(){try{var p=location.pathname||'/';var first='/' + (p.split('/')[1]||'');var basePrefix=(first==='\/luxury')?first:'';if(basePrefix){var b=document.createElement('base');b.setAttribute('href', basePrefix + '/');document.head.appendChild(b);}}catch(_){}})();</script>
+    <link rel="stylesheet" href="/luxury/styles.css">
+</head>
+<body class="email-flow">
+    <div class="container">
+        <div class="letterhead">
+            <div class="report-title"><img src="/luxury/logo.png" alt="Waterfront Properties" class="report-logo"></div>
+        </div>
+
+        <div class="email-card">
+            <div class="email-header">
+                <p class="email-eyebrow">Luxury Report Request</p>
+                <h1>Create Your Luxury Report</h1>
+                <p>Enter your email to get started. We'll create your report (or resend your link if one already exists).</p>
+            </div>
+
+            <form id="emailForm" class="email-form">
+                <div class="form-group compact">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" placeholder="you@example.com" required>
+                </div>
+                <button type="submit" class="form-submit email-primary" id="submitBtn">
+                    <span>Get Started</span>
+                </button>
+                <p class="email-disclaimer">We only use your email to deliver the report link. No spam, ever.</p>
+            </form>
+
+            <div class="form-loading email-loading" id="loading" aria-hidden="true">
+                <div class="spinner"></div>
+                <p>Preparing your link...</p>
+            </div>
+
+            <div id="message" class="email-message" aria-live="polite"></div>
+        </div>
+
+        <section class="insight-preview" aria-labelledby="insightTitle">
+            <div class="insight-intro">
+                <p class="sample-eyebrow">Market Intelligence</p>
+                <h2 id="insightTitle">Exactly what your clients explore inside the report</h2>
+                <p>National, county, and ZIP dashboards are baked in. We pinned our most-requested tiles here so you can demo the experience before collecting an email.</p>
+            </div>
+
+            <div class="insight-grid">
+                <article class="insight-card">
+                    <header>
+                        <div>
+                            <p class="insight-label">National</p>
+                            <h3>Housing Price Index</h3>
+                        </div>
+                        <span class="insight-pill">USSTHPI</span>
+                    </header>
+                    <div class="insight-metric">
+                        <strong>418</strong>
+                        <small class="trend up">+4.2% YoY</small>
+                    </div>
+                    <p class="insight-copy">The Case‑Shiller housing price index highlights how resilient pricing remains in prime waterfront metros despite rate pressure.</p>
+                    <figure class="spark-wrapper" role="img" aria-label="Housing price index sample trend">
+                        <svg viewBox="0 0 240 80" preserveAspectRatio="none">
+                            <polyline points="0,65 30,60 60,58 90,52 120,47 150,40 180,32 210,28 240,20" />
+                            <circle cx="240" cy="20" r="4"></circle>
+                        </svg>
+                        <figcaption>2018-2025 sample trend</figcaption>
+                    </figure>
+                </article>
+
+                <article class="insight-card">
+                    <header>
+                        <div>
+                            <p class="insight-label">County Focus</p>
+                            <h3>Palm Beach County, FL</h3>
+                        </div>
+                        <span class="insight-pill">Avg. Listing Price</span>
+                    </header>
+                    <div class="insight-metric">
+                        <strong>$5.12M</strong>
+                        <small class="trend up">+6.8% YoY</small>
+                    </div>
+                    <ul class="insight-list">
+                        <li><span>Inventory</span><strong>312</strong></li>
+                        <li><span>Median DOM</span><strong>24 days</strong></li>
+                        <li><span>Cash Share</span><strong>74%</strong></li>
+                    </ul>
+                    <p class="insight-copy">County dashboards benchmark your subject property against competing coastal listings instantly.</p>
+                </article>
+
+                <article class="insight-card">
+                    <header>
+                        <div>
+                            <p class="insight-label">ZIP Spotlight</p>
+                            <h3>33477 • Jupiter Island</h3>
+                        </div>
+                        <span class="insight-pill">Avg. Listing Price</span>
+                    </header>
+                    <div class="insight-metric">
+                        <strong>$3.48M</strong>
+                        <small class="trend flat">steady</small>
+                    </div>
+                    <p class="insight-copy">ZIP Insights autoload the subject ZIP plus neighbors you add to the form, giving clients hyper-local context.</p>
+                    <div class="zip-bars" role="img" aria-label="Average listing price comparison for Palm Beach and nearby ZIPs">
+                        <div>
+                            <span>Palm Beach</span>
+                            <div class="bar"><span style="width:92%"></span></div>
+                        </div>
+                        <div>
+                            <span>33477</span>
+                            <div class="bar"><span style="width:78%"></span></div>
+                        </div>
+                        <div>
+                            <span>33408</span>
+                            <div class="bar"><span style="width:65%"></span></div>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <div class="footer">
+            <div class="footer-content">
+                <p>© 2025 Luxury Report by Waterfront Properties. All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function(){
+            const p = window.location.pathname || '/';
+            const firstSeg = '/' + (p.split('/')[1] || '');
+            const basePrefix = (firstSeg === '/luxury') ? firstSeg : '';
+            const API_BASE = basePrefix ? `${basePrefix}/api` : '/api';
+
+            const form = document.getElementById('emailForm');
+            const submitBtn = document.getElementById('submitBtn');
+            const loading = document.getElementById('loading');
+            const message = document.getElementById('message');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                message.innerHTML = '';
+                submitBtn.disabled = true;
+                loading.style.display = 'flex';
+                const email = String((document.getElementById('email')?.value || '')).trim();
+                try {
+                    const resp = await fetch(`${API_BASE}/luxury/signup-email`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    });
+                    const data = await resp.json().catch(() => ({}));
+                    if (resp.ok || resp.status === 201) {
+                        const href = (data && data.reportUrl) ? `${basePrefix}${data.reportUrl}` : '';
+                        const openNow = href ? `<div class="email-inline-link"><a href="${href}" class="primary-btn">Open your report now</a></div>` : '';
+                        message.innerHTML = `<div class="form-message success">Success! Check your email – we just sent your luxury report link.${openNow}</div>`;
+                        form.reset();
+                    } else {
+                        message.innerHTML = `<div class="form-message error">${data.error || 'Request failed'}</div>`;
+                    }
+                } catch (err) {
+                    message.innerHTML = `<div class="form-message error">${err?.message || 'Network error'}</div>`;
+                } finally {
+                    submitBtn.disabled = false;
+                    loading.style.display = 'none';
+                }
+            });
+        })();
+    </script>
+    <script>
+        // Ensure logo src points to the correct subpath when mounted under /report or /luxury
+        (function(){
+            function setLogo(){
+                try {
+                    var p = window.location.pathname || '/';
+                    var seg = '/' + (p.split('/')[1] || '');
+                    var allowed = { '/luxury':1 };
+                    var base = allowed[seg] ? seg : '';
+                    document.querySelectorAll('img.report-logo').forEach(function(img){
+                        img.src = base + '/logo.png';
+                    });
+                } catch(_) {}
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', setLogo);
+            } else { setTimeout(setLogo, 0); }
+        })();
+    </script>
+</body>
+</html>
+
+
