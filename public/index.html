@@ -88,6 +88,11 @@
                     </select>
                 </div>
 
+                <div class="form-group" id="adminPasswordGroup">
+                    <label for="adminPassword">Admin Password *</label>
+                    <input type="password" id="adminPassword" name="adminPassword" placeholder="Enter admin password" required>
+                </div>
+
                 <button type="submit" class="form-submit" id="submitBtn">
                     Create Area Analysis
                 </button>
@@ -520,7 +525,11 @@
                 zipCode: String(formData.get('zipCode') || '').trim(),
                 development: getOrNull(formData.get('development')),
                 subdivision: getOrNull(formData.get('subdivision')),
-                email: getOrNull(formData.get('email'))
+                email: getOrNull(formData.get('email')),
+                adminPassword: (() => {
+                    const pwd = formData.get('adminPassword');
+                    return typeof pwd === 'string' ? pwd : '';
+                })()
             };
 
             // Now show loading state and disable controls to prevent double submit

@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const bcrypt = require('bcryptjs');
 let nodemailer = null;
 try { nodemailer = require('nodemailer'); } catch (_) { /* optional */ }
 require('dotenv').config();
@@ -521,8 +522,42 @@ app.post('/api/reports/create', async (req, res) => {
       zipCode, 
       development, 
       subdivision,
-      email
+      email,
+      adminPassword
     } = req.body;
+    
+    const providedPassword = (typeof adminPassword === 'string') ? adminPassword : '';
+    if (!providedPassword || providedPassword.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: 'Admin password is required'
+      });
+    }
+
+    let credentialHash = null;
+    try {
+      const credentialResult = await dbQueries.getActivePortalCredential();
+      if (credentialResult && credentialResult.rowCount > 0) {
+        credentialHash = credentialResult.rows[0].password_hash;
+      }
+    } catch (credErr) {
+      console.error('Failed to look up admin credential:', credErr);
+    }
+
+    if (!credentialHash) {
+      return res.status(503).json({
+        success: false,
+        error: 'Admin credential is not configured'
+      });
+    }
+
+    const passwordMatch = await bcrypt.compare(providedPassword, credentialHash);
+    if (!passwordMatch) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid admin password'
+      });
+    }
     
     // Validate required fields
     if (!agentName || !firstName || !lastName || !addressLine1 || !city || !state || !county || !zipCode) {

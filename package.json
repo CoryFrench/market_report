@@ -18,6 +18,7 @@
   "license": "ISC",
   "description": "Market Report API Server",
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "axios": "^1.11.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",

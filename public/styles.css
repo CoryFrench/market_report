@@ -440,6 +440,7 @@ body {
 }
 
 .form-group input[type="text"],
+.form-group input[type="password"],
 .form-group select {
     width: 100%;
     padding: 15px 20px;
@@ -454,11 +455,13 @@ body {
 }
 
 .form-group input[type="text"]::placeholder,
+.form-group input[type="password"]::placeholder,
 .form-group select::placeholder {
     color: #a0aec0;
 }
 
 .form-group input[type="text"]:focus,
+.form-group input[type="password"]:focus,
 .form-group select:focus {
     outline: none;
     border-color: #c6a96a;
@@ -668,7 +671,8 @@ body {
 .small-hint { font-size: 0.9em; color: #718096; margin-top: 6px; }
 
 /* Inputs focus states */
-.form-group input[type="text"]:focus { outline: none; box-shadow: 0 0 0 3px rgba(198,169,106,0.18); border-color: #c6a96a; }
+.form-group input[type="text"]:focus,
+.form-group input[type="password"]:focus { outline: none; box-shadow: 0 0 0 3px rgba(198,169,106,0.18); border-color: #c6a96a; }
 
 /* Inline field errors */
 .field-error { color: #c53030; font-size: 0.9em; margin-top: 6px; min-height: 18px; }

@@ -55,6 +55,18 @@ const dbQueries = {
     return await query(baseQuery);
   },
 
+  // Fetch the most recent active portal credential for admin validation
+  getActivePortalCredential: async () => {
+    const queryText = `
+      SELECT credential_id, password_hash, is_active, created_at
+      FROM customer.report_portal_credentials
+      WHERE is_active = true
+      ORDER BY credential_id DESC
+      LIMIT 1
+    `;
+    return await query(queryText);
+  },
+
   // Resolve primary county FIPS by ZIP (uses otherdata.zip_city_county_xref)
   getPrimaryCountyFipsByZip: async (zip) => {
     const queryText = `
