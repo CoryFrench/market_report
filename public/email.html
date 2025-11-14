@@ -6,126 +6,271 @@
     <title>Get Your Luxury Report</title>
     <script>(function(){try{var p=location.pathname||'/';var first='/' + (p.split('/')[1]||'');var basePrefix=(first==='\/luxury')?first:'';if(basePrefix){var b=document.createElement('base');b.setAttribute('href', basePrefix + '/');document.head.appendChild(b);}}catch(_){}})();</script>
     <link rel="stylesheet" href="/luxury/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="email-flow">
     <div class="container">
-        <div class="letterhead">
-            <div class="report-title"><img src="/luxury/logo.png" alt="Waterfront Properties" class="report-logo"></div>
-        </div>
-
-        <div class="email-card">
-            <div class="email-header">
-                <p class="email-eyebrow">Luxury Report Request</p>
-                <h1>Create Your Luxury Report</h1>
-                <p>Enter your email to get started. We'll create your report (or resend your link if one already exists).</p>
+        <div class="email-stage">
+            <div class="letterhead">
+                <div class="report-title"><img src="/luxury/logo.png" alt="Waterfront Properties" class="report-logo"></div>
             </div>
 
-            <form id="emailForm" class="email-form">
-                <div class="form-group compact">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" name="email" placeholder="you@example.com" required>
+            <div class="signup-shell">
+                <div class="email-card">
+                    <div class="email-header">
+                        <p class="email-eyebrow">Luxury Report Request</p>
+                        <h1>Create Your Luxury Report</h1>
+                        <p>Enter your email to unlock your personalized luxury market briefing in seconds.</p>
+                    </div>
+
+                    <form id="emailForm" class="email-form">
+                        <div class="form-group compact">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email" placeholder="you@example.com" required>
+                        </div>
+                        <button type="submit" class="form-submit email-primary" id="submitBtn">
+                            <span>Get Started</span>
+                        </button>
+                    </form>
+
+                    <div class="form-loading email-loading" id="loading" aria-hidden="true">
+                        <div class="spinner"></div>
+                        <p>Preparing your link...</p>
+                    </div>
+
+                    <div id="message" class="email-message" aria-live="polite"></div>
                 </div>
-                <button type="submit" class="form-submit email-primary" id="submitBtn">
-                    <span>Get Started</span>
-                </button>
-                <p class="email-disclaimer">We only use your email to deliver the report link. No spam, ever.</p>
-            </form>
 
-            <div class="form-loading email-loading" id="loading" aria-hidden="true">
-                <div class="spinner"></div>
-                <p>Preparing your link...</p>
+                <section class="carousel-card" aria-labelledby="insightTitle">
+                    <div class="carousel-head">
+                        <div>
+                            <p class="sample-eyebrow">Market Intelligence</p>
+                            <h2 id="insightTitle">Preview of key insights from your market report</h2>
+                        </div>
+                        <div class="carousel-controls">
+                            <button type="button" class="carousel-btn" id="carouselPrev" aria-label="Show previous insight">&lsaquo;</button>
+                            <div class="carousel-dots" id="carouselDots"></div>
+                            <button type="button" class="carousel-btn" id="carouselNext" aria-label="Show next insight">&rsaquo;</button>
+                        </div>
+                    </div>
+
+                    <div class="chart-card__header">
+                        <div>
+                            <p class="chart-eyebrow" id="carouselEyebrow">National</p>
+                            <h3 id="carouselTitle">Housing Price Index</h3>
+                            <p class="chart-subtitle" id="carouselSubtitle">USSTHPI &bull; Case-Shiller</p>
+                        </div>
+                    </div>
+
+                    <div class="chart-canvas-wrap">
+                        <canvas id="carouselChart" aria-label="Report preview chart"></canvas>
+                    </div>
+                </section>
             </div>
-
-            <div id="message" class="email-message" aria-live="polite"></div>
-        </div>
-
-        <section class="insight-preview" aria-labelledby="insightTitle">
-            <div class="insight-intro">
-                <p class="sample-eyebrow">Market Intelligence</p>
-                <h2 id="insightTitle">Exactly what your clients explore inside the report</h2>
-                <p>National, county, and ZIP dashboards are baked in. We pinned our most-requested tiles here so you can demo the experience before collecting an email.</p>
-            </div>
-
-            <div class="insight-grid">
-                <article class="insight-card">
-                    <header>
-                        <div>
-                            <p class="insight-label">National</p>
-                            <h3>Housing Price Index</h3>
-                        </div>
-                        <span class="insight-pill">USSTHPI</span>
-                    </header>
-                    <div class="insight-metric">
-                        <strong>418</strong>
-                        <small class="trend up">+4.2% YoY</small>
-                    </div>
-                    <p class="insight-copy">The Case‑Shiller housing price index highlights how resilient pricing remains in prime waterfront metros despite rate pressure.</p>
-                    <figure class="spark-wrapper" role="img" aria-label="Housing price index sample trend">
-                        <svg viewBox="0 0 240 80" preserveAspectRatio="none">
-                            <polyline points="0,65 30,60 60,58 90,52 120,47 150,40 180,32 210,28 240,20" />
-                            <circle cx="240" cy="20" r="4"></circle>
-                        </svg>
-                        <figcaption>2018-2025 sample trend</figcaption>
-                    </figure>
-                </article>
-
-                <article class="insight-card">
-                    <header>
-                        <div>
-                            <p class="insight-label">County Focus</p>
-                            <h3>Palm Beach County, FL</h3>
-                        </div>
-                        <span class="insight-pill">Avg. Listing Price</span>
-                    </header>
-                    <div class="insight-metric">
-                        <strong>$5.12M</strong>
-                        <small class="trend up">+6.8% YoY</small>
-                    </div>
-                    <ul class="insight-list">
-                        <li><span>Inventory</span><strong>312</strong></li>
-                        <li><span>Median DOM</span><strong>24 days</strong></li>
-                        <li><span>Cash Share</span><strong>74%</strong></li>
-                    </ul>
-                    <p class="insight-copy">County dashboards benchmark your subject property against competing coastal listings instantly.</p>
-                </article>
-
-                <article class="insight-card">
-                    <header>
-                        <div>
-                            <p class="insight-label">ZIP Spotlight</p>
-                            <h3>33477 • Jupiter Island</h3>
-                        </div>
-                        <span class="insight-pill">Avg. Listing Price</span>
-                    </header>
-                    <div class="insight-metric">
-                        <strong>$3.48M</strong>
-                        <small class="trend flat">steady</small>
-                    </div>
-                    <p class="insight-copy">ZIP Insights autoload the subject ZIP plus neighbors you add to the form, giving clients hyper-local context.</p>
-                    <div class="zip-bars" role="img" aria-label="Average listing price comparison for Palm Beach and nearby ZIPs">
-                        <div>
-                            <span>Palm Beach</span>
-                            <div class="bar"><span style="width:92%"></span></div>
-                        </div>
-                        <div>
-                            <span>33477</span>
-                            <div class="bar"><span style="width:78%"></span></div>
-                        </div>
-                        <div>
-                            <span>33408</span>
-                            <div class="bar"><span style="width:65%"></span></div>
-                        </div>
-                    </div>
-                </article>
-            </div>
-        </section>
-
-        <div class="footer">
-            <div class="footer-content">
-                <p>© 2025 Luxury Report by Waterfront Properties. All rights reserved.</p>
+            <div class="footer">
+                <div class="footer-content">
+                    <p>&copy; 2025 Luxury Report by Waterfront Properties. All rights reserved.</p>
+                </div>
             </div>
         </div>
     </div>
+
+    <script>
+        (function(){
+            if (typeof Chart === 'undefined') return;
+
+            const chartSets = [
+                {
+                    eyebrow: 'National View',
+                    title: 'Housing Price Index',
+                    subtitle: 'USSTHPI &bull; Case-Shiller',
+                    color: '#fbbf24',
+                    labels: ['2023 Q1','2023 Q2','2023 Q3','2023 Q4','2024 Q1','2024 Q2','2024 Q3','2024 Q4','2025 Q1','2025 Q2'],
+                    values: [621.64,640.12,651.30,652.82,661.67,678.23,685.61,688.82,693.70,703.91],
+                    valueType: 'index'
+                },
+                {
+                    eyebrow: 'Palm Beach County, FL',
+                    title: 'Average Listing Price',
+                    subtitle: 'Residential inventory &bull; Realtor.com',
+                    color: '#c53030',
+                    labels: ['2024 Nov','2024 Dec','2025 Jan','2025 Feb','2025 Mar','2025 Apr','2025 May','2025 Jun','2025 Jul','2025 Aug','2025 Sep','2025 Oct'],
+                    values: [1381086,1401376,1436671,1442576,1435133,1410281,1402081,1329093,1289986,1291828,1330207,1403587],
+                    valueType: 'currency'
+                },
+                {
+                    eyebrow: 'Jupiter, FL',
+                    title: 'Average Listing Price',
+                    subtitle: 'Zip 33477 &bull; Realtor.com',
+                    color: '#2563eb',
+                    labels: ['2024 Nov','2024 Dec','2025 Jan','2025 Feb','2025 Mar','2025 Apr','2025 May','2025 Jun','2025 Jul','2025 Aug','2025 Sep','2025 Oct'],
+                    values: [744900,754500,749825,722000,725000,727000,754500,727500,730000,699000,699950,722000],
+                    valueType: 'currency'
+                }
+            ];
+
+            const chartCanvas = document.getElementById('carouselChart');
+            if (!chartCanvas) return;
+
+            const eyebrowEl = document.getElementById('carouselEyebrow');
+            const titleEl = document.getElementById('carouselTitle');
+            const subtitleEl = document.getElementById('carouselSubtitle');
+            const dotsContainer = document.getElementById('carouselDots');
+            const prevBtn = document.getElementById('carouselPrev');
+            const nextBtn = document.getElementById('carouselNext');
+
+            function createCurrencyFormatters(values) {
+                const max = Math.max(...values);
+                const min = Math.min(...values);
+                const range = Math.max(Math.abs(max - min), 1);
+
+                const millionDecimals = range < 200000 ? 2 : range < 500000 ? 1 : 0;
+                const thousandDecimals = range < 50000 ? 1 : 0;
+
+                const formatTick = (value) => {
+                    const abs = Math.abs(value);
+                    if (abs >= 1000000) {
+                        return '$' + (value / 1000000).toFixed(millionDecimals) + 'M';
+                    }
+                    if (abs >= 1000) {
+                        return '$' + (value / 1000).toFixed(thousandDecimals) + 'K';
+                    }
+                    return '$' + Math.round(value).toLocaleString('en-US');
+                };
+
+                const formatTooltip = (value) => '$' + Number(value).toLocaleString('en-US');
+                return { formatTick, formatTooltip };
+            }
+
+            function createIndexFormatters(values) {
+                const hasDecimals = values.some((value) => Math.floor(value) !== value);
+                const formatTick = (value) => Number(value).toLocaleString('en-US', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: hasDecimals ? 2 : 0
+                });
+                return {
+                    formatTick,
+                    formatTooltip: formatTick
+                };
+            }
+
+            let activeIndex = 0;
+            let chartInstance = null;
+
+            function clampSize(value, fallback) {
+                return Math.max(fallback, Math.floor(value || 0));
+            }
+
+            function setCanvasSize() {
+                const wrapper = chartCanvas.parentElement;
+                const width = wrapper ? clampSize(wrapper.clientWidth, 360) : 640;
+                const height = wrapper ? clampSize(wrapper.clientHeight, 320) : 320;
+                chartCanvas.width = width;
+                chartCanvas.height = height;
+            }
+
+            function updateDots() {
+                if (!dotsContainer) return;
+                const dots = dotsContainer.querySelectorAll('.carousel-dot');
+                dots.forEach((dot, idx) => {
+                    const isActive = idx === activeIndex;
+                    dot.classList.toggle('is-active', isActive);
+                    dot.setAttribute('aria-current', isActive ? 'true' : 'false');
+                });
+            }
+
+            function buildDots() {
+                if (!dotsContainer) return;
+                dotsContainer.innerHTML = '';
+                chartSets.forEach((set, idx) => {
+                    const dot = document.createElement('button');
+                    dot.type = 'button';
+                    dot.className = 'carousel-dot';
+                    dot.setAttribute('aria-label', `${set.eyebrow} - ${set.title}`);
+                    dot.addEventListener('click', () => renderChart(idx));
+                    dotsContainer.appendChild(dot);
+                });
+            }
+
+            function renderChart(nextIndex) {
+                if (!chartSets.length) return;
+                const total = chartSets.length;
+                activeIndex = ((nextIndex % total) + total) % total;
+                const dataset = chartSets[activeIndex];
+
+                if (eyebrowEl) eyebrowEl.textContent = dataset.eyebrow;
+                if (titleEl) titleEl.textContent = dataset.title;
+                if (subtitleEl) subtitleEl.innerHTML = dataset.subtitle;
+
+                setCanvasSize();
+
+                if (chartInstance) {
+                    chartInstance.destroy();
+                }
+
+                const formatterFactory = dataset.valueType === 'currency'
+                    ? createCurrencyFormatters(dataset.values)
+                    : createIndexFormatters(dataset.values);
+
+                chartInstance = new Chart(chartCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: dataset.labels,
+                        datasets: [{
+                            label: dataset.title,
+                            data: dataset.values,
+                            borderColor: dataset.color,
+                            backgroundColor: dataset.color,
+                            borderWidth: 3,
+                            tension: 0.35,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#ffffff',
+                            pointBorderColor: dataset.color,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: false,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: '#475569' },
+                                grid: { display: false }
+                            },
+                            y: {
+                                ticks: {
+                                    color: '#475569',
+                                    callback: (value) => formatterFactory.formatTick(value)
+                                },
+                                grid: { color: 'rgba(226,232,240,0.6)' }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => formatterFactory.formatTooltip(ctx.parsed.y)
+                                }
+                            }
+                        }
+                    }
+                });
+
+                updateDots();
+            }
+
+            buildDots();
+            renderChart(activeIndex);
+
+            if (prevBtn) prevBtn.addEventListener('click', () => renderChart(activeIndex - 1));
+            if (nextBtn) nextBtn.addEventListener('click', () => renderChart(activeIndex + 1));
+            window.addEventListener('resize', () => renderChart(activeIndex));
+        })();
+    </script>
 
     <script>
         (function(){
@@ -155,7 +300,7 @@
                     if (resp.ok || resp.status === 201) {
                         const href = (data && data.reportUrl) ? `${basePrefix}${data.reportUrl}` : '';
                         const openNow = href ? `<div class="email-inline-link"><a href="${href}" class="primary-btn">Open your report now</a></div>` : '';
-                        message.innerHTML = `<div class="form-message success">Success! Check your email – we just sent your luxury report link.${openNow}</div>`;
+                        message.innerHTML = `<div class="form-message success">Success! Check your email  we just sent your luxury report link.${openNow}</div>`;
                         form.reset();
                     } else {
                         message.innerHTML = `<div class="form-message error">${data.error || 'Request failed'}</div>`;
