@@ -79,6 +79,20 @@
         (function(){
             if (typeof Chart === 'undefined') return;
 
+            const angledTickDefaults = {
+                maxRotation: 48,
+                minRotation: 48,
+                autoSkipPadding: 12,
+                align: 'end'
+            };
+
+            ['category', 'time', 'timeseries'].forEach((scaleKey) => {
+                Chart.defaults.scales = Chart.defaults.scales || {};
+                const scale = Chart.defaults.scales[scaleKey] = Chart.defaults.scales[scaleKey] || {};
+                const existing = scale.ticks || {};
+                scale.ticks = Object.assign({}, existing, angledTickDefaults);
+            });
+
             const chartSets = [
                 {
                     eyebrow: 'National View',
