@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const bcrypt = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
 let nodemailer = null;
 try { nodemailer = require('nodemailer'); } catch (_) { /* optional */ }
 require('dotenv').config();
@@ -9,6 +10,7 @@ const { testConnection, dbQueries, pool } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const luxuryApiPrefixes = ['', '/luxury'];
 
 // Middleware
 app.use(cors());
@@ -17,6 +19,26 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from public directory
 app.use(express.static('public'));
+
+const signupEmailLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 1,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      error: 'Too many signup requests. Please wait a minute before trying again.'
+    });
+  }
+});
+
+const isValidEmail = (value) => {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (trimmed.length < 5 || trimmed.length > 254) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+};
 
 // Basic route - serve the landing page
 app.get('/', (req, res) => {
@@ -46,6 +68,69 @@ app.get('/reports/:urlSlug', (req, res) => {
 // Retrieve page (future: enter last_name-report_id)
 app.get('/retrieve', (req, res) => {
   res.sendFile(__dirname + '/public/retrieve.html');
+});
+
+const handleLuxurySignupEmail = async (req, res) => {
+  try {
+    const rawEmail = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+    if (!isValidEmail(rawEmail)) {
+      return res.status(400).json({
+        success: false,
+        error: 'A valid email address is required.'
+      });
+    }
+
+    const normalizedEmail = rawEmail.toLowerCase();
+    let reportId;
+    let reportUrl;
+    let firstName = '';
+    let lastName = '';
+    let createdNew = false;
+
+    const existing = await dbQueries.getLatestReportByEmail(normalizedEmail, 1);
+    if (existing && existing.rowCount > 0) {
+      const row = existing.rows[0];
+      reportId = row.report_id;
+      reportUrl = row.report_url;
+      firstName = row.first_name || '';
+      lastName = row.last_name || '';
+    } else {
+      createdNew = true;
+      const created = await dbQueries.createEmailOnlyReport(normalizedEmail);
+      reportId = created.reportId;
+      reportUrl = created.reportUrl;
+    }
+
+    try {
+      await sendReportEmail({
+        toEmail: normalizedEmail,
+        firstName,
+        lastName,
+        reportUrl,
+        reportId,
+        emailType: 'created'
+      });
+    } catch (mailErr) {
+      console.error('Luxury signup email send failed:', mailErr.message || mailErr);
+    }
+
+    res.status(createdNew ? 201 : 200).json({
+      success: true,
+      reportUrl,
+      reportId
+    });
+  } catch (error) {
+    console.error('Error handling luxury signup email:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process signup request',
+      message: error.message
+    });
+  }
+};
+
+luxuryApiPrefixes.forEach((prefix) => {
+  app.post(`${prefix}/api/luxury/signup-email`, signupEmailLimiter, handleLuxurySignupEmail);
 });
 
 // Health check endpoint

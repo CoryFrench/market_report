@@ -55,6 +55,46 @@ const dbQueries = {
     return await query(baseQuery);
   },
 
+  // Create a minimal record when only email is supplied (luxury signup flow)
+  createEmailOnlyReport: async (email) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const insertBasic = `
+        INSERT INTO customer.report_basic (agent_name, first_name, last_name, email, created_at, last_updated)
+        VALUES ($1, $2, $3, LOWER($4), NOW(), NOW())
+        RETURNING report_id, last_name, created_at
+      `;
+      const local = String(email || '').split('@')[0] || 'client';
+      const cleanLast = local.toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+      const result = await client.query(insertBasic, [
+        'Waterfront Properties',
+        '',
+        cleanLast,
+        String(email || '').trim().toLowerCase()
+      ]);
+
+      const reportId = result.rows[0].report_id;
+      const createdAt = result.rows[0].created_at;
+      const reportUrl = `/reports/${cleanLast}-${reportId}`;
+      await client.query(
+        'UPDATE customer.report_basic SET report_url = $1 WHERE report_id = $2',
+        [reportUrl, reportId]
+      );
+
+      await client.query('COMMIT');
+      return { reportId, reportUrl, createdAt };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
   // Fetch the most recent active portal credential for admin validation
   getActivePortalCredential: async () => {
     const queryText = `
