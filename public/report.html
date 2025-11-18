@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Professional Area Analysis Report</title>
-    <link rel="stylesheet" href="/luxury/styles.css">
-    <link rel="icon" type="image/png" href="/luxury/logo.png">
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" type="image/png" href="/logo.png">
     <!-- Chart.js for interactive charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
@@ -133,8 +133,8 @@
         (function(){
             const p = window.location.pathname || '/';
             const firstSeg = '/' + (p.split('/')[1] || '');
-            if (firstSeg === '/luxury') {
-                window.API_BASE = '/luxury/api';
+            if (firstSeg === '/wealth') {
+                window.API_BASE = '/wealth/api';
             } else if (firstSeg === '/report') {
                 window.API_BASE = '/report/api';
             } else {
@@ -460,7 +460,7 @@
                     <div class="header-value" id="agentName">Agent Name</div>
                 </div>
                 <div class="header-logo">
-                    <img id="headerLogo" src="/luxury/logo.png" alt="Logo" />
+                    <img id="headerLogo" src="/logo.png" alt="Logo" />
                 </div>
                 <div class="header-item">
                     <div class="header-label">Prepared for</div>
@@ -487,7 +487,7 @@
             </div>
             <div id="reportContent" style="display: none; flex-direction: column; gap: 24px;">
 
-                <div class="section" id="wealth-migration-section" style="order: 0;">
+                <div class="section" id="wealth-migration-section" style="order: 5;">
                     <h2>Wealth Migration</h2>
                     <div class="section-content">
                         <div class="wealth-migration-card">
@@ -537,7 +537,7 @@
                     </div>
                 </div>
 
-                <div class="section" id="national-section" style="order: 5;">
+                <div class="section" id="national-section" style="order: 0;">
                     <h2>National Charts</h2>
                     <div class="section-content">
                         <div id="fredChartsContent" style="display: flex; gap: 20px; flex-wrap: wrap;">
