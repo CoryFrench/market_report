@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Get Your Luxury Report</title>
+    <title>Get Your Wealth Migration Report</title>
     <script>(function(){try{var p=location.pathname||'/';var first='/' + (p.split('/')[1]||'');var basePrefix=(first==='\/luxury')?first:'';if(basePrefix){var b=document.createElement('base');b.setAttribute('href', basePrefix + '/');document.head.appendChild(b);}}catch(_){}})();</script>
     <link rel="stylesheet" href="/luxury/styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -18,9 +18,9 @@
             <div class="signup-shell">
                 <div class="email-card">
                     <div class="email-header">
-                        <p class="email-eyebrow">Luxury Report Request</p>
-                        <h1>Create Your Luxury Report</h1>
-                        <p>Enter your email to unlock your personalized luxury market briefing in seconds.</p>
+                        <p class="email-eyebrow">Wealth Migration Report Request</p>
+                        <h1>Create Your Wealth Migration Report</h1>
+                        <p>Enter your email to unlock your personalized wealth migration market briefing in seconds.</p>
                     </div>
 
                     <form id="emailForm" class="email-form">
@@ -69,7 +69,7 @@
             </div>
             <div class="footer">
                 <div class="footer-content">
-                    <p>&copy; 2025 Luxury Report by Waterfront Properties. All rights reserved.</p>
+                    <p>&copy; 2025 Wealth Migration Report by Waterfront Properties. All rights reserved.</p>
                 </div>
             </div>
         </div>
@@ -314,7 +314,7 @@
                     if (resp.ok || resp.status === 201) {
                         const href = (data && data.reportUrl) ? `${basePrefix}${data.reportUrl}` : '';
                         const openNow = href ? `<div class="email-inline-link"><a href="${href}" class="primary-btn">Open your report now</a></div>` : '';
-                        message.innerHTML = `<div class="form-message success">Success! Check your email  we just sent your luxury report link.${openNow}</div>`;
+                        message.innerHTML = `<div class="form-message success">Success! Check your email  we just sent your wealth migration report link.${openNow}</div>`;
                         form.reset();
                     } else {
                         message.innerHTML = `<div class="form-message error">${data.error || 'Request failed'}</div>`;
