@@ -93,32 +93,105 @@
                 scale.ticks = Object.assign({}, existing, angledTickDefaults);
             });
 
+            const DEFAULT_SERIES_COLORS = ['#0ea5e9', '#f97316', '#10b981', '#a855f7', '#ef4444', '#6366f1'];
+
+            function buildDatasets(seriesList, fallbackColor) {
+                const palette = DEFAULT_SERIES_COLORS;
+                const validSeries = Array.isArray(seriesList) && seriesList.length ? seriesList : [{
+                    label: 'Data',
+                    data: [],
+                    color: fallbackColor || palette[0]
+                }];
+
+                return validSeries.map((series, idx) => {
+                    const color = series.color || fallbackColor || palette[idx % palette.length];
+                    return {
+                        label: series.label || `Series ${idx + 1}`,
+                        data: Array.isArray(series.data) ? series.data : [],
+                        borderColor: color,
+                        backgroundColor: color,
+                        borderWidth: 3,
+                        tension: 0.35,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#ffffff',
+                        pointBorderColor: color,
+                        fill: false,
+                        spanGaps: true
+                    };
+                });
+            }
+
             const chartSets = [
                 {
                     eyebrow: 'National View',
                     title: 'Housing Price Index',
                     subtitle: 'USSTHPI &bull; Case-Shiller',
-                    color: '#fbbf24',
                     labels: ['2023 Q1','2023 Q2','2023 Q3','2023 Q4','2024 Q1','2024 Q2','2024 Q3','2024 Q4','2025 Q1','2025 Q2'],
-                    values: [621.64,640.12,651.30,652.82,661.67,678.23,685.61,688.82,693.70,703.91],
+                    series: [
+                        {
+                            label: 'Housing Price Index',
+                            color: '#fbbf24',
+                            data: [621.64,640.12,651.30,652.82,661.67,678.23,685.61,688.82,693.70,703.91]
+                        }
+                    ],
                     valueType: 'index'
                 },
                 {
-                    eyebrow: 'Palm Beach County, FL',
-                    title: 'Average Listing Price',
-                    subtitle: 'Residential inventory &bull; Realtor.com',
-                    color: '#c53030',
-                    labels: ['2024 Nov','2024 Dec','2025 Jan','2025 Feb','2025 Mar','2025 Apr','2025 May','2025 Jun','2025 Jul','2025 Aug','2025 Sep','2025 Oct'],
-                    values: [1381086,1401376,1436671,1442576,1435133,1410281,1402081,1329093,1289986,1291828,1330207,1403587],
+                    eyebrow: 'Coastal County Comparison',
+                    title: 'Avg Price per Square Foot',
+                    subtitle: 'Realtor.com county data &bull; last 36 months',
+                    labels: ['2022 Nov','2022 Dec','2023 Jan','2023 Feb','2023 Mar','2023 Apr','2023 May','2023 Jun','2023 Jul','2023 Aug','2023 Sep','2023 Oct','2023 Nov','2023 Dec','2024 Jan','2024 Feb','2024 Mar','2024 Apr','2024 May','2024 Jun','2024 Jul','2024 Aug','2024 Sep','2024 Oct','2024 Nov','2024 Dec','2025 Jan','2025 Feb','2025 Mar','2025 Apr','2025 May','2025 Jun','2025 Jul','2025 Aug','2025 Sep','2025 Oct'],
+                    series: [
+                        {
+                            label: 'Los Angeles County',
+                            color: '#ef4444',
+                            data: [592.0,592.0,601.0,616.0,628.0,649.0,660.0,663.0,668.0,655.0,662.0,660.0,657.0,650.0,653.0,663.0,665.0,669.0,685.0,682.0,673.0,664.0,659.0,659.0,655.0,650.0,648.0,662.0,667.0,664.0,661.0,653.0,646.0,637.0,638.0,636.0]
+                        },
+                        {
+                            label: 'Miami-Dade County',
+                            color: '#10b981',
+                            data: [507.0,511.0,515.0,531.0,542.0,559.0,562.0,564.0,559.0,557.0,553.0,549.0,542.0,537.0,532.0,524.0,522.0,520.0,521.0,513.0,505.0,501.0,490.0,493.0,493.0,496.0,493.0,492.0,492.0,487.0,483.0,475.0,472.0,467.0,465.0,466.0]
+                        },
+                        {
+                            label: 'Palm Beach County',
+                            color: '#2563eb',
+                            data: [326.0,327.0,329.0,331.0,332.0,338.0,339.0,341.0,341.0,340.0,341.0,346.0,346.0,342.0,339.0,336.0,329.0,325.0,322.0,317.0,315.0,312.0,312.0,313.0,316.0,316.0,317.0,314.0,313.0,312.0,310.0,307.0,304.0,302.0,302.0,306.0]
+                        },
+                        {
+                            label: 'New York County',
+                            color: '#a855f7',
+                            data: [1563.0,1596.0,1627.0,1607.0,1593.0,1570.0,1572.0,1567.0,1548.0,1550.0,1547.0,1532.0,1530.0,1550.0,1565.0,1562.0,1545.0,1542.0,1530.0,1527.0,1529.0,1534.0,1538.0,1544.0,1533.0,1537.0,1549.0,1535.0,1508.0,1508.0,1498.0,1479.0,1477.0,1481.0,1475.0,1491.0]
+                        }
+                    ],
                     valueType: 'currency'
                 },
                 {
-                    eyebrow: 'Jupiter, FL',
-                    title: 'Average Listing Price',
-                    subtitle: 'Zip 33477 &bull; Realtor.com',
-                    color: '#2563eb',
-                    labels: ['2024 Nov','2024 Dec','2025 Jan','2025 Feb','2025 Mar','2025 Apr','2025 May','2025 Jun','2025 Jul','2025 Aug','2025 Sep','2025 Oct'],
-                    values: [744900,754500,749825,722000,725000,727000,754500,727500,730000,699000,699950,722000],
+                    eyebrow: 'Luxury ZIP Benchmarks',
+                    title: 'Avg Price per Square Foot',
+                    subtitle: 'Realtor.com ZIP data &bull; last 36 months',
+                    labels: ['2022 Nov','2022 Dec','2023 Jan','2023 Feb','2023 Mar','2023 Apr','2023 May','2023 Jun','2023 Jul','2023 Aug','2023 Sep','2023 Oct','2023 Nov','2023 Dec','2024 Jan','2024 Feb','2024 Mar','2024 Apr','2024 May','2024 Jun','2024 Jul','2024 Aug','2024 Sep','2024 Oct','2024 Nov','2024 Dec','2025 Jan','2025 Feb','2025 Mar','2025 Apr','2025 May','2025 Jun','2025 Jul','2025 Aug','2025 Sep','2025 Oct'],
+                    series: [
+                        {
+                            label: '10007 (New York, NY)',
+                            color: '#ef4444',
+                            data: [2221.0,2189.0,2198.0,2153.0,2140.0,2070.0,2054.0,1993.0,2029.0,2089.0,2085.0,2042.0,2127.0,2127.0,2279.0,2168.0,2209.0,2176.0,2163.0,2173.0,2167.0,2165.0,2099.0,2097.0,2159.0,2094.0,2107.0,2139.0,2113.0,2112.0,2118.0,2139.0,2175.0,2195.0,2199.0,2238.0]
+                        },
+                        {
+                            label: '33109 (Miami Beach, FL)',
+                            color: '#10b981',
+                            data: [2202.0,2207.0,2346.0,2343.0,2343.0,2310.0,2226.0,2098.0,2131.0,2188.0,2175.0,2202.0,2323.0,2448.0,2599.0,3042.0,3226.0,3212.0,3208.0,3031.0,3077.0,3059.0,3053.0,3029.0,3028.0,3005.0,2995.0,3018.0,3028.0,3028.0,3208.0,3067.0,2962.0,2962.0,2917.0,2906.0]
+                        },
+                        {
+                            label: '33477 (Jupiter, FL)',
+                            color: '#2563eb',
+                            data: [609.0,594.0,580.0,568.0,560.0,550.0,560.0,564.0,580.0,575.0,584.0,587.0,571.0,566.0,560.0,531.0,534.0,533.0,533.0,516.0,522.0,528.0,526.0,513.0,504.0,512.0,517.0,509.0,503.0,501.0,527.0,525.0,526.0,516.0,518.0,521.0]
+                        },
+                        {
+                            label: '90274 (Palos Verdes, CA)',
+                            color: '#a855f7',
+                            data: [953.0,972.0,1006.0,961.0,980.0,1000.0,1040.0,1040.0,1000.0,1004.0,1007.0,1002.0,1027.0,1005.0,1016.0,1061.0,1202.0,1149.0,1146.0,1128.0,1137.0,1116.0,1080.0,1056.0,1032.0,1032.0,1042.0,1047.0,994.0,1012.0,1000.0,1008.0,1002.0,911.0,942.0,915.0]
+                        }
+                    ],
                     valueType: 'currency'
                 }
             ];
@@ -222,26 +295,29 @@
                     chartInstance.destroy();
                 }
 
+                const dataSeries = (dataset.series && dataset.series.length)
+                    ? dataset.series
+                    : [{
+                        label: dataset.title,
+                        data: dataset.values || [],
+                        color: dataset.color
+                    }];
+
+                const numericValues = dataSeries
+                    .flatMap((series) => Array.isArray(series.data) ? series.data : [])
+                    .filter((value) => typeof value === 'number' && !Number.isNaN(value));
+
+                const formatterValues = numericValues.length ? numericValues : [0];
+
                 const formatterFactory = dataset.valueType === 'currency'
-                    ? createCurrencyFormatters(dataset.values)
-                    : createIndexFormatters(dataset.values);
+                    ? createCurrencyFormatters(formatterValues)
+                    : createIndexFormatters(formatterValues);
 
                 chartInstance = new Chart(chartCanvas, {
                     type: 'line',
                     data: {
                         labels: dataset.labels,
-                        datasets: [{
-                            label: dataset.title,
-                            data: dataset.values,
-                            borderColor: dataset.color,
-                            backgroundColor: dataset.color,
-                            borderWidth: 3,
-                            tension: 0.35,
-                            pointRadius: 4,
-                            pointBackgroundColor: '#ffffff',
-                            pointBorderColor: dataset.color,
-                            fill: false
-                        }]
+                        datasets: buildDatasets(dataSeries, dataset.color)
                     },
                     options: {
                         responsive: false,
@@ -264,10 +340,13 @@
                             }
                         },
                         plugins: {
-                            legend: { display: false },
+                            legend: { display: dataSeries.length > 1 },
                             tooltip: {
                                 callbacks: {
-                                    label: (ctx) => formatterFactory.formatTooltip(ctx.parsed.y)
+                                    label: (ctx) => {
+                                        const label = ctx.dataset?.label ? `${ctx.dataset.label}: ` : '';
+                                        return label + formatterFactory.formatTooltip(ctx.parsed.y);
+                                    }
                                 }
                             }
                         }
