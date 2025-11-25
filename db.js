@@ -1531,8 +1531,44 @@ const dbQueries = {
 
   // Agent directory for signup page
   getAgentEmails: async () => {
-    const primaryQuery = `
-      SELECT email FROM (
+    const directoryQuery = `
+      WITH directory AS (
+        SELECT DISTINCT ON (LOWER(email))
+               id,
+               TRIM(email) AS email,
+               NULLIF(TRIM(full_name), '') AS full_name
+        FROM microservices.directory_agents
+        WHERE email IS NOT NULL
+          AND TRIM(email) <> ''
+        ORDER BY LOWER(email), id DESC
+      )
+      SELECT
+        id,
+        email,
+        full_name,
+        COALESCE(full_name, INITCAP(SPLIT_PART(email, '@', 1))) AS display_name
+      FROM directory
+      ORDER BY
+        CASE WHEN full_name IS NULL OR full_name = '' THEN 1 ELSE 0 END,
+        LOWER(COALESCE(full_name, email)),
+        LOWER(email)
+    `;
+
+    try {
+      const directoryResult = await query(directoryQuery);
+      if (directoryResult.rowCount > 0) {
+        return directoryResult;
+      }
+    } catch (directoryErr) {
+      console.error('Agent directory lookup failed, attempting fallback:', directoryErr.message || directoryErr);
+    }
+
+    // Fallback to legacy user directory (emails only) to keep form usable
+    const fallbackQuery = `
+      SELECT email,
+             NULL AS full_name,
+             NULL AS display_name
+      FROM (
         SELECT DISTINCT TRIM(email) AS email
         FROM utils.user_details
         WHERE email IS NOT NULL
@@ -1540,26 +1576,8 @@ const dbQueries = {
       ) t
       ORDER BY LOWER(email)
     `;
-    try {
-      return await query(primaryQuery);
-    } catch (primaryErr) {
-      console.error('Primary agent lookup failed, attempting fallback:', primaryErr.message || primaryErr);
-      const fallbackQuery = `
-        SELECT email FROM (
-          SELECT DISTINCT TRIM(email) AS email
-          FROM microservices.directory_agents
-          WHERE email IS NOT NULL
-            AND TRIM(email) <> ''
-        ) t
-        ORDER BY LOWER(email)
-      `;
-      try {
-        return await query(fallbackQuery);
-      } catch (fallbackErr) {
-        console.error('Fallback agent lookup failed:', fallbackErr.message || fallbackErr);
-        throw primaryErr;
-      }
-    }
+
+    return await query(fallbackQuery);
   }
   ,
 

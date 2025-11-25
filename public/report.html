@@ -2621,6 +2621,15 @@
                         y: {
                             grid: {
                                 display: false
+                            },
+                            // Keep every county label visible and upright only for wealth migration rows
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 0,
+                                minRotation: 0,
+                                font: {
+                                    style: 'normal'
+                                }
                             }
                         }
                     }

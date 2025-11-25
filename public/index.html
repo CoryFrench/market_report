@@ -20,9 +20,9 @@
 
             <form id="reportForm">
                 <div class="form-group" id="agentNameGroup">
-                    <label for="agentName">Agent Email *</label>
+                    <label for="agentName">Agent Name *</label>
                     <select id="agentName" name="agentName" required>
-                        <option value="">Loading agent emails...</option>
+                        <option value="">Loading agents...</option>
                     </select>
                 </div>
 
@@ -156,18 +156,22 @@
                 if (!resp.ok) throw new Error(`Failed to load agents (${resp.status})`);
                 const json = await resp.json();
                 const agents = Array.isArray(json?.data) ? json.data : [];
-                agentNameInput.innerHTML = '<option value="">Select an agent email</option>';
+                agentNameInput.innerHTML = '<option value="">Select an agent</option>';
                 agents.forEach(row => {
                     const email = String(row?.email || '').trim();
                     if (!email) return;
+                    const fullName = String(row?.full_name || '').trim();
+                    const fallbackDisplay = String(row?.display_name || '').trim();
+                    const label = fullName || fallbackDisplay || email;
                     const opt = document.createElement('option');
                     opt.value = email;
-                    opt.textContent = email;
+                    opt.textContent = label;
+                    opt.title = email;
                     agentNameInput.appendChild(opt);
                 });
             } catch (err) {
-                console.error('Error loading agent emails:', err);
-                agentNameInput.innerHTML = '<option value="">Unable to load agent emails</option>';
+                console.error('Error loading agent names:', err);
+                agentNameInput.innerHTML = '<option value="">Unable to load agent list</option>';
                 agentNameInput.required = false;
             }
         }
