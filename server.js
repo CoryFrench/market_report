@@ -2346,6 +2346,7 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
     const query = `
       WITH deduplicated_mls AS (
         SELECT 
+          mls.listing_id,
           mls.parcel_id,
           mls.waterfrontage,
           mls.status,
@@ -2380,6 +2381,7 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
           t.sales_price_1,
           t.land_use_description,
           COALESCE(mls.waterfrontage, NULL) AS waterfrontage,
+          mls.listing_id,
           mls.status AS mls_status,
           mls.status_change_date AS mls_status_change_date,
           mls.sold_date AS mls_sold_date
@@ -2414,6 +2416,7 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
           MAX(sales_price_1)                 FILTER (WHERE sales_price_1 IS NOT NULL)                 AS sales_price_1,
           MAX(land_use_description)          FILTER (WHERE land_use_description IS NOT NULL)          AS land_use_description,
           MAX(waterfrontage)                 FILTER (WHERE waterfrontage IS NOT NULL)                 AS waterfrontage,
+          MAX(listing_id)                    FILTER (WHERE listing_id IS NOT NULL)                    AS listing_id,
           MAX(mls_status)                    FILTER (WHERE mls_status IS NOT NULL)                    AS mls_status,
           MAX(mls_status_change_date)        FILTER (WHERE mls_status_change_date IS NOT NULL)        AS mls_status_change_date,
           MAX(mls_sold_date)                 FILTER (WHERE mls_sold_date IS NOT NULL)                 AS mls_sold_date
@@ -2441,6 +2444,7 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
         sales_price_1,
         land_use_description,
         waterfrontage,
+        listing_id,
         mls_status,
         mls_status_change_date,
         mls_sold_date,
@@ -2464,6 +2468,7 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
         sales_price_1,
         land_use_description,
         waterfrontage,
+        listing_id,
         mls_status,
         mls_status_change_date,
         mls_sold_date
@@ -2505,6 +2510,7 @@ app.get('/api/development-parcels/:developmentName', async (req, res) => {
         last_sale_date: row.sales_date_1,
         last_sale_price: row.sales_price_1,
         land_use_description: row.land_use_description,
+        listing_id: row.listing_id,
         waterfrontage: row.waterfrontage,
         mls_status: row.mls_status,
         mls_status_change_date: row.mls_status_change_date,

@@ -4526,11 +4526,22 @@
                                 bathrooms = `${full} full`;
                             }
                         }
-                        
+
+                        const listingIdRaw = String(props.listing_id || '').trim();
+                        const listingIdLink = listingIdRaw
+                            ? `https://www.waterfront-properties.com/listing/${listingIdRaw.toLowerCase()}`
+                            : '';
+                        const showListingLink = listingIdRaw.length > 0
+                            && String(props.mls_status || '').trim().toLowerCase() === 'active';
+                        const listingLinkHtml = showListingLink
+                            ? `<div style="margin-bottom: 8px;"><strong>Listing ID:</strong> <a href="${listingIdLink}" target="_blank" rel="noopener" style="color:#1d4ed8; text-decoration:underline;">${listingIdRaw}</a></div>`
+                            : '';
+
                         popupContent = `
                             <div style="min-width: 280px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.4;">
                                 <div style="margin-bottom: 8px;"><strong>Address:</strong> ${address}</div>
                                 <div style="margin-bottom: 8px;"><strong>Parcel ID:</strong> ${props.property_control_number || 'N/A'}</div>
+                                ${listingLinkHtml}
                                 <div style="margin-bottom: 8px;"><strong>Year Built:</strong> ${props.year_built || 'N/A'}</div>
                                 <div style="margin-bottom: 8px;"><strong>Development:</strong> ${props.development_name || 'N/A'}</div>
                                 <div style="margin-bottom: 8px;"><strong>Subdivision:</strong> ${props.subdivision_name || 'N/A'}</div>
