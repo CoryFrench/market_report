@@ -191,24 +191,27 @@
             UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia',
             WI: 'Wisconsin', WY: 'Wyoming', DC: 'District of Columbia'
         };
-        const DEFAULT_WEALTH_MIGRATION_STATE = 'Florida';
+        const DEFAULT_WEALTH_MIGRATION_STATE = 'New York';
+        const DEFAULT_WEALTH_MIGRATION_STATE_FIPS = '36';
+        const DEFAULT_WEALTH_MIGRATION_COUNTY_NAME = 'New York County';
+        const DEFAULT_WEALTH_MIGRATION_COUNTY_CODE = '061';
         const WEALTH_MIGRATION_LIMIT = 15;
         let wealthMigrationChartInstance = null;
-        let wealthMigrationDirection = 'inflow';
+        let wealthMigrationDirection = 'outflow';
         let wealthMigrationState = DEFAULT_WEALTH_MIGRATION_STATE;
-        let wealthMigrationCountyFips = null;
-        let wealthMigrationCountyName = '';
+        let wealthMigrationCountyFips = `${DEFAULT_WEALTH_MIGRATION_STATE_FIPS || ''}${DEFAULT_WEALTH_MIGRATION_COUNTY_CODE || ''}`.replace(/^\s+|\s+$/g, '') || null;
+        let wealthMigrationCountyName = DEFAULT_WEALTH_MIGRATION_COUNTY_NAME;
         let wealthMigrationPayload = {
             stateName: DEFAULT_WEALTH_MIGRATION_STATE,
-            countyName: '',
-            countyFips: null,
+            countyName: DEFAULT_WEALTH_MIGRATION_COUNTY_NAME,
+            countyFips: wealthMigrationCountyFips,
             latestYear: null,
             inflow: [],
             outflow: []
         };
         let wealthMigrationStateOptions = [];
         let wealthMigrationStateLookup = new Map();
-        let wealthMigrationStateFips = '12';
+        let wealthMigrationStateFips = DEFAULT_WEALTH_MIGRATION_STATE_FIPS;
         const WEALTH_MIGRATION_EXCLUDE_PATTERNS = [
             /non-?migrant/i,
             /total migration\s*-\s*same state/i,
@@ -510,8 +513,8 @@
                                     <p class="wealth-migration-subtitle" id="wealthMigrationYear">Awaiting data</p>
                                 </div>
                                 <div class="wealth-migration-toggle" role="group" aria-label="Select migration direction">
-                                    <button type="button" class="wealth-toggle-btn active" data-direction="inflow">Inbound</button>
-                                    <button type="button" class="wealth-toggle-btn" data-direction="outflow">Outbound</button>
+                                    <button type="button" class="wealth-toggle-btn" data-direction="inflow">Inbound</button>
+                                    <button type="button" class="wealth-toggle-btn active" data-direction="outflow">Outbound</button>
                                 </div>
                             </div>
                             <div class="wealth-migration-body">
@@ -708,7 +711,7 @@
                     </div>
                 </div>
 
-                <div class="section" id="neighbourhood-section" style="order: 4;">
+                <div class="section" id="neighbourhood-section" style="order: 2;">
                     <h2 style="text-align: center;">Neighbourhood Charts</h2>
                     <div class="section-content">
                         <!-- Development Comparison Interface -->
@@ -772,7 +775,7 @@
                 </div>
 
                 <!-- ZIP Insights (realtor.com ZIP-level) -->
-                <div class="section" id="county-insights-section" style="display: none; order: 3;">
+                <div class="section" id="county-insights-section" style="display: none; order: 4;">
                     <h2>ZIP Insights</h2>
                     <div class="section-content">
                         <div class="chart-section" id="county-insights" style="display: none;">
@@ -820,7 +823,7 @@
                     </div>
                 </div>
 
-                <div class="section" id="county-section" style="order: 2;">
+                <div class="section" id="county-section" style="order: 3;">
                     <h2>County Charts</h2>
                     <div class="section-content">
                         <div id="chartsContent">
@@ -2291,7 +2294,7 @@
                 return;
             }
 
-            const preferredStateName = determineStateForWealthMigration(reportData);
+            const preferredStateName = DEFAULT_WEALTH_MIGRATION_STATE;
             const defaultStateOption = resolveWealthMigrationStateOption(preferredStateName);
 
             stateSelect.innerHTML = states.map(option => `
@@ -2323,8 +2326,8 @@
 
             await loadWealthMigrationCounties(
                 wealthMigrationStateFips,
-                reportData?.county || reportData?.county_name || '',
-                reportData?.county_fips
+                reportData?.county || reportData?.county_name || DEFAULT_WEALTH_MIGRATION_COUNTY_NAME,
+                reportData?.county_fips || `${DEFAULT_WEALTH_MIGRATION_STATE_FIPS}${DEFAULT_WEALTH_MIGRATION_COUNTY_CODE}`
             );
         }
 
@@ -2385,11 +2388,17 @@
                 if (!selectedCountyCode && wealthMigrationCountyFips?.startsWith(stateFips)) {
                     selectedCountyCode = wealthMigrationCountyFips.slice(-3);
                 }
-                if (!selectedCountyCode) {
-                    const palmBeach = Array.from(countySelect.options).find(option =>
-                        option.textContent === 'Palm Beach County'
+                if (!selectedCountyCode && stateFips === DEFAULT_WEALTH_MIGRATION_STATE_FIPS) {
+                    const defaultCountyNormalized = normalizeCountyLabel(DEFAULT_WEALTH_MIGRATION_COUNTY_NAME);
+                    const defaultCountyOption = Array.from(countySelect.options).find(option =>
+                        normalizeCountyLabel(option.textContent) === defaultCountyNormalized
                     );
-                    selectedCountyCode = palmBeach?.value || countySelect.options[1]?.value || '';
+                    if (defaultCountyOption) {
+                        selectedCountyCode = defaultCountyOption.value;
+                    }
+                }
+                if (!selectedCountyCode) {
+                    selectedCountyCode = countySelect.options[1]?.value || countySelect.options[0]?.value || '';
                 }
 
                 countySelect.value = selectedCountyCode;
