@@ -1046,14 +1046,11 @@ body {
 
 /* Luxury FRED Comparison Styles for Areas of Interest */
 .fred-comparison-container {
+    background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     width: 100%;
-    padding: 0;
-    background: transparent;
-    border-radius: 0;
-    box-shadow: none;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
 }
 
 .comparison-controls {
