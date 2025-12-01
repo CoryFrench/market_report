@@ -661,7 +661,7 @@
                                         Subdivision details
                                     </div>
                                     <!-- Address Lookup (RentCast-backed) -->
-                                    <form id="homeLookupForm" style="display: grid; grid-template-columns: repeat(2, minmax(140px, 1fr)); gap: 10px; align-items: end; margin-top: 6px;">
+                                    <form id="homeLookupForm" class="home-lookup-grid" style="margin-top: 6px;">
                                         <div style="grid-column: 1 / -1;">
                                             <label for="hl_address" style="display:block; font-size:12px; color:#7f8c8d; margin-bottom:4px;">Address</label>
                                             <input id="hl_address" name="address" type="text" placeholder="123 Main St" style="width:100%; padding:10px 12px; border:1px solid #dee2e6; border-radius:8px;" />
@@ -1308,7 +1308,7 @@
                                             <div style="flex:1;">${addressHtml}</div>
                                         </div>
                                         <div style="height:1px; background:#e9ecef; margin:10px 0 14px 0;"></div>
-                                        <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
+                                        <div class="home-detail-grid">
                                             <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${bedrooms}</strong></div>
                                             <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${livingSqFt}</strong></div>
                                             <div><span style=\"color:#7f8c8d\">🛁 Bath:</span> <strong>${fullBaths}</strong></div>
@@ -1366,7 +1366,7 @@
                                                 };
                                                 detailsCard.innerHTML = `
                                                     <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
-                                                        <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
+                                                        <div class="home-detail-grid">
                                                             <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
                                                             <div><span style=\"color:#7f8c8d\">🛁 Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
                                                             <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
@@ -1446,7 +1446,7 @@
                         };
                         detailsCard.innerHTML = `
                             <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
-                                <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
+                                <div class="home-detail-grid">
                                     <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
                                     <div><span style=\"color:#7f8c8d\">🛁 Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
                                     <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>
@@ -1550,7 +1550,7 @@
                         };
                         const card = `
                             <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 16px;">
-                                <div style="display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 12px; align-items: center;">
+                                <div class="home-detail-grid">
                                     <div><span style=\"color:#7f8c8d\">🛏️ Bedrooms:</span> <strong>${fmtQty(p.bedrooms)}</strong></div>
                                     <div><span style=\"color:#7f8c8d\">🛁 Bathrooms:</span> <strong>${fmtQty(p.bathrooms)}</strong></div>
                                     <div><span style=\"color:#7f8c8d\">📐 Living SqFt:</span> <strong>${fmtQty(p.squareFootage)}</strong></div>

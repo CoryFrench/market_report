@@ -1086,6 +1086,7 @@ body {
     align-items: center;
     gap: 10px;
     margin-left: auto;
+    flex-wrap: wrap;
 }
 
 .chart-indicator-control label {
@@ -1095,21 +1096,29 @@ body {
     white-space: nowrap;
 }
 
+.chart-indicator-control select {
+    flex: 1;
+    min-width: 180px;
+    width: 100%;
+    max-width: 100%;
+}
+
 @media (max-width: 768px) {
     .chart-controls {
         flex-direction: column;
         align-items: flex-start;
         gap: 15px;
     }
-    
+
     .chart-indicator-control {
         margin-left: 0;
         width: 100%;
     }
-    
+
     .chart-indicator-control select {
         flex: 1;
         min-width: 0;
+        width: 100%;
     }
 }
 
@@ -1417,6 +1426,12 @@ body {
     max-width: 100%;
 }
 
+#chart-section .chart-container,
+#chart-section #comparison-chart-container,
+#chart-section #dev-comparison-chart-container {
+    overflow: visible;
+}
+
 /* Ensure canvas respects parent clipping */
 #comparison-chart,
 #dev-comparison-chart {
@@ -1574,6 +1589,33 @@ body {
     margin-top: 20px;
     margin-bottom: 0;
     justify-content: flex-start;
+}
+
+.home-lookup-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    align-items: end;
+}
+
+.home-lookup-grid > * {
+    min-width: 0;
+}
+
+.home-lookup-grid button {
+    white-space: nowrap;
+}
+
+.home-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 12px;
+    align-items: center;
+}
+
+.home-detail-grid > div {
+    min-width: 0;
+    word-break: break-word;
 }
 
 .chart-header {
