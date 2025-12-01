@@ -41,6 +41,16 @@ const query = async (text, params) => {
 };
 
 // Database query functions for each table
+const MARKET_TRENDS_TABLES = {
+  waterfront: 'waterfrontdata.market_trends_sfh',
+  condos: 'waterfrontdata.market_trends_condo'
+};
+
+const MARKET_TRENDS_HISTORY_TABLES = {
+  waterfront: 'waterfrontdata.ten_year_trend_data',
+  condos: 'waterfrontdata.ten_year_trend_data_condo'
+};
+
 const dbQueries = {
   // Get all basic report data
   getReportBasic: async (reportId = null) => {
@@ -1627,6 +1637,88 @@ const dbQueries = {
     } finally {
       client.release();
     }
+  },
+
+  getMarketTrendsSnapshot: async (propertyType = 'waterfront', priceRange = 'all') => {
+    const tableName = MARKET_TRENDS_TABLES[propertyType];
+    if (!tableName) {
+      throw new Error('Invalid property type supplied to getMarketTrendsSnapshot');
+    }
+    const result = await query(`
+      SELECT 
+        city as "City", 
+        median_sale_price_last_year as "Median_Sale_Price_Last_Year", 
+        median_sale_price_this_year as "Median_Sale_Price_This_Year", 
+        median_sale_price_percent as "Median_Sale_Price_Percent",
+        total_active_percent as "Total_Active_Percent",
+        total_active_this_year as "Total_Active_This_Year",
+        total_active_last_year as "Total_Active_Last_Year",
+        new_listings_last_year as "New_Listings_Last_Year",
+        new_listings_this_year as "New_Listings_This_Year",
+        new_listings_percent as "New_Listings_Percent",
+        under_contract_last_year as "Number_Under_Contract_Last_Year",
+        under_contract_this_year as "Number_Under_Contract_This_Year",
+        under_contract_percent as "Number_Under_Contract_Percent",
+        number_sold_last_year as "Number_Sold_Last_Year",
+        number_sold_this_year as "Number_Sold_This_Year",
+        number_sold_percent as "Number_Sold_Percent",
+        sold_volume_last_year as "Sold_Volume_Last_Year",
+        sold_volume_this_year as "Sold_Volume_This_Year",
+        sold_volume_percent as "Sold_Volume_Percent"
+      FROM ${tableName}
+      WHERE price_range = $1
+      ORDER BY city
+    `, [priceRange]);
+
+    const lastUpdate = await query(`
+      SELECT sfh_last_update, condo_last_update 
+      FROM waterfrontdata.market_trends_utils 
+      LIMIT 1
+    `);
+
+    const lastModifiedDate = propertyType === 'condos'
+      ? lastUpdate.rows[0]?.condo_last_update
+      : lastUpdate.rows[0]?.sfh_last_update;
+
+    return {
+      rows: result.rows,
+      lastModifiedDate
+    };
+  },
+
+  getMarketTrendsHistory: async (city, propertyType = 'waterfront', priceRange = 'all') => {
+    const tableName = MARKET_TRENDS_HISTORY_TABLES[propertyType];
+    if (!tableName) {
+      throw new Error('Invalid property type supplied to getMarketTrendsHistory');
+    }
+    return await query(`
+      SELECT 
+        city as "City",
+        median_sale_price_last_year as "Median_Sale_Price_Last_Year",
+        median_sale_price_this_year as "Median_Sale_Price_This_Year",
+        median_sale_price_percent as "Median_Sale_Price_Percent",
+        total_active_last_year as "Total_Active_Last_Year",
+        total_active_this_year as "Total_Active_This_Year",
+        total_active_percent as "Total_Active_Percent",
+        new_listings_last_year as "New_Listings_Last_Year",
+        new_listings_this_year as "New_Listings_This_Year",
+        new_listings_percent as "New_Listings_Percent",
+        under_contract_last_year as "Number_Under_Contract_Last_Year",
+        under_contract_this_year as "Number_Under_Contract_This_Year",
+        under_contract_percent as "Number_Under_Contract_Percent",
+        number_sold_last_year as "Number_Sold_Last_Year",
+        number_sold_this_year as "Number_Sold_This_Year",
+        number_sold_percent as "Number_Sold_Percent",
+        sold_volume_last_year as "Sold_Volume_Last_Year",
+        sold_volume_this_year as "Sold_Volume_This_Year",
+        sold_volume_percent as "Sold_Volume_Percent",
+        date as "Date"
+      FROM ${tableName}
+      WHERE city = $1
+        AND price_range = $2
+        AND year BETWEEN 2020 AND 2025
+      ORDER BY date
+    `, [city, priceRange]);
   }
 };
 

@@ -40,6 +40,19 @@ const isValidEmail = (value) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
 };
 
+const MARKET_TRENDS_PROPERTY_TYPES = new Set(['waterfront', 'condos']);
+const MARKET_TRENDS_PRICE_RANGES = new Set(['all', 'under_1m', 'over_3m']);
+
+const normalizeMarketTrendsPropertyType = (value = '') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return MARKET_TRENDS_PROPERTY_TYPES.has(normalized) ? normalized : 'waterfront';
+};
+
+const normalizeMarketTrendsPriceRange = (value = '') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return MARKET_TRENDS_PRICE_RANGES.has(normalized) ? normalized : 'all';
+};
+
 // Basic route - serve the landing page
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
@@ -1945,6 +1958,43 @@ app.get('/api/zip-market', async (req, res) => {
   } catch (error) {
     console.error('Error fetching RentCast market data:', error?.response?.data || error.message || error);
     return res.status(500).json({ success: false, error: 'Failed to fetch RentCast market data', message: error.message });
+  }
+});
+
+// Market Trends snapshot (mirrors dedicated market-trends service)
+app.get('/api/market-trends', async (req, res) => {
+  try {
+    const propertyType = normalizeMarketTrendsPropertyType(req.query.propertyType);
+    const priceRange = normalizeMarketTrendsPriceRange(req.query.priceRange);
+    const result = await dbQueries.getMarketTrendsSnapshot(propertyType, priceRange);
+    return res.json({
+      success: true,
+      data: result.rows || [],
+      lastModifiedDate: result.lastModifiedDate || null
+    });
+  } catch (error) {
+    console.error('Error fetching market trends snapshot:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch market trends data' });
+  }
+});
+
+// Market Trends history for charting
+app.get('/api/market-trends/history/:city', async (req, res) => {
+  const city = String(req.params.city || '').trim();
+  if (city.length === 0) {
+    return res.status(400).json({ success: false, error: 'City is required' });
+  }
+  try {
+    const propertyType = normalizeMarketTrendsPropertyType(req.query.propertyType);
+    const priceRange = normalizeMarketTrendsPriceRange(req.query.priceRange);
+    const result = await dbQueries.getMarketTrendsHistory(city, propertyType, priceRange);
+    return res.json({
+      success: true,
+      data: result.rows || []
+    });
+  } catch (error) {
+    console.error('Error fetching market trends history:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch market trends history' });
   }
 });
 
