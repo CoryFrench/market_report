@@ -58,6 +58,26 @@
             // debug disabled
         }
 
+        let wealthChartLastHeight = null;
+        function sizeWealthChartContainer() {
+            const container = document.getElementById('wealth-migration-chart-container');
+            if (!container) return;
+            const parentWidth = container.parentElement ? container.parentElement.clientWidth : 0;
+            const width = container.clientWidth || parentWidth || window.innerWidth;
+            if (!width || !Number.isFinite(width)) return;
+            const viewportWidth = window.innerWidth || width;
+            const isCompact = viewportWidth <= 520;
+            const isTablet = viewportWidth <= 1024;
+            const ratio = isCompact ? 1.05 : (isTablet ? 1.25 : 1.5);
+            const rawHeight = Math.round(width / ratio);
+            const height = Math.max(240, Math.min(520, rawHeight));
+            if (wealthChartLastHeight !== null && Math.abs(wealthChartLastHeight - height) < 1) {
+                return;
+            }
+            wealthChartLastHeight = height;
+            container.style.height = `${height}px`;
+        }
+
         function getNationalWrappers() {
             const left = document.getElementById('leftChart');
             const right = document.getElementById('rightChart');
@@ -69,10 +89,10 @@
                 const targets = [
                     document.getElementById('comparison-chart-container'),
                     document.getElementById('dev-comparison-chart-container'),
-                    document.getElementById('wealth-migration-chart-container'),
                     ...getNationalWrappers()
                 ].filter(Boolean);
                 targets.forEach(sizeChartContainer);
+                sizeWealthChartContainer();
                 syncWealthMigrationListHeight();
                 // Ask charts to reflow
                 [window.leftChartInstance, window.rightChartInstance, window.comparisonChartInstance, window.developmentChart]
@@ -118,13 +138,13 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            sizeWealthChartContainer();
             updateChartContainers();
             syncWealthMigrationListHeight();
             const ro = new ResizeObserver(() => updateChartContainers());
             const watchEls = [
                 document.getElementById('comparison-chart-container'),
                 document.getElementById('dev-comparison-chart-container'),
-                document.getElementById('wealth-migration-chart-container'),
                 ...getNationalWrappers()
             ].filter(Boolean);
             watchEls.forEach(el => ro.observe(el));
@@ -2609,6 +2629,7 @@
                     fallbackEl.hidden = false;
                     fallbackEl.style.display = 'flex';
                 }
+                sizeWealthChartContainer();
                 syncWealthMigrationListHeight();
                 return;
             }
@@ -2685,6 +2706,7 @@
                     }
                 }
             });
+            sizeWealthChartContainer();
             syncWealthMigrationListHeight();
         }
 
