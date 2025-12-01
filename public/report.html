@@ -87,7 +87,7 @@
                 const chart = document.getElementById('wealth-migration-chart-container');
                 if (!card || !scroll) return;
 
-                if (!chart || window.innerWidth <= 900) {
+                if (!chart || window.innerWidth <= 1200) {
                     card.style.removeProperty('height');
                     scroll.style.removeProperty('max-height');
                     return;
@@ -105,7 +105,15 @@
                 const headerStyles = header ? window.getComputedStyle(header) : null;
                 const headerMargin = headerStyles ? parseFloat(headerStyles.marginBottom || '0') : 0;
                 const available = chartHeight - paddingY - headerHeight - headerMargin;
-                scroll.style.maxHeight = `${Math.max(160, available)}px`;
+                const heightBudget = Math.max(0, chartHeight - paddingY);
+                const safeAvailable = Math.max(0, available);
+                const desired = Math.max(120, safeAvailable);
+                const finalHeight = Math.min(desired, heightBudget);
+                if (finalHeight > 0) {
+                    scroll.style.maxHeight = `${finalHeight}px`;
+                } else {
+                    scroll.style.removeProperty('max-height');
+                }
             } catch {}
         }
 
@@ -545,8 +553,8 @@
                     <div class="section-content">
                         <div id="fredChartsContent" style="display: flex; gap: 20px; flex-wrap: wrap;">
                             <div class="chart-container" style="flex: 1; min-width: 300px; border: 1px solid #ddd; border-radius: 8px; padding: 15px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px;">
-                                    <h3 style="margin: 0; color: #333; font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;" id="leftChartTitle"><span id="leftChartTitleText">Housing Price Index</span><div id="leftChartSubtitle" class="chart-subtitle">Source: Federal Reserve</div></h3>
+                                <div class="chart-headline">
+                                    <h3 id="leftChartTitle"><span id="leftChartTitleText">Housing Price Index</span><div id="leftChartSubtitle" class="chart-subtitle">Source: Federal Reserve</div></h3>
                                     <button id="leftInfoIcon" class="chart-info-button" aria-label="What does this mean?">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <circle cx="12" cy="12" r="10"></circle>
@@ -555,7 +563,7 @@
                                         </svg>
                                     </button>
                                     
-                                    <select id="leftChartSelect" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px;">
+                                    <select id="leftChartSelect" class="chart-headline-select">
                                         <option value="DGS2">2-Year Treasury</option>
                                         <option value="DGS10">10-Year Treasury</option>
                                         <option value="MORTGAGE15US">15-Year Mortgage</option>
@@ -590,8 +598,8 @@
                             </div>
                             
                             <div class="chart-container" style="flex: 1; min-width: 300px; border: 1px solid #ddd; border-radius: 8px; padding: 15px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px;">
-                                    <h3 style="margin: 0; color: #333; font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;" id="rightChartTitle"><span id="rightChartTitleText">Dow Jones Industrial Average</span><div id="rightChartSubtitle" class="chart-subtitle">Source: Federal Reserve</div></h3>
+                                <div class="chart-headline">
+                                    <h3 id="rightChartTitle"><span id="rightChartTitleText">Dow Jones Industrial Average</span><div id="rightChartSubtitle" class="chart-subtitle">Source: Federal Reserve</div></h3>
                                     <button id="rightInfoIcon" class="chart-info-button" aria-label="What does this mean?">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <circle cx="12" cy="12" r="10"></circle>
@@ -599,7 +607,7 @@
                                             <line x1="12" y1="8" x2="12" y2="8"></line>
                                         </svg>
                                     </button>
-                                    <select id="rightChartSelect" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px;">
+                                    <select id="rightChartSelect" class="chart-headline-select">
                                         <option value="DGS2">2-Year Treasury</option>
                                         <option value="DGS10">10-Year Treasury</option>
                                         <option value="MORTGAGE15US">15-Year Mortgage</option>
