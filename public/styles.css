@@ -2612,7 +2612,9 @@ svg .legend text {
     border-radius: 16px;
     border: 1px solid #e2e8f0;
     background: #f8fafc;
-    min-height: 320px;
+    min-height: 260px;
+    height: clamp(260px, 50vw, 520px);
+    max-height: 540px;
 }
 
 .wealth-chart-wrapper canvas {
@@ -2765,6 +2767,10 @@ svg .legend text {
     .wealth-migration-toggle {
         flex-direction: column;
         gap: 8px;
+    }
+
+    .wealth-chart-wrapper {
+        height: clamp(240px, 90vw, 520px);
     }
 }
     font-size: 0.95rem;
