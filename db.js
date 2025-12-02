@@ -690,6 +690,8 @@ const dbQueries = {
         rhi.development,
         rhi.subdivision,
         rhi.county,
+        agent_contact.cell_phone AS agent_cell_phone,
+        agent_contact.direct_phone AS agent_direct_phone,
         -- Aggregate non-FRED charts from new tables
         (
           SELECT (
@@ -750,11 +752,21 @@ const dbQueries = {
       FROM customer.report_basic rb
       LEFT JOIN customer.report_home_info rhi ON rb.report_id = rhi.report_id
       LEFT JOIN customer.report_interest_area ria ON rb.report_id = ria.report_id
+      LEFT JOIN LATERAL (
+        SELECT da.cell_phone, da.direct_phone
+        FROM microservices.directory_agents da
+        WHERE da.full_name IS NOT NULL
+          AND rb.agent_name IS NOT NULL
+          AND LOWER(da.full_name) = LOWER(rb.agent_name)
+        ORDER BY da.id DESC
+        LIMIT 1
+      ) AS agent_contact ON TRUE
       WHERE rb.report_id = $1
       GROUP BY rb.report_id, rb.created_at, rb.last_updated, rb.report_url, 
                rb.agent_name, rb.first_name, rb.last_name, rb.email,
                rhi.address_line_1, rhi.address_line_2, rhi.city, rhi.state, 
-               rhi.zip_code, rhi.development, rhi.subdivision, rhi.county
+               rhi.zip_code, rhi.development, rhi.subdivision, rhi.county,
+               agent_contact.cell_phone, agent_contact.direct_phone
     `;
     
     return await query(queryText, [reportId]);
@@ -783,6 +795,8 @@ const dbQueries = {
         rhi.development,
         rhi.subdivision,
         rhi.county,
+        agent_contact.cell_phone AS agent_cell_phone,
+        agent_contact.direct_phone AS agent_direct_phone,
         (
           SELECT (
             COALESCE(county_data.county_json, '[]'::jsonb) || COALESCE(neigh_data.neigh_json, '[]'::jsonb)
@@ -841,11 +855,21 @@ const dbQueries = {
       FROM customer.report_basic rb
       LEFT JOIN customer.report_home_info rhi ON rb.report_id = rhi.report_id
       LEFT JOIN customer.report_interest_area ria ON rb.report_id = ria.report_id
+      LEFT JOIN LATERAL (
+        SELECT da.cell_phone, da.direct_phone
+        FROM microservices.directory_agents da
+        WHERE da.full_name IS NOT NULL
+          AND rb.agent_name IS NOT NULL
+          AND LOWER(da.full_name) = LOWER(rb.agent_name)
+        ORDER BY da.id DESC
+        LIMIT 1
+      ) AS agent_contact ON TRUE
       WHERE rb.report_url = $1
       GROUP BY rb.report_id, rb.created_at, rb.last_updated, rb.report_url, 
                rb.agent_name, rb.first_name, rb.last_name, rb.email,
                rhi.address_line_1, rhi.address_line_2, rhi.city, rhi.state, 
-               rhi.zip_code, rhi.development, rhi.subdivision, rhi.county
+               rhi.zip_code, rhi.development, rhi.subdivision, rhi.county,
+               agent_contact.cell_phone, agent_contact.direct_phone
     `;
     
     return await query(queryText, [expectedUrl]);
