@@ -496,6 +496,152 @@
         #devLegend .legend-actions a:hover {
             text-decoration: underline;
         }
+
+        .market-trends-chart-btn {
+            margin-left: 6px;
+            background: #ffffff;
+            color: #2c3e50;
+            border: 1px solid rgba(0,0,0,0.15);
+            border-radius: 999px;
+            width: 28px;
+            height: 28px;
+            font-size: 16px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            line-height: 1;
+        }
+
+        .market-trends-chart-btn:hover,
+        .market-trends-chart-btn:focus {
+            border-color: #3498db;
+            color: #3498db;
+            outline: none;
+            transform: translateY(-1px);
+        }
+
+        .market-trends-chart-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.75);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 1200;
+        }
+
+        .market-trends-chart-modal[aria-hidden="false"] {
+            display: flex;
+        }
+
+        .market-trends-chart-modal__dialog {
+            background: #ffffff;
+            width: min(940px, 100%);
+            border-radius: 14px;
+            padding: 24px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 70px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .market-trends-chart-modal__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 1px solid #f0f2f4;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+        }
+
+        .market-trends-chart-modal__title {
+            margin: 0;
+            font-size: 1.25rem;
+            color: #2c3e50;
+        }
+
+        .market-trends-chart-modal__close {
+            border: none;
+            background: none;
+            font-size: 28px;
+            color: #95a5a6;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .market-trends-chart-modal__close:hover {
+            background: #f4f6f8;
+            color: #2c3e50;
+        }
+
+        .market-trends-chart-modal__controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .market-trends-chart-modal__metric {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .market-trends-chart-modal__nav {
+            border: 1px solid #d1d5db;
+            background: #ffffff;
+            color: #2c3e50;
+            padding: 4px 10px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .market-trends-chart-modal__nav:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .market-trends-chart-modal__nav:not(:disabled):hover {
+            border-color: #3498db;
+            color: #3498db;
+        }
+
+        .market-trends-chart-modal__body {
+            flex: 1;
+            min-height: 420px;
+            position: relative;
+        }
+
+        #marketTrendsChartCanvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .market-trends-chart-modal__status {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px;
+            color: #5c6770;
+        }
+
+        .market-trends-chart-modal__status[aria-hidden="false"] {
+            display: flex;
+        }
     </style>
 </head>
 <body>
@@ -944,20 +1090,39 @@
                                     <option value="waterfront">Single Family Homes</option>
                                     <option value="condos">Condos</option>
                                 </select>
-                                <select id="price-range" class="price-range">
-                                    <option value="all">All Prices</option>
-                                    <option value="under_1m">$1M and Under</option>
-                                    <option value="over_3m">$3M+</option>
-                                </select>
                             </h1>
                             <div class="navigation-buttons">
                                 <button id="prev-page" class="nav-button prev-button" aria-label="Previous metric">&lt;</button>
                                 <div class="market-trends-page-label" id="market-trends-page-label">Price Change</div>
                                 <button id="next-page" class="nav-button next-button" aria-label="Next metric">&gt;</button>
                             </div>
-                            <p class="do-not-share">(Do Not Share)</p>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Market Trends Chart Modal -->
+        <div id="marketTrendsChartModal" class="market-trends-chart-modal" aria-hidden="true">
+            <div class="market-trends-chart-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="marketTrendsChartTitle">
+                <div class="market-trends-chart-modal__header">
+                    <h3 class="market-trends-chart-modal__title" id="marketTrendsChartTitle">Market Trends Chart</h3>
+                    <button id="marketTrendsChartClose" class="market-trends-chart-modal__close" aria-label="Close market trends chart overlay">&times;</button>
+                </div>
+                <div class="market-trends-chart-modal__controls">
+                    <button type="button" id="marketTrendsChartPrev" class="market-trends-chart-modal__nav" aria-label="Previous metric">&lt;</button>
+                    <div class="market-trends-chart-modal__metric" id="marketTrendsChartMetricLabel">Median Sale Price</div>
+                    <button type="button" id="marketTrendsChartNext" class="market-trends-chart-modal__nav" aria-label="Next metric">&gt;</button>
+                </div>
+                <div class="market-trends-chart-modal__body">
+                    <div class="market-trends-chart-modal__status" id="marketTrendsChartLoading" aria-hidden="false">
+                        <div>
+                            <div class="loading-spinner-small" style="margin: 0 auto 16px;"></div>
+                            <p style="margin: 0; color: #5c6770;">Loading market history...</p>
+                        </div>
+                    </div>
+                    <div class="market-trends-chart-modal__status" id="marketTrendsChartError" aria-hidden="true"></div>
+                    <canvas id="marketTrendsChartCanvas" aria-label="Historical market trends chart"></canvas>
                 </div>
             </div>
         </div>
@@ -6989,10 +7154,42 @@
                 lastUpdatedEl: null,
                 pageLabelEl: null,
                 propertySelect: null,
-                priceSelect: null,
                 prevButton: null,
                 nextButton: null,
                 isLoading: false
+            };
+
+            const MARKET_TRENDS_CHART_METRICS = [
+                { label: 'Median Sale Price', field: 'Median_Sale_Price_This_Year', axisLabel: 'Median Sale Price', format: formatDollar },
+                { label: 'Active Inventory', field: 'Total_Active_This_Year', axisLabel: 'Active Listings', format: formatNumber },
+                { label: 'New Listings', field: 'New_Listings_This_Year', axisLabel: 'New Listings', format: formatNumber },
+                { label: 'Under Contract', field: 'Number_Under_Contract_This_Year', axisLabel: 'Under Contract', format: formatNumber },
+                { label: 'Closed Listings', field: 'Number_Sold_This_Year', axisLabel: 'Closed Listings', format: formatNumber }
+            ];
+
+            const PRICE_RANGE_CONFIGS = [
+                { key: 'all', param: 'all', label: 'All Prices', color: '#2a74da' },
+                { key: 'under', param: 'under_1m', label: '$1M and Under', color: '#1abc9c' },
+                { key: 'over', param: 'over_3m', label: '$3M+', color: '#e74c3c' }
+            ];
+
+            const marketTrendsChartModal = {
+                overlay: null,
+                closeBtn: null,
+                prevBtn: null,
+                nextBtn: null,
+                titleEl: null,
+                metricLabelEl: null,
+                loadingEl: null,
+                errorEl: null,
+                canvas: null,
+                chartInstance: null,
+                currentCity: '',
+                propertyType: 'waterfront',
+                metricIndex: 0,
+                historyData: null,
+                isOpen: false,
+                lastKeyHandler: null
             };
 
             document.addEventListener('DOMContentLoaded', initializeMarketTrends);
@@ -7010,24 +7207,19 @@
                 state.lastUpdatedEl = document.getElementById('last-modified-date');
                 state.pageLabelEl = document.getElementById('market-trends-page-label');
                 state.propertySelect = document.getElementById('property-type');
-                state.priceSelect = document.getElementById('price-range');
                 state.prevButton = document.getElementById('prev-page');
                 state.nextButton = document.getElementById('next-page');
                 state.reportSlug = getReportSlug();
                 state.selectedCities = loadSelectedCities();
+                initializeMarketTrendsChartModal();
 
-                if (!state.container || !state.propertySelect || !state.priceSelect) return;
+                if (!state.container || !state.propertySelect) return;
 
                 state.propertyType = state.propertySelect.value;
-                state.priceRange = state.priceSelect.value;
+                state.priceRange = 'all';
 
                 state.propertySelect.addEventListener('change', () => {
                     state.propertyType = state.propertySelect.value;
-                    fetchMarketTrends();
-                });
-
-                state.priceSelect.addEventListener('change', () => {
-                    state.priceRange = state.priceSelect.value;
                     fetchMarketTrends();
                 });
 
@@ -7036,7 +7228,6 @@
 
                 updatePageLabel();
                 updateNavButtons();
-                enforcePriceRangeRules();
                 renderMarketTrends();
                 fetchMarketTrends();
             }
@@ -7046,7 +7237,6 @@
                 state.pageIndex = nextIndex;
                 updatePageLabel();
                 updateNavButtons();
-                enforcePriceRangeRules();
                 renderMarketTrends();
             }
 
@@ -7059,21 +7249,6 @@
             function updateNavButtons() {
                 if (state.prevButton) state.prevButton.disabled = state.pageIndex === 0;
                 if (state.nextButton) state.nextButton.disabled = state.pageIndex === METRIC_PAGES.length - 1;
-            }
-
-            function enforcePriceRangeRules() {
-                if (!state.priceSelect) return;
-                const hideOptions = state.pageIndex === 1;
-                const underOption = state.priceSelect.querySelector('option[value="under_1m"]');
-                const overOption = state.priceSelect.querySelector('option[value="over_3m"]');
-                [underOption, overOption].forEach(option => {
-                    if (option) option.style.display = hideOptions ? 'none' : '';
-                });
-                if (hideOptions && state.priceRange !== 'all') {
-                    state.priceRange = 'all';
-                    state.priceSelect.value = 'all';
-                    fetchMarketTrends();
-                }
             }
 
             async function fetchMarketTrends() {
@@ -7126,7 +7301,14 @@
 
                 const bodyHtml = state.selectedCities.map((cityName, slotIndex) => {
                     const row = findRowByCity(cityName);
-                    const cityLabel = row?.City ? escapeHtml(row.City) : '<div class="add-city">+</div>';
+                    const cityLabel = row?.City
+                        ? `
+                            <span class="market-trends-city-name">${escapeHtml(row.City)}</span>
+                            <button type="button" class="market-trends-chart-btn" data-city="${escapeHtml(row.City)}" aria-label="View historical market trends for ${escapeHtml(row.City)}">
+                                <span aria-hidden="true">📈</span>
+                            </button>
+                        `
+                        : '<div class="add-city">+</div>';
                     const cells = config.cells(row).map(value => `<div class="market-trends-cell">${value}</div>`).join('');
                     return `
                         <div class="market-trends-city" data-slot="${slotIndex}">${cityLabel}</div>
@@ -7138,6 +7320,13 @@
                 state.container.querySelectorAll('.market-trends-city').forEach(el => {
                     const slot = Number(el.getAttribute('data-slot'));
                     el.addEventListener('click', () => openCitySelectionPopup(slot));
+                });
+                state.container.querySelectorAll('.market-trends-chart-btn').forEach(btn => {
+                    btn.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        const targetCity = btn.getAttribute('data-city');
+                        openMarketTrendsChartModal(targetCity);
+                    });
                 });
             }
 
@@ -7352,6 +7541,273 @@
             function normalizeCity(name) {
                 if (!name) return '';
                 return String(name).trim().toLowerCase();
+            }
+
+            function initializeMarketTrendsChartModal() {
+                if (marketTrendsChartModal.overlay) return;
+                const overlay = document.getElementById('marketTrendsChartModal');
+                if (!overlay) return;
+                marketTrendsChartModal.overlay = overlay;
+                marketTrendsChartModal.closeBtn = document.getElementById('marketTrendsChartClose');
+                marketTrendsChartModal.prevBtn = document.getElementById('marketTrendsChartPrev');
+                marketTrendsChartModal.nextBtn = document.getElementById('marketTrendsChartNext');
+                marketTrendsChartModal.titleEl = document.getElementById('marketTrendsChartTitle');
+                marketTrendsChartModal.metricLabelEl = document.getElementById('marketTrendsChartMetricLabel');
+                marketTrendsChartModal.loadingEl = document.getElementById('marketTrendsChartLoading');
+                marketTrendsChartModal.errorEl = document.getElementById('marketTrendsChartError');
+                marketTrendsChartModal.canvas = document.getElementById('marketTrendsChartCanvas');
+
+                overlay.setAttribute('aria-hidden', 'true');
+                toggleChartModalLoading(false);
+                showChartModalError('');
+
+                marketTrendsChartModal.closeBtn?.addEventListener('click', () => closeMarketTrendsChartModal());
+                marketTrendsChartModal.prevBtn?.addEventListener('click', () => changeMarketTrendsChartMetric(marketTrendsChartModal.metricIndex - 1));
+                marketTrendsChartModal.nextBtn?.addEventListener('click', () => changeMarketTrendsChartMetric(marketTrendsChartModal.metricIndex + 1));
+                overlay.addEventListener('click', (event) => {
+                    if (event.target === overlay) {
+                        closeMarketTrendsChartModal();
+                    }
+                });
+
+                if (!marketTrendsChartModal.lastKeyHandler) {
+                    marketTrendsChartModal.lastKeyHandler = (event) => {
+                        if (event.key === 'Escape' && marketTrendsChartModal.isOpen) {
+                            closeMarketTrendsChartModal();
+                        }
+                    };
+                    document.addEventListener('keydown', marketTrendsChartModal.lastKeyHandler);
+                }
+            }
+
+            function openMarketTrendsChartModal(cityName) {
+                if (!cityName || !marketTrendsChartModal.overlay) return;
+                marketTrendsChartModal.currentCity = cityName;
+                marketTrendsChartModal.propertyType = state.propertyType;
+                marketTrendsChartModal.metricIndex = state.pageIndex;
+                marketTrendsChartModal.historyData = null;
+                marketTrendsChartModal.isOpen = true;
+                marketTrendsChartModal.overlay.setAttribute('aria-hidden', 'false');
+                if (marketTrendsChartModal.titleEl) {
+                    const typeLabel = state.propertyType === 'condos' ? 'Condos' : 'Single Family Homes';
+                    marketTrendsChartModal.titleEl.textContent = `${cityName} • ${typeLabel}`;
+                }
+                updateChartModalControls();
+                toggleChartModalLoading(true);
+                showChartModalError('');
+                const targetCity = cityName;
+                const targetType = marketTrendsChartModal.propertyType;
+                fetchMarketTrendsHistoryBundle(cityName, marketTrendsChartModal.propertyType)
+                    .then((history) => {
+                        if (!marketTrendsChartModal.isOpen || marketTrendsChartModal.currentCity !== targetCity || marketTrendsChartModal.propertyType !== targetType) {
+                            return;
+                        }
+                        marketTrendsChartModal.historyData = history;
+                        renderMarketTrendsHistoryChart(marketTrendsChartModal.metricIndex);
+                    })
+                    .catch((error) => {
+                        console.error('Market trends chart fetch failed:', error);
+                        if (!marketTrendsChartModal.isOpen || marketTrendsChartModal.currentCity !== targetCity || marketTrendsChartModal.propertyType !== targetType) {
+                            return;
+                        }
+                        showChartModalError('Unable to load market history for this city.');
+                        toggleChartModalLoading(false);
+                    });
+            }
+
+            function closeMarketTrendsChartModal() {
+                if (!marketTrendsChartModal.overlay) return;
+                marketTrendsChartModal.overlay.setAttribute('aria-hidden', 'true');
+                marketTrendsChartModal.isOpen = false;
+                toggleChartModalLoading(false);
+                showChartModalError('');
+                if (marketTrendsChartModal.chartInstance) {
+                    try {
+                        marketTrendsChartModal.chartInstance.destroy();
+                    } catch (_) {}
+                    marketTrendsChartModal.chartInstance = null;
+                }
+            }
+
+            function toggleChartModalLoading(isLoading) {
+                if (marketTrendsChartModal.loadingEl) {
+                    marketTrendsChartModal.loadingEl.setAttribute('aria-hidden', isLoading ? 'false' : 'true');
+                }
+                if (marketTrendsChartModal.canvas) {
+                    marketTrendsChartModal.canvas.style.visibility = isLoading ? 'hidden' : 'visible';
+                }
+            }
+
+            function showChartModalError(message) {
+                if (!marketTrendsChartModal.errorEl) return;
+                if (message) {
+                    marketTrendsChartModal.errorEl.textContent = message;
+                    marketTrendsChartModal.errorEl.setAttribute('aria-hidden', 'false');
+                    if (marketTrendsChartModal.canvas) {
+                        marketTrendsChartModal.canvas.style.visibility = 'hidden';
+                    }
+                } else {
+                    marketTrendsChartModal.errorEl.textContent = '';
+                    marketTrendsChartModal.errorEl.setAttribute('aria-hidden', 'true');
+                    if (marketTrendsChartModal.canvas) {
+                        marketTrendsChartModal.canvas.style.visibility = 'visible';
+                    }
+                }
+            }
+
+            function updateChartModalControls() {
+                const metric = MARKET_TRENDS_CHART_METRICS[marketTrendsChartModal.metricIndex] || MARKET_TRENDS_CHART_METRICS[0];
+                if (marketTrendsChartModal.metricLabelEl) {
+                    marketTrendsChartModal.metricLabelEl.textContent = metric.label;
+                }
+                if (marketTrendsChartModal.prevBtn) {
+                    marketTrendsChartModal.prevBtn.disabled = marketTrendsChartModal.metricIndex <= 0;
+                }
+                if (marketTrendsChartModal.nextBtn) {
+                    marketTrendsChartModal.nextBtn.disabled = marketTrendsChartModal.metricIndex >= MARKET_TRENDS_CHART_METRICS.length - 1;
+                }
+            }
+
+            function changeMarketTrendsChartMetric(nextIndex) {
+                if (nextIndex < 0 || nextIndex >= MARKET_TRENDS_CHART_METRICS.length) return;
+                marketTrendsChartModal.metricIndex = nextIndex;
+                updateChartModalControls();
+                if (marketTrendsChartModal.historyData) {
+                    renderMarketTrendsHistoryChart(marketTrendsChartModal.metricIndex);
+                }
+            }
+
+            async function fetchMarketTrendsHistoryBundle(city, propertyType) {
+                const bundle = {};
+                await Promise.all(PRICE_RANGE_CONFIGS.map(async (config) => {
+                    bundle[config.key] = await fetchMarketTrendsHistory(city, propertyType, config.param);
+                }));
+                return bundle;
+            }
+
+            async function fetchMarketTrendsHistory(city, propertyType, priceRangeParam) {
+                try {
+                    const query = new URLSearchParams({
+                        propertyType: propertyType || 'waterfront',
+                        priceRange: priceRangeParam
+                    });
+                    const response = await fetch(`${API_BASE}/market-trends/history/${encodeURIComponent(city)}?${query.toString()}`, {
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    if (!response.ok) {
+                        console.warn('Market trends history request failed', { city, propertyType, priceRange: priceRangeParam, status: response.status });
+                        return [];
+                    }
+                    const payload = await response.json();
+                    if (payload && Array.isArray(payload.data)) {
+                        return payload.data;
+                    }
+                    if (payload && Array.isArray(payload.rows)) {
+                        return payload.rows;
+                    }
+                    return [];
+                } catch (error) {
+                    console.warn('Market trends history fetch error', { city, priceRange: priceRangeParam, error });
+                    return [];
+                }
+            }
+
+            function renderMarketTrendsHistoryChart(metricIndex) {
+                if (!marketTrendsChartModal.canvas) return;
+                const metric = MARKET_TRENDS_CHART_METRICS[metricIndex] || MARKET_TRENDS_CHART_METRICS[0];
+                const includeRanges = metricIndex === 1 ? PRICE_RANGE_CONFIGS.slice(0, 1) : PRICE_RANGE_CONFIGS;
+                const datasets = includeRanges.map((config, idx) => {
+                    const rows = marketTrendsChartModal.historyData?.[config.key] || [];
+                    const points = convertHistoryRowsToPoints(rows, metric.field);
+                    if (!points.length) return null;
+                    return {
+                        label: config.label,
+                        data: points,
+                        borderColor: config.color,
+                        backgroundColor: 'transparent',
+                        pointRadius: window.innerWidth <= 768 ? 0 : 3,
+                        pointHoverRadius: window.innerWidth <= 768 ? 3 : 5,
+                        borderWidth: idx === 0 ? 3 : 2,
+                        tension: 0.15,
+                        hidden: config.key !== 'all'
+                    };
+                }).filter(Boolean);
+
+                if (!datasets.length) {
+                    showChartModalError('No historical data available for this metric.');
+                    if (marketTrendsChartModal.chartInstance) {
+                        try { marketTrendsChartModal.chartInstance.destroy(); } catch (_) {}
+                        marketTrendsChartModal.chartInstance = null;
+                    }
+                    toggleChartModalLoading(false);
+                    return;
+                }
+
+                toggleChartModalLoading(false);
+                showChartModalError('');
+
+                if (marketTrendsChartModal.chartInstance) {
+                    try { marketTrendsChartModal.chartInstance.destroy(); } catch (_) {}
+                }
+
+                const ctx = marketTrendsChartModal.canvas.getContext('2d');
+                marketTrendsChartModal.chartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: { datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => {
+                                        const value = context.parsed?.y;
+                                        if (value == null) return `${context.dataset.label}: No data`;
+                                        return `${context.dataset.label}: ${metric.format(value)}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: { unit: 'month', tooltipFormat: 'MMM yyyy' },
+                                ticks: { maxTicksLimit: 10 }
+                            },
+                            y: {
+                                beginAtZero: metricIndex !== 0,
+                                title: { display: true, text: metric.axisLabel },
+                                ticks: {
+                                    callback: (value) => metric.format(value)
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function convertHistoryRowsToPoints(rows, field) {
+                if (!Array.isArray(rows)) return [];
+                return rows.map(entry => {
+                    const rawDate = entry?.Date || entry?.date;
+                    if (!rawDate) return null;
+                    const parsedDate = new Date(rawDate);
+                    if (Number.isNaN(parsedDate.getTime())) return null;
+                    const numericValue = normalizeNumericValue(entry?.[field]);
+                    if (numericValue === null) return null;
+                    return { x: parsedDate, y: numericValue };
+                }).filter(Boolean).sort((a, b) => (a.x?.getTime?.() || 0) - (b.x?.getTime?.() || 0));
+            }
+
+            function normalizeNumericValue(value) {
+                if (value === null || value === undefined) return null;
+                if (typeof value === 'number' && Number.isFinite(value)) return value;
+                const cleaned = String(value).replace(/[^0-9.+-]/g, '');
+                if (!cleaned || cleaned === '-' || cleaned === '.' || cleaned === '-.') return null;
+                const parsed = Number(cleaned);
+                return Number.isFinite(parsed) ? parsed : null;
             }
         })();
     </script>
