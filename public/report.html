@@ -500,8 +500,8 @@
         .market-trends-chart-btn {
             margin-left: 6px;
             background: #ffffff;
-            color: #2c3e50;
-            border: 1px solid rgba(0,0,0,0.15);
+            color: var(--accent-color, #1f4f9a);
+            border: 1px solid rgba(var(--accent-color-rgb, 31, 79, 154), 0.3);
             border-radius: 999px;
             width: 28px;
             height: 28px;
@@ -512,12 +512,14 @@
             justify-content: center;
             transition: all 0.2s ease;
             line-height: 1;
+            box-shadow: 0 4px 12px rgba(var(--primary-color-rgb, 15, 31, 61), 0.12);
         }
 
         .market-trends-chart-btn:hover,
         .market-trends-chart-btn:focus {
-            border-color: #3498db;
-            color: #3498db;
+            border-color: var(--accent-color, #1f4f9a);
+            color: white;
+            background: var(--accent-color, #1f4f9a);
             outline: none;
             transform: translateY(-1px);
         }
@@ -557,7 +559,7 @@
             justify-content: space-between;
             align-items: center;
             gap: 16px;
-            border-bottom: 1px solid #f0f2f4;
+            border-bottom: 1px solid var(--border-color, #dfe4ef);
             padding-bottom: 12px;
             margin-bottom: 16px;
         }
@@ -565,14 +567,14 @@
         .market-trends-chart-modal__title {
             margin: 0;
             font-size: 1.25rem;
-            color: #2c3e50;
+            color: var(--primary-color, #0f1f3d);
         }
 
         .market-trends-chart-modal__close {
             border: none;
             background: none;
             font-size: 28px;
-            color: #95a5a6;
+            color: var(--muted-color, #5c6770);
             cursor: pointer;
             padding: 4px 8px;
             border-radius: 6px;
@@ -580,8 +582,8 @@
         }
 
         .market-trends-chart-modal__close:hover {
-            background: #f4f6f8;
-            color: #2c3e50;
+            background: rgba(var(--accent-color-rgb, 31, 79, 154), 0.08);
+            color: var(--accent-color, #1f4f9a);
         }
 
         .market-trends-chart-modal__controls {
@@ -594,14 +596,14 @@
 
         .market-trends-chart-modal__metric {
             font-weight: 600;
-            color: #2c3e50;
+            color: var(--primary-color, #0f1f3d);
         }
 
         .market-trends-chart-modal__nav {
-            border: 1px solid #d1d5db;
+            border: 1px solid rgba(var(--accent-color-rgb, 31, 79, 154), 0.3);
             background: #ffffff;
-            color: #2c3e50;
-            padding: 4px 10px;
+            color: var(--accent-color, #1f4f9a);
+            padding: 4px 12px;
             border-radius: 999px;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -613,8 +615,9 @@
         }
 
         .market-trends-chart-modal__nav:not(:disabled):hover {
-            border-color: #3498db;
-            color: #3498db;
+            border-color: var(--accent-color, #1f4f9a);
+            color: white;
+            background: var(--accent-color, #1f4f9a);
         }
 
         .market-trends-chart-modal__body {
@@ -636,7 +639,7 @@
             justify-content: center;
             text-align: center;
             padding: 40px;
-            color: #5c6770;
+            color: var(--muted-color, #5c6770);
         }
 
         .market-trends-chart-modal__status[aria-hidden="false"] {
@@ -7168,9 +7171,9 @@
             ];
 
             const PRICE_RANGE_CONFIGS = [
-                { key: 'all', param: 'all', label: 'All Prices', color: '#2a74da' },
-                { key: 'under', param: 'under_1m', label: '$1M and Under', color: '#1abc9c' },
-                { key: 'over', param: 'over_3m', label: '$3M+', color: '#e74c3c' }
+                { key: 'all', param: 'all', label: 'All Prices', color: '#1f4f9a' },
+                { key: 'under', param: 'under_1m', label: '$1M and Under', color: '#2e9d90' },
+                { key: 'over', param: 'over_3m', label: '$3M+', color: '#f4b63f' }
             ];
 
             const marketTrendsChartModal = {
